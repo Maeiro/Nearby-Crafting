@@ -51,7 +51,7 @@ public class ItemSourceRef {
 
 	public enum SourceType {
 		CONTAINER,
-		PLAYER
+		PLAYER,
+		PLAYER_BACKPACK
 	}
 }
-

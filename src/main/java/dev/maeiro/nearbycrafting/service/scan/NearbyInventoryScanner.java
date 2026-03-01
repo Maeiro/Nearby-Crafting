@@ -1,6 +1,7 @@
 package dev.maeiro.nearbycrafting.service.scan;
 
 import dev.maeiro.nearbycrafting.NearbyCrafting;
+import dev.maeiro.nearbycrafting.compat.sophisticatedbackpacks.SophisticatedBackpacksSourceCollector;
 import dev.maeiro.nearbycrafting.config.NearbyCraftingConfig;
 import dev.maeiro.nearbycrafting.service.source.ItemSourceRef;
 import net.minecraft.core.BlockPos;
@@ -9,6 +10,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.wrapper.InvWrapper;
 
@@ -21,6 +23,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class NearbyInventoryScanner {
+	private static final String SOPHISTICATED_BACKPACKS_MOD_ID = "sophisticatedbackpacks";
+
 	private NearbyInventoryScanner() {
 	}
 
@@ -42,7 +46,11 @@ public class NearbyInventoryScanner {
 			NearbyCraftingConfig.SourcePriority priority
 	) {
 		List<ItemSourceRef> containerSources = collectContainerSources(level, centerPos);
-		List<ItemSourceRef> playerSources = collectPlayerSources(player, includePlayerInventory);
+		List<ItemSourceRef> playerInventorySources = collectPlayerInventorySources(player, includePlayerInventory);
+		List<ItemSourceRef> backpackSources = collectBackpackSources(player, includePlayerInventory);
+		List<ItemSourceRef> playerSources = new ArrayList<>(playerInventorySources.size() + backpackSources.size());
+		playerSources.addAll(playerInventorySources);
+		playerSources.addAll(backpackSources);
 
 		List<ItemSourceRef> result = new ArrayList<>(containerSources.size() + playerSources.size());
 		if (priority == NearbyCraftingConfig.SourcePriority.PLAYER_FIRST) {
@@ -54,7 +62,14 @@ public class NearbyInventoryScanner {
 		}
 
 		if (NearbyCraftingConfig.SERVER.debugLogging.get()) {
-			NearbyCrafting.LOGGER.info("Collected {} nearby crafting sources around {}", result.size(), centerPos);
+			NearbyCrafting.LOGGER.info(
+					"Collected nearby crafting sources around {} -> containers: {}, player inventory: {}, player backpacks: {}, total: {}",
+					centerPos,
+					containerSources.size(),
+					playerInventorySources.size(),
+					backpackSources.size(),
+					result.size()
+			);
 		}
 
 		return result;
@@ -94,6 +109,13 @@ public class NearbyInventoryScanner {
 	}
 
 	public static List<ItemSourceRef> collectPlayerSources(Player player, boolean includePlayerInventory) {
+		List<ItemSourceRef> sources = new ArrayList<>();
+		sources.addAll(collectPlayerInventorySources(player, includePlayerInventory));
+		sources.addAll(collectBackpackSources(player, includePlayerInventory));
+		return sources;
+	}
+
+	private static List<ItemSourceRef> collectPlayerInventorySources(Player player, boolean includePlayerInventory) {
 		if (!includePlayerInventory) {
 			return List.of();
 		}
@@ -105,6 +127,18 @@ public class NearbyInventoryScanner {
 			sources.add(new ItemSourceRef(playerInventory, slot, ItemSourceRef.SourceType.PLAYER, null));
 		}
 		return sources;
+	}
+
+	private static List<ItemSourceRef> collectBackpackSources(Player player, boolean includePlayerInventory) {
+		if (!includePlayerInventory || !ModList.get().isLoaded(SOPHISTICATED_BACKPACKS_MOD_ID)) {
+			return List.of();
+		}
+		try {
+			return SophisticatedBackpacksSourceCollector.collect(player);
+		} catch (LinkageError | RuntimeException exception) {
+			NearbyCrafting.LOGGER.warn("Failed to collect Sophisticated Backpacks sources; skipping backpack sources", exception);
+			return List.of();
+		}
 	}
 
 	private static void addHandlerSlots(List<ItemSourceRef> sink, IItemHandler handler, ItemSourceRef.SourceType sourceType, BlockPos blockPos) {
