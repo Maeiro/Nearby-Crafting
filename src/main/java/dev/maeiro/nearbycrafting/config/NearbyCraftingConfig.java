@@ -96,7 +96,7 @@ public class NearbyCraftingConfig {
 					));
 
 			maxShiftCraftIterations = builder
-					.comment("Maximum number of repeated crafts for craft-all operations.")
+					.comment("Maximum number of recipe units to place in the grid during max-transfer operations.")
 					.defineInRange("maxShiftCraftIterations", 64, 1, 4096);
 
 			debugLogging = builder
@@ -117,7 +117,7 @@ public class NearbyCraftingConfig {
 
 			autoRefillAfterCraft = builder
 					.comment("When true, automatically refills the crafting grid after taking a crafted item.")
-					.define("autoRefillAfterCraft", false);
+					.define("autoRefillAfterCraft", true);
 
 			includePlayerInventory = builder
 					.comment("When true, player inventory slots are included as ingredient sources.")

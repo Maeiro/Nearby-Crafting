@@ -34,7 +34,9 @@ public class ExtractionPlan {
 			}
 
 			ItemStack extracted = step.sourceRef().handler().extractItem(step.sourceRef().slot(), step.count(), false);
-			if (extracted.isEmpty() || extracted.getCount() < step.count() || !step.requiredIngredient().test(extracted)) {
+			boolean ingredientMatch = step.requiredIngredient().test(extracted);
+			boolean exactStackMatch = step.displayStack().isEmpty() || ItemStack.isSameItemSameTags(step.displayStack(), extracted);
+			if (extracted.isEmpty() || extracted.getCount() < step.count() || !ingredientMatch || !exactStackMatch) {
 				rollback(committed);
 				return null;
 			}

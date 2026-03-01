@@ -32,6 +32,8 @@ import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
 
 import javax.annotation.Nullable;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 
 public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
@@ -48,7 +50,7 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	private final ContainerLevelAccess access;
 	private final Player player;
 	private final BlockPos tablePos;
-	private final ItemSourceRef[] craftSlotSources = new ItemSourceRef[9];
+	private final Map<ItemSourceRef, Integer>[] craftSlotSourceLedger = createSourceLedger();
 	private boolean sourceTrackingMutationActive;
 	private boolean autoRefillAfterCraft;
 	private boolean includePlayerInventory = true;
@@ -267,10 +269,26 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 			}
 
 			ItemStack remaining = stack.copy();
-			ItemSourceRef sourceRef = getCraftSlotSource(slot);
-			if (sourceRef != null) {
+			Map<ItemSourceRef, Integer> sourceAllocations = craftSlotSourceLedger[slot];
+			for (Map.Entry<ItemSourceRef, Integer> allocation : sourceAllocations.entrySet()) {
+				if (remaining.isEmpty()) {
+					break;
+				}
+
+				ItemSourceRef sourceRef = allocation.getKey();
+				int targetAmount = Math.min(allocation.getValue(), remaining.getCount());
+				if (targetAmount <= 0) {
+					continue;
+				}
+
 				try {
-					remaining = sourceRef.handler().insertItem(sourceRef.slot(), remaining, false);
+					ItemStack toReturn = remaining.copy();
+					toReturn.setCount(targetAmount);
+					ItemStack notInserted = sourceRef.handler().insertItem(sourceRef.slot(), toReturn, false);
+					int inserted = targetAmount - notInserted.getCount();
+					if (inserted > 0) {
+						remaining.shrink(inserted);
+					}
 				} catch (RuntimeException exception) {
 					NearbyCrafting.LOGGER.warn(
 							"Failed to return crafting item to source {}:{}; fallback to player inventory",
@@ -297,7 +315,81 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		int slotIndex = slot;
 		ItemStack storedStack = stack.copy();
 		runWithSourceTrackingMutation(() -> this.craftSlots.setItem(slotIndex, storedStack));
-		craftSlotSources[slotIndex] = storedStack.isEmpty() ? null : sourceRef;
+		clearCraftSlotSource(slotIndex);
+		if (!storedStack.isEmpty() && sourceRef != null) {
+			addCraftSlotSource(slotIndex, sourceRef, storedStack.getCount());
+		}
+	}
+
+	public boolean canAcceptCraftSlotStack(int slot, ItemStack stack) {
+		if (stack.isEmpty()) {
+			return true;
+		}
+		ItemStack current = this.craftSlots.getItem(slot);
+		if (current.isEmpty()) {
+			return stack.getCount() <= getSlotStackLimit(stack);
+		}
+		if (!ItemStack.isSameItemSameTags(current, stack)) {
+			return false;
+		}
+		return current.getCount() + stack.getCount() <= getSlotStackLimit(current);
+	}
+
+	public boolean addCraftSlotFromSource(int slot, ItemStack stack, @Nullable ItemSourceRef sourceRef) {
+		if (stack.isEmpty()) {
+			return true;
+		}
+		if (!canAcceptCraftSlotStack(slot, stack)) {
+			return false;
+		}
+
+		int slotIndex = slot;
+		ItemStack current = this.craftSlots.getItem(slotIndex);
+		ItemStack updated = current.isEmpty() ? stack.copy() : current.copy();
+		if (!current.isEmpty()) {
+			updated.grow(stack.getCount());
+		}
+
+		runWithSourceTrackingMutation(() -> this.craftSlots.setItem(slotIndex, updated));
+		if (sourceRef != null) {
+			addCraftSlotSource(slotIndex, sourceRef, stack.getCount());
+		}
+		return true;
+	}
+
+	private int getSlotStackLimit(ItemStack stack) {
+		return Math.min(this.craftSlots.getMaxStackSize(), stack.getMaxStackSize());
+	}
+
+	private void addCraftSlotSource(int slot, ItemSourceRef sourceRef, int count) {
+		if (slot < 0 || slot >= craftSlotSourceLedger.length || sourceRef == null || count <= 0) {
+			return;
+		}
+		craftSlotSourceLedger[slot].merge(sourceRef, count, Integer::sum);
+	}
+
+	private void consumeCraftSlotSource(int slot, int count) {
+		if (slot < 0 || slot >= craftSlotSourceLedger.length || count <= 0) {
+			return;
+		}
+		Map<ItemSourceRef, Integer> slotLedger = craftSlotSourceLedger[slot];
+		if (slotLedger.isEmpty()) {
+			return;
+		}
+
+		int remaining = count;
+		var iterator = slotLedger.entrySet().iterator();
+		while (iterator.hasNext() && remaining > 0) {
+			Map.Entry<ItemSourceRef, Integer> entry = iterator.next();
+			int tracked = entry.getValue();
+			if (tracked <= remaining) {
+				remaining -= tracked;
+				iterator.remove();
+			} else {
+				entry.setValue(tracked - remaining);
+				remaining = 0;
+			}
+		}
 	}
 
 	public boolean isSourceTrackingMutationActive() {
@@ -305,23 +397,24 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	}
 
 	public void clearCraftSlotSource(int slot) {
-		if (slot >= 0 && slot < craftSlotSources.length) {
-			craftSlotSources[slot] = null;
+		if (slot >= 0 && slot < craftSlotSourceLedger.length) {
+			craftSlotSourceLedger[slot].clear();
 		}
-	}
-
-	@Nullable
-	public ItemSourceRef getCraftSlotSource(int slot) {
-		if (slot < 0 || slot >= craftSlotSources.length) {
-			return null;
-		}
-		return craftSlotSources[slot];
 	}
 
 	private void clearAllCraftSlotSources() {
-		for (int i = 0; i < craftSlotSources.length; i++) {
-			craftSlotSources[i] = null;
+		for (Map<ItemSourceRef, Integer> slotLedger : craftSlotSourceLedger) {
+			slotLedger.clear();
 		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private static Map<ItemSourceRef, Integer>[] createSourceLedger() {
+		Map<ItemSourceRef, Integer>[] ledger = (Map<ItemSourceRef, Integer>[]) new Map[9];
+		for (int i = 0; i < ledger.length; i++) {
+			ledger[i] = new LinkedHashMap<>();
+		}
+		return ledger;
 	}
 
 	private void runWithSourceTrackingMutation(Runnable runnable) {
@@ -389,7 +482,7 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		public ItemStack removeItem(int slot, int amount) {
 			ItemStack removed = super.removeItem(slot, amount);
 			if (!removed.isEmpty() && !menu.isSourceTrackingMutationActive()) {
-				menu.clearCraftSlotSource(slot);
+				menu.consumeCraftSlotSource(slot, removed.getCount());
 			}
 			return removed;
 		}
@@ -398,7 +491,7 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		public ItemStack removeItemNoUpdate(int slot) {
 			ItemStack removed = super.removeItemNoUpdate(slot);
 			if (!removed.isEmpty() && !menu.isSourceTrackingMutationActive()) {
-				menu.clearCraftSlotSource(slot);
+				menu.consumeCraftSlotSource(slot, removed.getCount());
 			}
 			return removed;
 		}

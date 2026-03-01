@@ -1,6 +1,7 @@
 package dev.maeiro.nearbycrafting.service.crafting;
 
 import dev.maeiro.nearbycrafting.NearbyCrafting;
+import dev.maeiro.nearbycrafting.config.NearbyCraftingConfig;
 import dev.maeiro.nearbycrafting.menu.NearbyCraftingMenu;
 import dev.maeiro.nearbycrafting.service.scan.NearbyInventoryScanner;
 import dev.maeiro.nearbycrafting.service.source.IngredientSourcePool;
@@ -29,23 +30,26 @@ public class RecipeFillService {
 				menu.getSourcePriority()
 		);
 		IngredientSourcePool pool = new IngredientSourcePool(sources);
-		Optional<ExtractionPlan> planOptional = pool.plan(targetGrid);
+		Optional<ExtractionPlan> firstPlanOptional = pool.plan(targetGrid);
 
-		if (planOptional.isEmpty()) {
+		if (firstPlanOptional.isEmpty()) {
 			return FillResult.failure("nearbycrafting.feedback.not_enough_ingredients");
 		}
 
-		ExtractionPlan plan = planOptional.get();
-		ExtractionCommitResult commitResult = plan.commit();
-		if (commitResult == null) {
+		ExtractionCommitResult firstCommit = firstPlanOptional.get().commit();
+		if (firstCommit == null) {
 			return FillResult.failure("nearbycrafting.feedback.fill_failed");
 		}
-		ItemStack[] extractedStacks = commitResult.extractedStacks();
-		ItemSourceRef[] sourceRefs = commitResult.sourceRefs();
 
 		menu.clearCraftGridToPlayerOrDrop();
-		for (int slot = 0; slot < 9; slot++) {
-			menu.setCraftSlotFromSource(slot, extractedStacks[slot], sourceRefs[slot]);
+		if (!applyCommitAsSet(menu, firstCommit)) {
+			rollbackCommit(firstCommit);
+			return FillResult.failure("nearbycrafting.feedback.fill_failed");
+		}
+
+		int loadedCrafts = 1;
+		if (craftAll) {
+			loadedCrafts += fillAdditionalCrafts(menu, pool, targetGrid);
 		}
 
 		menu.setLastPlacedRecipe(recipe);
@@ -57,11 +61,132 @@ public class RecipeFillService {
 		}
 
 		if (craftAll) {
-			int crafted = CraftConsumeService.craftAll(menu, menu.getPlayer());
-			return FillResult.success("nearbycrafting.feedback.crafted_all", crafted);
+			return FillResult.success("nearbycrafting.feedback.filled_max", loadedCrafts);
 		}
 
 		return FillResult.success("nearbycrafting.feedback.filled", 0);
+	}
+
+	private static int fillAdditionalCrafts(NearbyCraftingMenu menu, IngredientSourcePool pool, List<Ingredient> targetGrid) {
+		int additionalCrafts = 0;
+		int maxIterations = NearbyCraftingConfig.SERVER.maxShiftCraftIterations.get();
+		for (int iteration = 1; iteration < maxIterations; iteration++) {
+			if (!hasRoomForAnotherCraft(menu, targetGrid)) {
+				break;
+			}
+
+			List<ItemStack> exactTemplate = buildExactTemplate(menu, targetGrid);
+			Optional<ExtractionPlan> planOptional = pool.planExactStacks(exactTemplate);
+			if (planOptional.isEmpty()) {
+				break;
+			}
+
+			ExtractionCommitResult commitResult = planOptional.get().commit();
+			if (commitResult == null) {
+				break;
+			}
+			if (!applyCommitAsAdd(menu, commitResult)) {
+				rollbackCommit(commitResult);
+				break;
+			}
+			additionalCrafts++;
+		}
+		return additionalCrafts;
+	}
+
+	private static boolean applyCommitAsSet(NearbyCraftingMenu menu, ExtractionCommitResult commitResult) {
+		ItemStack[] extractedStacks = commitResult.extractedStacks();
+		ItemSourceRef[] sourceRefs = commitResult.sourceRefs();
+		for (int slot = 0; slot < 9; slot++) {
+			menu.setCraftSlotFromSource(slot, extractedStacks[slot], sourceRefs[slot]);
+		}
+		return true;
+	}
+
+	private static boolean applyCommitAsAdd(NearbyCraftingMenu menu, ExtractionCommitResult commitResult) {
+		ItemStack[] extractedStacks = commitResult.extractedStacks();
+		ItemSourceRef[] sourceRefs = commitResult.sourceRefs();
+
+		for (int slot = 0; slot < 9; slot++) {
+			ItemStack extracted = extractedStacks[slot];
+			if (!menu.canAcceptCraftSlotStack(slot, extracted)) {
+				return false;
+			}
+		}
+
+		for (int slot = 0; slot < 9; slot++) {
+			ItemStack extracted = extractedStacks[slot];
+			if (extracted.isEmpty()) {
+				continue;
+			}
+			if (!menu.addCraftSlotFromSource(slot, extracted, sourceRefs[slot])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static void rollbackCommit(ExtractionCommitResult commitResult) {
+		ItemStack[] extractedStacks = commitResult.extractedStacks();
+		ItemSourceRef[] sourceRefs = commitResult.sourceRefs();
+
+		for (int slot = extractedStacks.length - 1; slot >= 0; slot--) {
+			ItemStack extracted = extractedStacks[slot];
+			ItemSourceRef sourceRef = sourceRefs[slot];
+			if (extracted.isEmpty() || sourceRef == null) {
+				continue;
+			}
+
+			ItemStack notInserted = sourceRef.handler().insertItem(sourceRef.slot(), extracted.copy(), false);
+			if (!notInserted.isEmpty()) {
+				NearbyCrafting.LOGGER.warn(
+						"Could not fully rollback extracted stack {} for source {}:{}",
+						notInserted,
+						sourceRef.sourceType(),
+						sourceRef.slot()
+				);
+			}
+		}
+	}
+
+	private static boolean hasRoomForAnotherCraft(NearbyCraftingMenu menu, List<Ingredient> targetGrid) {
+		for (int slot = 0; slot < 9; slot++) {
+			if (targetGrid.get(slot).isEmpty()) {
+				continue;
+			}
+
+			ItemStack current = menu.getCraftSlots().getItem(slot);
+			if (current.isEmpty()) {
+				return false;
+			}
+
+			int slotLimit = Math.min(menu.getCraftSlots().getMaxStackSize(), current.getMaxStackSize());
+			if (current.getCount() >= slotLimit) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static List<ItemStack> buildExactTemplate(NearbyCraftingMenu menu, List<Ingredient> targetGrid) {
+		List<ItemStack> template = new ArrayList<>(9);
+		for (int slot = 0; slot < 9; slot++) {
+			if (targetGrid.get(slot).isEmpty()) {
+				template.add(ItemStack.EMPTY);
+				continue;
+			}
+
+			ItemStack stack = menu.getCraftSlots().getItem(slot);
+			if (stack.isEmpty()) {
+				template.add(ItemStack.EMPTY);
+				continue;
+			}
+
+			ItemStack oneItem = stack.copy();
+			oneItem.setCount(1);
+			template.add(oneItem);
+		}
+		return template;
 	}
 
 	public static FillResult refillLastRecipe(NearbyCraftingMenu menu) {
