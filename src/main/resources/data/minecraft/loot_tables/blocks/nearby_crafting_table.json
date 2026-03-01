@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "nearbycrafting:nearby_crafting_table"
+        }
+      ]
+    }
+  ]
+}

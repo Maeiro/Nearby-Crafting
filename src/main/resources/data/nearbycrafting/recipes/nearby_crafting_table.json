@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "CIC",
+    "ITI",
+    "CIC"
+  ],
+  "key": {
+    "C": { "item": "minecraft:chest" },
+    "I": { "item": "minecraft:iron_ingot" },
+    "T": { "item": "minecraft:crafting_table" }
+  },
+  "result": {
+    "item": "nearbycrafting:nearby_crafting_table"
+  }
+}

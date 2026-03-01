@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "nearbycrafting:block/nearby_crafting_table" }
+  }
+}
