@@ -1,10 +1,13 @@
 package dev.maeiro.nearbycrafting.menu;
 
+import dev.maeiro.nearbycrafting.NearbyCrafting;
+import dev.maeiro.nearbycrafting.config.NearbyCraftingConfig;
 import dev.maeiro.nearbycrafting.menu.slot.NearbyResultSlot;
 import dev.maeiro.nearbycrafting.registry.ModBlocks;
 import dev.maeiro.nearbycrafting.registry.ModMenuTypes;
 import dev.maeiro.nearbycrafting.service.crafting.FillResult;
 import dev.maeiro.nearbycrafting.service.crafting.RecipeFillService;
+import dev.maeiro.nearbycrafting.service.source.ItemSourceRef;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.resources.ResourceLocation;
@@ -28,6 +31,7 @@ import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
 
+import javax.annotation.Nullable;
 import java.util.Optional;
 
 public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
@@ -39,11 +43,16 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	private static final int HOTBAR_SLOT_START = 37;
 	private static final int HOTBAR_SLOT_END = 46;
 
-	private final CraftingContainer craftSlots = new TransientCraftingContainer(this, 3, 3);
+	private final CraftingContainer craftSlots;
 	private final ResultContainer resultSlots = new ResultContainer();
 	private final ContainerLevelAccess access;
 	private final Player player;
 	private final BlockPos tablePos;
+	private final ItemSourceRef[] craftSlotSources = new ItemSourceRef[9];
+	private boolean sourceTrackingMutationActive;
+	private boolean autoRefillAfterCraft;
+	private boolean includePlayerInventory = true;
+	private NearbyCraftingConfig.SourcePriority sourcePriority = NearbyCraftingConfig.SourcePriority.CONTAINERS_FIRST;
 
 	private CraftingRecipe lastPlacedRecipe;
 
@@ -56,6 +65,7 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		this.player = playerInventory.player;
 		this.tablePos = tablePos.immutable();
 		this.access = ContainerLevelAccess.create(playerInventory.player.level(), tablePos);
+		this.craftSlots = new SourceTrackingCraftingContainer(this, 3, 3);
 
 		this.addSlot(new NearbyResultSlot(this, playerInventory.player, this.craftSlots, this.resultSlots, 0, 124, 35));
 
@@ -122,8 +132,14 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 
 	@Override
 	public void removed(Player player) {
+		if (player instanceof ServerPlayer) {
+			this.access.execute((level, pos) -> {
+				if (!level.isClientSide) {
+					this.clearCraftGridToPlayerOrDrop();
+				}
+			});
+		}
 		super.removed(player);
-		this.access.execute((level, pos) -> this.clearContainer(player, this.craftSlots));
 	}
 
 	@Override
@@ -239,20 +255,82 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	}
 
 	public void clearCraftGridToPlayerOrDrop() {
+		if (this.player.level().isClientSide) {
+			return;
+		}
+
 		for (int slot = 0; slot < this.craftSlots.getContainerSize(); slot++) {
 			ItemStack stack = this.craftSlots.getItem(slot);
 			if (stack.isEmpty()) {
+				clearCraftSlotSource(slot);
 				continue;
 			}
 
 			ItemStack remaining = stack.copy();
+			ItemSourceRef sourceRef = getCraftSlotSource(slot);
+			if (sourceRef != null) {
+				try {
+					remaining = sourceRef.handler().insertItem(sourceRef.slot(), remaining, false);
+				} catch (RuntimeException exception) {
+					NearbyCrafting.LOGGER.warn(
+							"Failed to return crafting item to source {}:{}; fallback to player inventory",
+							sourceRef.sourceType(),
+							sourceRef.slot(),
+							exception
+					);
+				}
+			}
+
 			boolean inserted = this.player.getInventory().add(remaining);
 			if (!inserted && !remaining.isEmpty()) {
 				this.player.drop(remaining, false);
 			}
-			this.craftSlots.setItem(slot, ItemStack.EMPTY);
+
+			int slotIndex = slot;
+			runWithSourceTrackingMutation(() -> this.craftSlots.setItem(slotIndex, ItemStack.EMPTY));
+			clearCraftSlotSource(slotIndex);
 		}
 		this.craftSlots.setChanged();
+	}
+
+	public void setCraftSlotFromSource(int slot, ItemStack stack, @Nullable ItemSourceRef sourceRef) {
+		int slotIndex = slot;
+		ItemStack storedStack = stack.copy();
+		runWithSourceTrackingMutation(() -> this.craftSlots.setItem(slotIndex, storedStack));
+		craftSlotSources[slotIndex] = storedStack.isEmpty() ? null : sourceRef;
+	}
+
+	public boolean isSourceTrackingMutationActive() {
+		return sourceTrackingMutationActive;
+	}
+
+	public void clearCraftSlotSource(int slot) {
+		if (slot >= 0 && slot < craftSlotSources.length) {
+			craftSlotSources[slot] = null;
+		}
+	}
+
+	@Nullable
+	public ItemSourceRef getCraftSlotSource(int slot) {
+		if (slot < 0 || slot >= craftSlotSources.length) {
+			return null;
+		}
+		return craftSlotSources[slot];
+	}
+
+	private void clearAllCraftSlotSources() {
+		for (int i = 0; i < craftSlotSources.length; i++) {
+			craftSlotSources[i] = null;
+		}
+	}
+
+	private void runWithSourceTrackingMutation(Runnable runnable) {
+		sourceTrackingMutationActive = true;
+		try {
+			runnable.run();
+		} finally {
+			sourceTrackingMutationActive = false;
+		}
 	}
 
 	public CraftingContainer getCraftSlots() {
@@ -277,5 +355,68 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 
 	public void setLastPlacedRecipe(CraftingRecipe lastPlacedRecipe) {
 		this.lastPlacedRecipe = lastPlacedRecipe;
+	}
+
+	public boolean isAutoRefillAfterCraft() {
+		return autoRefillAfterCraft;
+	}
+
+	public boolean isIncludePlayerInventory() {
+		return includePlayerInventory;
+	}
+
+	public NearbyCraftingConfig.SourcePriority getSourcePriority() {
+		return sourcePriority;
+	}
+
+	public void setClientPreferences(boolean autoRefillAfterCraft, boolean includePlayerInventory, NearbyCraftingConfig.SourcePriority sourcePriority) {
+		this.autoRefillAfterCraft = autoRefillAfterCraft;
+		this.includePlayerInventory = includePlayerInventory;
+		this.sourcePriority = sourcePriority == null
+				? NearbyCraftingConfig.SourcePriority.CONTAINERS_FIRST
+				: sourcePriority;
+	}
+
+	private static class SourceTrackingCraftingContainer extends TransientCraftingContainer {
+		private final NearbyCraftingMenu menu;
+
+		private SourceTrackingCraftingContainer(NearbyCraftingMenu menu, int width, int height) {
+			super(menu, width, height);
+			this.menu = menu;
+		}
+
+		@Override
+		public ItemStack removeItem(int slot, int amount) {
+			ItemStack removed = super.removeItem(slot, amount);
+			if (!removed.isEmpty() && !menu.isSourceTrackingMutationActive()) {
+				menu.clearCraftSlotSource(slot);
+			}
+			return removed;
+		}
+
+		@Override
+		public ItemStack removeItemNoUpdate(int slot) {
+			ItemStack removed = super.removeItemNoUpdate(slot);
+			if (!removed.isEmpty() && !menu.isSourceTrackingMutationActive()) {
+				menu.clearCraftSlotSource(slot);
+			}
+			return removed;
+		}
+
+		@Override
+		public void setItem(int slot, ItemStack stack) {
+			super.setItem(slot, stack);
+			if (!menu.isSourceTrackingMutationActive()) {
+				menu.clearCraftSlotSource(slot);
+			}
+		}
+
+		@Override
+		public void clearContent() {
+			super.clearContent();
+			if (!menu.isSourceTrackingMutationActive()) {
+				menu.clearAllCraftSlotSources();
+			}
+		}
 	}
 }

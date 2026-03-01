@@ -22,7 +22,7 @@ public class NearbyResultSlot extends ResultSlot {
 	public void onTake(Player player, ItemStack stack) {
 		super.onTake(player, stack);
 
-		if (player instanceof ServerPlayer) {
+		if (player instanceof ServerPlayer && menu.isAutoRefillAfterCraft()) {
 			FillResult refillResult = RecipeFillService.refillLastRecipe(menu);
 			if (!refillResult.success()) {
 				// Silent fail to avoid chat spam while crafting manually.

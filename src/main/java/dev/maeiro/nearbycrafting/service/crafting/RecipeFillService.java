@@ -21,7 +21,13 @@ public class RecipeFillService {
 
 	public static FillResult fillFromRecipe(NearbyCraftingMenu menu, CraftingRecipe recipe, boolean craftAll) {
 		List<Ingredient> targetGrid = buildTargetGrid(recipe);
-		List<ItemSourceRef> sources = NearbyInventoryScanner.collectSources(menu.getLevel(), menu.getTablePos(), menu.getPlayer());
+		List<ItemSourceRef> sources = NearbyInventoryScanner.collectSources(
+				menu.getLevel(),
+				menu.getTablePos(),
+				menu.getPlayer(),
+				menu.isIncludePlayerInventory(),
+				menu.getSourcePriority()
+		);
 		IngredientSourcePool pool = new IngredientSourcePool(sources);
 		Optional<ExtractionPlan> planOptional = pool.plan(targetGrid);
 
@@ -30,14 +36,16 @@ public class RecipeFillService {
 		}
 
 		ExtractionPlan plan = planOptional.get();
-		ItemStack[] extractedStacks = plan.commit();
-		if (extractedStacks == null) {
+		ExtractionCommitResult commitResult = plan.commit();
+		if (commitResult == null) {
 			return FillResult.failure("nearbycrafting.feedback.fill_failed");
 		}
+		ItemStack[] extractedStacks = commitResult.extractedStacks();
+		ItemSourceRef[] sourceRefs = commitResult.sourceRefs();
 
 		menu.clearCraftGridToPlayerOrDrop();
 		for (int slot = 0; slot < 9; slot++) {
-			menu.getCraftSlots().setItem(slot, extractedStacks[slot]);
+			menu.setCraftSlotFromSource(slot, extractedStacks[slot], sourceRefs[slot]);
 		}
 
 		menu.setLastPlacedRecipe(recipe);
@@ -105,4 +113,3 @@ public class RecipeFillService {
 		return target;
 	}
 }
-

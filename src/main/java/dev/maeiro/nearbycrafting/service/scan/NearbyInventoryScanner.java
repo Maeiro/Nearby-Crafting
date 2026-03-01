@@ -25,12 +25,24 @@ public class NearbyInventoryScanner {
 	}
 
 	public static List<ItemSourceRef> collectSources(Level level, BlockPos centerPos, Player player) {
-		List<ItemSourceRef> containerSources = collectContainerSources(level, centerPos);
-		List<ItemSourceRef> playerSources = collectPlayerSources(player);
-
-		NearbyCraftingConfig.SourcePriority priority = NearbyCraftingConfig.SourcePriority.fromConfig(
-				NearbyCraftingConfig.SERVER.sourcePriority.get()
+		return collectSources(
+				level,
+				centerPos,
+				player,
+				true,
+				NearbyCraftingConfig.SourcePriority.CONTAINERS_FIRST
 		);
+	}
+
+	public static List<ItemSourceRef> collectSources(
+			Level level,
+			BlockPos centerPos,
+			Player player,
+			boolean includePlayerInventory,
+			NearbyCraftingConfig.SourcePriority priority
+	) {
+		List<ItemSourceRef> containerSources = collectContainerSources(level, centerPos);
+		List<ItemSourceRef> playerSources = collectPlayerSources(player, includePlayerInventory);
 
 		List<ItemSourceRef> result = new ArrayList<>(containerSources.size() + playerSources.size());
 		if (priority == NearbyCraftingConfig.SourcePriority.PLAYER_FIRST) {
@@ -81,8 +93,8 @@ public class NearbyInventoryScanner {
 		return sources;
 	}
 
-	public static List<ItemSourceRef> collectPlayerSources(Player player) {
-		if (!NearbyCraftingConfig.SERVER.includePlayerInventory.get()) {
+	public static List<ItemSourceRef> collectPlayerSources(Player player, boolean includePlayerInventory) {
+		if (!includePlayerInventory) {
 			return List.of();
 		}
 
@@ -101,4 +113,3 @@ public class NearbyInventoryScanner {
 		}
 	}
 }
-

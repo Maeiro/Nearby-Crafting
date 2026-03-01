@@ -1,6 +1,9 @@
 package dev.maeiro.nearbycrafting.client.screen;
 
+import dev.maeiro.nearbycrafting.config.NearbyCraftingConfig;
 import dev.maeiro.nearbycrafting.menu.NearbyCraftingMenu;
+import dev.maeiro.nearbycrafting.networking.C2SUpdateClientPreferences;
+import dev.maeiro.nearbycrafting.networking.NearbyCraftingNetwork;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -28,6 +31,15 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	@Override
 	protected void init() {
 		super.init();
+		NearbyCraftingNetwork.CHANNEL.sendToServer(
+				new C2SUpdateClientPreferences(
+						this.menu.containerId,
+						NearbyCraftingConfig.CLIENT.autoRefillAfterCraft.get(),
+						NearbyCraftingConfig.CLIENT.includePlayerInventory.get(),
+						NearbyCraftingConfig.CLIENT.sourcePriority.get()
+				)
+		);
+
 		this.widthTooNarrow = this.width < 379;
 		this.recipeBookComponent.init(this.width, this.height, this.minecraft, this.widthTooNarrow, this.menu);
 		this.leftPos = this.recipeBookComponent.updateScreenPosition(this.width, this.imageWidth);
@@ -106,4 +118,3 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		return this.recipeBookComponent;
 	}
 }
-

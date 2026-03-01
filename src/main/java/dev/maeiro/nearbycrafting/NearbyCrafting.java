@@ -27,6 +27,9 @@ public class NearbyCrafting {
 		IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
 
 		ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, NearbyCraftingConfig.SERVER_SPEC);
+		if (FMLEnvironment.dist == Dist.CLIENT) {
+			ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, NearbyCraftingConfig.CLIENT_SPEC);
+		}
 		modBus.addListener(NearbyCraftingConfig::onConfigChanged);
 		modBus.addListener(this::onCommonSetup);
 
@@ -47,4 +50,3 @@ public class NearbyCrafting {
 		ClientSetup.onClientSetup(event);
 	}
 }
-

@@ -1,6 +1,7 @@
 package dev.maeiro.nearbycrafting.service.crafting;
 
 import dev.maeiro.nearbycrafting.NearbyCrafting;
+import dev.maeiro.nearbycrafting.service.source.ItemSourceRef;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -18,10 +19,12 @@ public class ExtractionPlan {
 		return steps;
 	}
 
-	public ItemStack[] commit() {
+	public ExtractionCommitResult commit() {
 		ItemStack[] resultGrid = new ItemStack[9];
+		ItemSourceRef[] sourceRefs = new ItemSourceRef[9];
 		for (int i = 0; i < resultGrid.length; i++) {
 			resultGrid[i] = ItemStack.EMPTY;
+			sourceRefs[i] = null;
 		}
 
 		List<CommittedExtraction> committed = new ArrayList<>();
@@ -39,6 +42,7 @@ public class ExtractionPlan {
 			ItemStack targetStack = extracted.copy();
 			targetStack.setCount(step.count());
 			resultGrid[step.targetSlot()] = targetStack;
+			sourceRefs[step.targetSlot()] = step.sourceRef();
 			committed.add(new CommittedExtraction(step, targetStack.copy()));
 
 			if (extracted.getCount() > step.count()) {
@@ -52,7 +56,7 @@ public class ExtractionPlan {
 			}
 		}
 
-		return resultGrid;
+		return new ExtractionCommitResult(resultGrid, sourceRefs);
 	}
 
 	private void rollback(List<CommittedExtraction> committed) {
@@ -77,4 +81,3 @@ public class ExtractionPlan {
 	private record CommittedExtraction(PlannedExtraction step, ItemStack stack) {
 	}
 }
-

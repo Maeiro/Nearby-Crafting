@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
 public class NearbyCraftingConfig {
 	public static final Server SERVER;
 	public static final ForgeConfigSpec SERVER_SPEC;
+	public static final Client CLIENT;
+	public static final ForgeConfigSpec CLIENT_SPEC;
 
 	public static List<BlockEntityType<?>> blockEntityBlacklist;
 
@@ -23,6 +25,10 @@ public class NearbyCraftingConfig {
 		Pair<Server, ForgeConfigSpec> serverSpecPair = new ForgeConfigSpec.Builder().configure(Server::new);
 		SERVER = serverSpecPair.getLeft();
 		SERVER_SPEC = serverSpecPair.getRight();
+
+		Pair<Client, ForgeConfigSpec> clientSpecPair = new ForgeConfigSpec.Builder().configure(Client::new);
+		CLIENT = clientSpecPair.getLeft();
+		CLIENT_SPEC = clientSpecPair.getRight();
 	}
 
 	private NearbyCraftingConfig() {
@@ -30,6 +36,9 @@ public class NearbyCraftingConfig {
 
 	public static void onConfigChanged(final ModConfigEvent event) {
 		if (!event.getConfig().getModId().equals(NearbyCrafting.MOD_ID)) {
+			return;
+		}
+		if (event.getConfig().getSpec() != SERVER_SPEC) {
 			return;
 		}
 
@@ -64,8 +73,6 @@ public class NearbyCraftingConfig {
 		public final ForgeConfigSpec.IntValue scanRadius;
 		public final ForgeConfigSpec.IntValue minSlotCount;
 		public final ForgeConfigSpec.ConfigValue<List<String>> blacklistedBlockEntities;
-		public final ForgeConfigSpec.BooleanValue includePlayerInventory;
-		public final ForgeConfigSpec.ConfigValue<String> sourcePriority;
 		public final ForgeConfigSpec.IntValue maxShiftCraftIterations;
 		public final ForgeConfigSpec.BooleanValue debugLogging;
 
@@ -88,14 +95,6 @@ public class NearbyCraftingConfig {
 							"minecraft:smoker"
 					));
 
-			includePlayerInventory = builder
-					.comment("When true, player inventory slots are included as ingredient sources.")
-					.define("includePlayerInventory", true);
-
-			sourcePriority = builder
-					.comment("Source priority for ingredient extraction. Allowed values: CONTAINERS_FIRST, PLAYER_FIRST")
-					.define("sourcePriority", SourcePriority.CONTAINERS_FIRST.name());
-
 			maxShiftCraftIterations = builder
 					.comment("Maximum number of repeated crafts for craft-all operations.")
 					.defineInRange("maxShiftCraftIterations", 64, 1, 4096);
@@ -107,5 +106,28 @@ public class NearbyCraftingConfig {
 			builder.pop();
 		}
 	}
-}
 
+	public static class Client {
+		public final ForgeConfigSpec.BooleanValue autoRefillAfterCraft;
+		public final ForgeConfigSpec.BooleanValue includePlayerInventory;
+		public final ForgeConfigSpec.ConfigValue<String> sourcePriority;
+
+		Client(ForgeConfigSpec.Builder builder) {
+			builder.push("nearbyCrafting");
+
+			autoRefillAfterCraft = builder
+					.comment("When true, automatically refills the crafting grid after taking a crafted item.")
+					.define("autoRefillAfterCraft", false);
+
+			includePlayerInventory = builder
+					.comment("When true, player inventory slots are included as ingredient sources.")
+					.define("includePlayerInventory", true);
+
+			sourcePriority = builder
+					.comment("Source priority for ingredient extraction. Allowed values: CONTAINERS_FIRST, PLAYER_FIRST")
+					.define("sourcePriority", SourcePriority.CONTAINERS_FIRST.name());
+
+			builder.pop();
+		}
+	}
+}
