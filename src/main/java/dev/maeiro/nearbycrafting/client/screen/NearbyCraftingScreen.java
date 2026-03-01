@@ -2,6 +2,7 @@ package dev.maeiro.nearbycrafting.client.screen;
 
 import dev.maeiro.nearbycrafting.config.NearbyCraftingConfig;
 import dev.maeiro.nearbycrafting.menu.NearbyCraftingMenu;
+import dev.maeiro.nearbycrafting.networking.C2SRequestRecipeBookSources;
 import dev.maeiro.nearbycrafting.networking.C2SUpdateClientPreferences;
 import dev.maeiro.nearbycrafting.networking.NearbyCraftingNetwork;
 import net.minecraft.client.gui.GuiGraphics;
@@ -21,8 +22,10 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCraftingMenu> implements RecipeUpdateListener {
 	private static final ResourceLocation CRAFTING_TABLE_LOCATION = new ResourceLocation("textures/gui/container/crafting_table.png");
 	private static final ResourceLocation RECIPE_BUTTON_LOCATION = new ResourceLocation("textures/gui/recipe_button.png");
+	private static final int RECIPE_BOOK_SOURCE_SYNC_INTERVAL_TICKS = 20;
 	private final RecipeBookComponent recipeBookComponent = new RecipeBookComponent();
 	private boolean widthTooNarrow;
+	private int recipeBookSourceSyncTicker = 0;
 
 	public NearbyCraftingScreen(NearbyCraftingMenu menu, Inventory playerInventory, Component title) {
 		super(menu, playerInventory, title);
@@ -39,6 +42,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 						NearbyCraftingConfig.CLIENT.sourcePriority.get()
 				)
 		);
+		requestRecipeBookSourceSync();
 
 		this.widthTooNarrow = this.width < 379;
 		this.recipeBookComponent.init(this.width, this.height, this.minecraft, this.widthTooNarrow, this.menu);
@@ -57,6 +61,11 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	public void containerTick() {
 		super.containerTick();
 		this.recipeBookComponent.tick();
+		recipeBookSourceSyncTicker++;
+		if (recipeBookSourceSyncTicker >= RECIPE_BOOK_SOURCE_SYNC_INTERVAL_TICKS) {
+			recipeBookSourceSyncTicker = 0;
+			requestRecipeBookSourceSync();
+		}
 	}
 
 	@Override
@@ -116,5 +125,17 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	@Override
 	public RecipeBookComponent getRecipeBookComponent() {
 		return this.recipeBookComponent;
+	}
+
+	public void refreshRecipeBookFromSyncedSources() {
+		if (!this.menu.slots.isEmpty()) {
+			this.recipeBookComponent.slotClicked(this.menu.slots.get(0));
+		} else {
+			this.recipeBookComponent.recipesUpdated();
+		}
+	}
+
+	private void requestRecipeBookSourceSync() {
+		NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeBookSources(this.menu.containerId));
 	}
 }

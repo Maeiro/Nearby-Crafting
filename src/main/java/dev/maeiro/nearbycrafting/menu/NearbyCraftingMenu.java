@@ -32,7 +32,9 @@ import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -55,6 +57,7 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	private boolean autoRefillAfterCraft;
 	private boolean includePlayerInventory = true;
 	private NearbyCraftingConfig.SourcePriority sourcePriority = NearbyCraftingConfig.SourcePriority.CONTAINERS_FIRST;
+	private List<RecipeBookSourceEntry> clientRecipeBookSupplementalSources = List.of();
 
 	private CraftingRecipe lastPlacedRecipe;
 
@@ -119,6 +122,19 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	@Override
 	public void fillCraftSlotsStackedContents(StackedContents itemHelper) {
 		this.craftSlots.fillStackedContents(itemHelper);
+		for (RecipeBookSourceEntry sourceEntry : clientRecipeBookSupplementalSources) {
+			if (sourceEntry.count() <= 0 || sourceEntry.stack().isEmpty()) {
+				continue;
+			}
+			int remaining = sourceEntry.count();
+			while (remaining > 0) {
+				ItemStack stackChunk = sourceEntry.stack().copy();
+				int chunkSize = Math.min(remaining, stackChunk.getMaxStackSize());
+				stackChunk.setCount(chunkSize);
+				itemHelper.accountStack(stackChunk);
+				remaining -= chunkSize;
+			}
+		}
 	}
 
 	@Override
@@ -468,6 +484,27 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		this.sourcePriority = sourcePriority == null
 				? NearbyCraftingConfig.SourcePriority.CONTAINERS_FIRST
 				: sourcePriority;
+	}
+
+	public void setClientRecipeBookSupplementalSources(List<RecipeBookSourceEntry> sourceEntries) {
+		if (sourceEntries == null || sourceEntries.isEmpty()) {
+			this.clientRecipeBookSupplementalSources = List.of();
+			return;
+		}
+
+		List<RecipeBookSourceEntry> sanitized = new ArrayList<>(sourceEntries.size());
+		for (RecipeBookSourceEntry sourceEntry : sourceEntries) {
+			if (sourceEntry == null || sourceEntry.count() <= 0 || sourceEntry.stack().isEmpty()) {
+				continue;
+			}
+			ItemStack normalized = sourceEntry.stack().copy();
+			normalized.setCount(1);
+			sanitized.add(new RecipeBookSourceEntry(normalized, sourceEntry.count()));
+		}
+		this.clientRecipeBookSupplementalSources = List.copyOf(sanitized);
+	}
+
+	public record RecipeBookSourceEntry(ItemStack stack, int count) {
 	}
 
 	private static class SourceTrackingCraftingContainer extends TransientCraftingContainer {

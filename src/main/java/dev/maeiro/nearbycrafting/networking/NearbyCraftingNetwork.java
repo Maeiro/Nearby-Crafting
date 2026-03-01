@@ -6,7 +6,7 @@ import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public class NearbyCraftingNetwork {
-	private static final String PROTOCOL_VERSION = "2";
+	private static final String PROTOCOL_VERSION = "3";
 
 	public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
 			new ResourceLocation(NearbyCrafting.MOD_ID, "main"),
@@ -35,11 +35,25 @@ public class NearbyCraftingNetwork {
 				C2SUpdateClientPreferences::handle
 		);
 		CHANNEL.registerMessage(
-				id,
+				id++,
+				C2SRequestRecipeBookSources.class,
+				C2SRequestRecipeBookSources::encode,
+				C2SRequestRecipeBookSources::new,
+				C2SRequestRecipeBookSources::handle
+		);
+		CHANNEL.registerMessage(
+				id++,
 				S2CRecipeFillFeedback.class,
 				S2CRecipeFillFeedback::encode,
 				S2CRecipeFillFeedback::new,
 				S2CRecipeFillFeedback::handle
+		);
+		CHANNEL.registerMessage(
+				id,
+				S2CRecipeBookSourceSnapshot.class,
+				S2CRecipeBookSourceSnapshot::encode,
+				S2CRecipeBookSourceSnapshot::new,
+				S2CRecipeBookSourceSnapshot::handle
 		);
 	}
 }
