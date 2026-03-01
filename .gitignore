@@ -4,10 +4,12 @@ run/
 *.log
 *.class
 
+
 # IDE
 .idea/
 .vscode/
 *.iml
+CONTEXT.md
 
 # OS
 .DS_Store
