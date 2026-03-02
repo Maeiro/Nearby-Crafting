@@ -22,7 +22,9 @@ import org.jetbrains.annotations.Nullable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -46,13 +48,18 @@ public final class NearbyCraftingJeiCraftableFilterController {
 	private static final Map<String, ItemStack> universeStacksByKey = new LinkedHashMap<>();
 	private static final Map<String, String> universeItemIdByKey = new LinkedHashMap<>();
 	private static final Set<String> removedKeys = new LinkedHashSet<>();
+	private static final Deque<String> pendingAddKeys = new ArrayDeque<>();
+	private static final Deque<String> pendingRemoveKeys = new ArrayDeque<>();
 	private static final Map<Object, List<Object>> removedNonItemIngredientsByType = new IdentityHashMap<>();
 	private static final long CLICK_PROBE_TIMEOUT_MS = 4000L;
 	private static final long REFRESH_DEBOUNCE_MS = 50L;  // Debounce threshold for rapid refresh calls
+	private static final int REMOVE_MUTATION_CHUNK_SIZE = 180;
+	private static final int ADD_MUTATION_CHUNK_SIZE = 64;
 	@Nullable
 	private static ClickProbe lastClickProbe;
 	private static long lastRefreshTime = 0L;
 	private static boolean pendingIngredientListRebuild = false;  // Flag to defer overlay rebuild to next tick
+	private static boolean pendingStateReset = false;
 
 	private static boolean enabled;
 	private static int activeContainerId = -1;
@@ -62,10 +69,29 @@ public final class NearbyCraftingJeiCraftableFilterController {
 
 	/** Called every frame to process deferred operations */
 	public static void processDeferred() {
-		// Only rebuild overlay if needed - other operations are synchronous
-		if (pendingIngredientListRebuild) {
+		boolean mutated = false;
+		mutated |= processMutationChunk("addIngredientsAtRuntime", pendingAddKeys, true, ADD_MUTATION_CHUNK_SIZE);
+		mutated |= processMutationChunk("removeIngredientsAtRuntime", pendingRemoveKeys, false, REMOVE_MUTATION_CHUNK_SIZE);
+
+		if (mutated && isDebugLoggingEnabled()) {
+			NearbyCrafting.LOGGER.info(
+					"[NC-JEI] Deferred mutation progress addPending={} removePending={}",
+					pendingAddKeys.size(),
+					pendingRemoveKeys.size()
+			);
+		}
+
+		if (pendingIngredientListRebuild && pendingAddKeys.isEmpty() && pendingRemoveKeys.isEmpty()) {
 			pendingIngredientListRebuild = false;
 			forceIngredientListOverlayRebuild();
+		}
+
+		if (pendingStateReset && pendingAddKeys.isEmpty() && pendingRemoveKeys.isEmpty()) {
+			pendingStateReset = false;
+			removedKeys.clear();
+			universeStacksByKey.clear();
+			universeItemIdByKey.clear();
+			removedNonItemIngredientsByType.clear();
 		}
 	}
 
@@ -106,11 +132,20 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		}
 
 		if (!isEnabledFor(menu.containerId)) {
-			disableAndRestore();
+			// Only perform restore/reset when switching away from an actively filtered menu.
+			if (enabled) {
+				disableAndRestore();
+			} else {
+				// Fresh enable path: keep queues/state clean without scheduling a reset cycle.
+				pendingAddKeys.clear();
+				pendingRemoveKeys.clear();
+				pendingStateReset = false;
+			}
 		}
 
 		activeContainerId = menu.containerId;
 		enabled = true;
+		pendingStateReset = false;
 		ensureUniverseLoaded();
 		refresh(menu);
 		if (isDebugLoggingEnabled()) {
@@ -407,7 +442,7 @@ public final class NearbyCraftingJeiCraftableFilterController {
 			}
 		}
 		
-		if (desiredRemovedKeys.equals(removedKeys)) {
+		if (desiredRemovedKeys.equals(removedKeys) && pendingAddKeys.isEmpty() && pendingRemoveKeys.isEmpty()) {
 			long noChangeTime = System.nanoTime() - startTime;
 			if (isDebugLoggingEnabled()) {
 				NearbyCrafting.LOGGER.info("[NC-JEI] Refresh SKIPPED (no changes) in {}ms", noChangeTime / 1_000_000.0);
@@ -422,39 +457,23 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		Set<String> toHide = new LinkedHashSet<>(desiredRemovedKeys);
 		toHide.removeAll(removedKeys);
 
-		long beforeMutations = System.nanoTime();
-		long beforeRestore = System.nanoTime();
-		invokeIngredientMutation(ingredientManager, "addIngredientsAtRuntime", getStacksForKeys(toRestore));
-		long afterRestore = System.nanoTime();
-		long beforeHideCall = System.nanoTime();
-		invokeIngredientMutation(ingredientManager, "removeIngredientsAtRuntime", getStacksForKeys(toHide));
-		long afterMutations = System.nanoTime();
-		
-		if (isDebugLoggingEnabled()) {
-			NearbyCrafting.LOGGER.info(
-					"[NC-JEI] Mutations breakdown: restore({} items)={}ms, hide({} items)={}ms",
-					toRestore.size(),
-					(afterRestore - beforeRestore) / 1_000_000.0,
-					toHide.size(),
-					(afterMutations - beforeHideCall) / 1_000_000.0
-			);
-		}
+		pendingAddKeys.clear();
+		pendingRemoveKeys.clear();
+		pendingAddKeys.addAll(toRestore);
+		pendingRemoveKeys.addAll(toHide);
 		
 		long beforeHide = System.nanoTime();
 		hideNonItemIngredients(ingredientManager);
 		long afterHide = System.nanoTime();
 		
 		long beforeRebuild = System.nanoTime();
-		// Defer overlay rebuild to next tick to avoid blocking render thread
+		// Rebuild after queued mutations are applied in chunks.
 		pendingIngredientListRebuild = true;
 		long afterRebuild = System.nanoTime();
 
-		removedKeys.removeAll(toRestore);
-		removedKeys.addAll(toHide);
-
 		if (isDebugLoggingEnabled()) {
 			NearbyCrafting.LOGGER.info(
-					"[NC-JEI] Refresh EXECUTED menu={} universe={} craftableItems={} hide={} restore={} | Time: universeLoadMs={} craftableMs={} mutationsMs={} hideMs={} rebuildMs={} totalMs={}",
+					"[NC-JEI] Refresh QUEUED menu={} universe={} craftableItems={} queueHide={} queueRestore={} | Time: universeLoadMs={} craftableMs={} hideMs={} enqueueMs={} totalMs={}",
 					menu.containerId,
 					universeStacksByKey.size(),
 					craftableOutputItemIds.size(),
@@ -462,7 +481,6 @@ public final class NearbyCraftingJeiCraftableFilterController {
 					toRestore.size(),
 					(afterUniverse - startTime) / 1_000_000.0,
 					(afterCraftable - afterUniverse) / 1_000_000.0,
-					(afterMutations - beforeMutations) / 1_000_000.0,
 					(afterHide - beforeHide) / 1_000_000.0,
 					(afterRebuild - beforeRebuild) / 1_000_000.0,
 					(afterRebuild - startTime) / 1_000_000.0
@@ -766,7 +784,7 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		return false;
 	}
 
-	private static List<ItemStack> getStacksForKeys(Set<String> keys) {
+	private static List<ItemStack> getStacksForKeys(Collection<String> keys) {
 		if (keys.isEmpty()) {
 			return List.of();
 		}
@@ -818,8 +836,13 @@ public final class NearbyCraftingJeiCraftableFilterController {
 	private static void disableAndRestore() {
 		Object ingredientManager = getIngredientManager();
 		if (ingredientManager != null) {
-			invokeIngredientMutation(ingredientManager, "addIngredientsAtRuntime", getStacksForKeys(removedKeys));
+			// Cancel pending hides and schedule progressive restore of hidden items.
+			pendingRemoveKeys.clear();
+			pendingAddKeys.clear();
+			pendingAddKeys.addAll(removedKeys);
 			restoreNonItemIngredients(ingredientManager);
+			// Let JEI refresh naturally while items are restored in chunks; avoid a full forced rebuild spike.
+			pendingIngredientListRebuild = false;
 		}
 
 		if (isDebugLoggingEnabled()) {
@@ -832,12 +855,39 @@ public final class NearbyCraftingJeiCraftableFilterController {
 			);
 		}
 
-		removedKeys.clear();
-		universeStacksByKey.clear();
-		universeItemIdByKey.clear();
-		removedNonItemIngredientsByType.clear();
+		pendingStateReset = true;
 		enabled = false;
 		activeContainerId = -1;
+	}
+
+	private static boolean processMutationChunk(String methodName, Deque<String> keysQueue, boolean addingBack, int chunkSize) {
+		if (keysQueue.isEmpty()) {
+			return false;
+		}
+
+		Object ingredientManager = getIngredientManager();
+		if (ingredientManager == null) {
+			keysQueue.clear();
+			return false;
+		}
+
+		List<String> chunkKeys = new ArrayList<>(Math.min(keysQueue.size(), chunkSize));
+		while (!keysQueue.isEmpty() && chunkKeys.size() < chunkSize) {
+			chunkKeys.add(keysQueue.removeFirst());
+		}
+
+		List<ItemStack> stacks = getStacksForKeys(chunkKeys);
+		invokeIngredientMutation(ingredientManager, methodName, stacks);
+
+		for (String key : chunkKeys) {
+			if (addingBack) {
+				removedKeys.remove(key);
+			} else {
+				removedKeys.add(key);
+			}
+		}
+
+		return !chunkKeys.isEmpty();
 	}
 
 	@Nullable
