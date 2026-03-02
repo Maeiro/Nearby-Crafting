@@ -115,6 +115,13 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		return enabled && activeContainerId == containerId;
 	}
 
+	public static boolean isTransitionBlockingInput() {
+		return !pendingAddKeys.isEmpty()
+				|| !pendingRemoveKeys.isEmpty()
+				|| pendingIngredientListRebuild
+				|| pendingStateReset;
+	}
+
 	public static void setEnabled(NearbyCraftingMenu menu, boolean shouldEnable) {
 		if (!isRuntimeAvailable()) {
 			if (isDebugLoggingEnabled()) {

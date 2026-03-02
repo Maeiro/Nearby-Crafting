@@ -88,6 +88,19 @@ public final class NearbyCraftingJeiOverlayButtonEvents {
 		NearbyCraftingMenu menu = screen.getMenu();
 		Rect2i buttonBounds = getButtonBoundsWithCache(menu);
 		if (event.getButton() == 0 && buttonBounds != null && buttonBounds.contains((int) event.getMouseX(), (int) event.getMouseY())) {
+			if (NearbyCraftingJeiCraftableFilterController.isTransitionBlockingInput()) {
+				if (isDebugLoggingEnabled()) {
+					NearbyCrafting.LOGGER.info(
+							"[NC-JEI] Toggle click ignored during transition menu={} mouse=({}, {})",
+							menu.containerId,
+							(int) event.getMouseX(),
+							(int) event.getMouseY()
+					);
+				}
+				event.setCanceled(true);
+				return;
+			}
+
 			boolean enabledBefore = NearbyCraftingJeiCraftableFilterController.isEnabledFor(menu.containerId);
 			boolean nextEnabled = !NearbyCraftingJeiCraftableFilterController.isEnabledFor(menu.containerId);
 			if (isDebugLoggingEnabled()) {
