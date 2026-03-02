@@ -24,10 +24,16 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	private static final ResourceLocation CRAFTING_TABLE_LOCATION = new ResourceLocation("textures/gui/container/crafting_table.png");
 	private static final ResourceLocation RECIPE_BUTTON_LOCATION = new ResourceLocation("textures/gui/recipe_button.png");
 	private static final int RECIPE_BOOK_SOURCE_SYNC_INTERVAL_TICKS = 20;
+	private static final int STATUS_COLOR_SUCCESS = 0x55FF55;
+	private static final int STATUS_COLOR_FAILURE = 0xFF5555;
+	private static final int STATUS_COLOR_INFO = 0xFFFFFF;
 	private final RecipeBookComponent recipeBookComponent = new RecipeBookComponent();
 	private boolean widthTooNarrow;
 	private int recipeBookSourceSyncTicker = 0;
 	private int deferredRefreshTicks = 0;
+	private Component statusMessage;
+	private long statusMessageUntilMs = 0L;
+	private int statusMessageColor = STATUS_COLOR_INFO;
 
 	public NearbyCraftingScreen(NearbyCraftingMenu menu, Inventory playerInventory, Component title) {
 		super(menu, playerInventory, title);
@@ -90,6 +96,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 
 		this.renderTooltip(guiGraphics, mouseX, mouseY);
 		this.recipeBookComponent.renderTooltip(guiGraphics, this.leftPos, this.topPos, mouseX, mouseY);
+		renderStatusMessage(guiGraphics);
 	}
 
 	@Override
@@ -151,6 +158,46 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	public void requestImmediateSourceSyncAndRefresh() {
 		requestRecipeBookSourceSync();
 		scheduleDeferredRecipeBookRefresh();
+	}
+
+	public void showInfoStatusMessage(Component message) {
+		showStatusMessage(message, STATUS_COLOR_INFO, 1400);
+	}
+
+	public void showSuccessStatusMessage(Component message) {
+		showStatusMessage(message, STATUS_COLOR_SUCCESS, 1600);
+	}
+
+	public void showFailureStatusMessage(Component message) {
+		showStatusMessage(message, STATUS_COLOR_FAILURE, 1700);
+	}
+
+	private void showStatusMessage(Component message, int color, int durationMs) {
+		this.statusMessage = message;
+		this.statusMessageColor = color;
+		this.statusMessageUntilMs = System.currentTimeMillis() + Math.max(250, durationMs);
+	}
+
+	private void renderStatusMessage(GuiGraphics guiGraphics) {
+		if (statusMessage == null) {
+			return;
+		}
+		if (System.currentTimeMillis() > statusMessageUntilMs) {
+			statusMessage = null;
+			return;
+		}
+
+		int centerX = this.width / 2;
+		int y = this.topPos - 12;
+		if (y < 6) {
+			y = 6;
+		}
+		int textWidth = this.font.width(statusMessage);
+		int x = centerX - (textWidth / 2);
+		guiGraphics.pose().pushPose();
+		guiGraphics.pose().translate(0.0D, 0.0D, 500.0D);
+		guiGraphics.drawString(this.font, statusMessage, x, y, this.statusMessageColor, true);
+		guiGraphics.pose().popPose();
 	}
 
 	public void scheduleDeferredRecipeBookRefresh() {

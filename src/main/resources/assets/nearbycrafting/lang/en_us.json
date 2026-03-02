@@ -9,5 +9,7 @@
   "nearbycrafting.feedback.fill_failed": "Could not fill recipe from nearby sources",
   "nearbycrafting.feedback.no_recipe_selected": "No previous recipe to refill",
   "nearbycrafting.feedback.recipe_not_found": "Recipe not found",
-  "nearbycrafting.feedback.invalid_recipe_type": "Recipe type is not supported"
+  "nearbycrafting.feedback.invalid_recipe_type": "Recipe type is not supported",
+  "nearbycrafting.jei.updating.enable": "Filtering craftable items...",
+  "nearbycrafting.jei.updating.disable": "Restoring ingredient list..."
 }

@@ -42,10 +42,16 @@ public class S2CRecipeFillFeedback {
 			Component feedback = craftedAmount > 0
 					? Component.translatable(messageKey, craftedAmount)
 					: Component.translatable(messageKey);
-			minecraft.player.displayClientMessage(feedback, true);
 
 			if (minecraft.screen instanceof NearbyCraftingScreen nearbyCraftingScreen) {
+				if (success) {
+					nearbyCraftingScreen.showSuccessStatusMessage(feedback);
+				} else {
+					nearbyCraftingScreen.showFailureStatusMessage(feedback);
+				}
 				nearbyCraftingScreen.requestImmediateSourceSyncAndRefresh();
+			} else {
+				minecraft.player.displayClientMessage(feedback, true);
 			}
 		});
 		ctx.setPacketHandled(true);

@@ -120,6 +120,9 @@ public final class NearbyCraftingJeiOverlayButtonEvents {
 			}
 
 			NearbyCraftingJeiCraftableFilterController.setEnabled(menu, nextEnabled);
+			screen.showInfoStatusMessage(Component.translatable(
+					nextEnabled ? "nearbycrafting.jei.updating.enable" : "nearbycrafting.jei.updating.disable"
+			));
 			Minecraft minecraft = Minecraft.getInstance();
 			minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
 			event.setCanceled(true);
