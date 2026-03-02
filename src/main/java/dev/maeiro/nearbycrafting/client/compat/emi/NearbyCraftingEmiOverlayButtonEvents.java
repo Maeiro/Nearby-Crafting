@@ -25,7 +25,7 @@ public final class NearbyCraftingEmiOverlayButtonEvents {
 	private static final int BUTTON_HOVER_Y_DIFF = 18;
 	private static final int BUTTON_WIDTH = 26;
 	private static final int BUTTON_HEIGHT = 16;
-	private static final int BUTTON_PADDING_X = 1;
+	private static final int BUTTON_PADDING_X = 3;
 	private static final int EMI_SEARCH_FALLBACK_WIDTH = 160;
 	private static final int EMI_SEARCH_FALLBACK_HEIGHT = 18;
 	private static final int EMI_SEARCH_FALLBACK_Y_OFFSET = 21;
@@ -70,6 +70,19 @@ public final class NearbyCraftingEmiOverlayButtonEvents {
 		NearbyCraftingMenu menu = screen.getMenu();
 		Rect2i buttonBounds = getButtonBoundsWithCache(screen);
 		if (buttonBounds == null || !buttonBounds.contains((int) event.getMouseX(), (int) event.getMouseY())) {
+			if (NearbyCraftingEmiCraftableFilterController.isEnabledFor(menu.containerId)) {
+				boolean handled = NearbyCraftingEmiCraftableFilterController.handleIngredientClick(
+						menu,
+						event.getMouseX(),
+						event.getMouseY(),
+						event.getButton()
+				);
+				if (handled) {
+					screen.requestImmediateSourceSyncAndRefresh();
+					event.setCanceled(true);
+					return;
+				}
+			}
 			return;
 		}
 

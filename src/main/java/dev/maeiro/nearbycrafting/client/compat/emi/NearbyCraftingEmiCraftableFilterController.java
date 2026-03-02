@@ -3,6 +3,9 @@ package dev.maeiro.nearbycrafting.client.compat.emi;
 import dev.maeiro.nearbycrafting.NearbyCrafting;
 import dev.maeiro.nearbycrafting.config.NearbyCraftingConfig;
 import dev.maeiro.nearbycrafting.menu.NearbyCraftingMenu;
+import dev.maeiro.nearbycrafting.networking.C2SRequestRecipeFill;
+import dev.maeiro.nearbycrafting.networking.NearbyCraftingNetwork;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -97,6 +100,52 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		if (isEnabledFor(containerId)) {
 			disableAndRestore();
 		}
+	}
+
+	public static boolean handleIngredientClick(NearbyCraftingMenu menu, double mouseX, double mouseY, int mouseButton) {
+		if (!isEnabledFor(menu.containerId) || !isRuntimeAvailable()) {
+			return false;
+		}
+		if (mouseButton != 0) {
+			return false;
+		}
+		// Keep direct-fill intentionally behind Alt to avoid conflicting with EMI's normal recipe UI flow.
+		if (!Screen.hasAltDown()) {
+			return false;
+		}
+
+		Class<?> screenManagerClass = findClass(EMI_SCREEN_MANAGER_CLASS);
+		if (screenManagerClass == null) {
+			return false;
+		}
+
+		Object hovered = invokeStatic(screenManagerClass, "getHoveredStack", 3, (int) mouseX, (int) mouseY, false);
+		if (hovered == null) {
+			return false;
+		}
+
+		ResourceLocation recipeId = resolveRecipeIdFromInteraction(hovered);
+		if (recipeId == null) {
+			ItemStack outputStack = resolveOutputStackFromInteraction(hovered);
+			recipeId = resolveCraftableRecipeIdForOutput(menu, outputStack);
+		}
+		if (recipeId == null) {
+			return false;
+		}
+
+		boolean craftAll = Screen.hasShiftDown();
+		NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(recipeId, craftAll));
+		if (isDebugLoggingEnabled()) {
+			NearbyCrafting.LOGGER.info(
+					"[NC-EMI] DirectFill menu={} recipeId={} craftAll={} mouse=({}, {})",
+					menu.containerId,
+					recipeId,
+					craftAll,
+					(int) mouseX,
+					(int) mouseY
+			);
+		}
+		return true;
 	}
 
 	@Nullable
@@ -270,6 +319,28 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		return itemIds;
 	}
 
+	@Nullable
+	private static ResourceLocation resolveCraftableRecipeIdForOutput(NearbyCraftingMenu menu, ItemStack outputStack) {
+		if (outputStack.isEmpty() || menu.getLevel() == null) {
+			return null;
+		}
+
+		for (CraftingRecipe recipe : computeCraftableRecipes(menu)) {
+			ItemStack result = recipe.getResultItem(menu.getLevel().registryAccess());
+			if (result.isEmpty() || !result.isItemEnabled(menu.getLevel().enabledFeatures())) {
+				continue;
+			}
+			if (!ItemStack.isSameItemSameTags(result, outputStack)) {
+				continue;
+			}
+			ResourceLocation recipeId = recipe.getId();
+			if (recipeId != null) {
+				return recipeId;
+			}
+		}
+		return null;
+	}
+
 	private static List<CraftingRecipe> computeCraftableRecipes(NearbyCraftingMenu menu) {
 		List<AvailableIngredientStack> availableStacks = buildAvailableItemPool(menu);
 		if (availableStacks.isEmpty()) {
@@ -391,6 +462,41 @@ public final class NearbyCraftingEmiCraftableFilterController {
 			}
 		}
 		return false;
+	}
+
+	@Nullable
+	private static ResourceLocation resolveRecipeIdFromInteraction(Object interaction) {
+		Object recipeContext = invoke(interaction, "getRecipeContext", 0);
+		if (recipeContext == null) {
+			return null;
+		}
+		Object recipeIdObject = invoke(recipeContext, "getId", 0);
+		if (recipeIdObject == null) {
+			return null;
+		}
+		return ResourceLocation.tryParse(recipeIdObject.toString());
+	}
+
+	private static ItemStack resolveOutputStackFromInteraction(Object interaction) {
+		Object stackIngredient = invoke(interaction, "getStack", 0);
+		if (stackIngredient == null) {
+			return ItemStack.EMPTY;
+		}
+		Object emiStacksObject = invoke(stackIngredient, "getEmiStacks", 0);
+		if (!(emiStacksObject instanceof List<?> emiStacks) || emiStacks.isEmpty()) {
+			return ItemStack.EMPTY;
+		}
+
+		Object firstStack = emiStacks.get(0);
+		if (firstStack == null) {
+			return ItemStack.EMPTY;
+		}
+
+		Object itemStackObject = invoke(firstStack, "getItemStack", 0);
+		if (itemStackObject instanceof ItemStack itemStack && !itemStack.isEmpty()) {
+			return normalizeForMatching(itemStack);
+		}
+		return ItemStack.EMPTY;
 	}
 
 	private static ItemStack normalizeForMatching(ItemStack stack) {
