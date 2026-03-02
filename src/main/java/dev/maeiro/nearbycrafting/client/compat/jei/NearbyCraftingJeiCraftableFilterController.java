@@ -48,13 +48,25 @@ public final class NearbyCraftingJeiCraftableFilterController {
 	private static final Set<String> removedKeys = new LinkedHashSet<>();
 	private static final Map<Object, List<Object>> removedNonItemIngredientsByType = new IdentityHashMap<>();
 	private static final long CLICK_PROBE_TIMEOUT_MS = 4000L;
+	private static final long REFRESH_DEBOUNCE_MS = 50L;  // Debounce threshold for rapid refresh calls
 	@Nullable
 	private static ClickProbe lastClickProbe;
+	private static long lastRefreshTime = 0L;
+	private static boolean pendingIngredientListRebuild = false;  // Flag to defer overlay rebuild to next tick
 
 	private static boolean enabled;
 	private static int activeContainerId = -1;
 
 	private NearbyCraftingJeiCraftableFilterController() {
+	}
+
+	/** Called every frame to process deferred operations */
+	public static void processDeferred() {
+		// Only rebuild overlay if needed - other operations are synchronous
+		if (pendingIngredientListRebuild) {
+			pendingIngredientListRebuild = false;
+			forceIngredientListOverlayRebuild();
+		}
 	}
 
 	public static void onRuntimeAvailable(Object runtime) {
@@ -110,6 +122,17 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		if (!isEnabledFor(menu.containerId)) {
 			return;
 		}
+		
+		// Debounce: skip rapid consecutive refresh calls
+		long now = System.currentTimeMillis();
+		if (now - lastRefreshTime < REFRESH_DEBOUNCE_MS) {
+			if (isDebugLoggingEnabled()) {
+				NearbyCrafting.LOGGER.info("[NC-JEI] Refresh debounced ({}ms since last)", now - lastRefreshTime);
+			}
+			return;
+		}
+		lastRefreshTime = now;
+		
 		refresh(menu);
 	}
 
@@ -365,13 +388,17 @@ public final class NearbyCraftingJeiCraftableFilterController {
 			return;
 		}
 
+		long startTime = System.nanoTime();
 		Object ingredientManager = getIngredientManager();
 		if (ingredientManager == null) {
 			return;
 		}
 
 		ensureUniverseLoaded();
+		long afterUniverse = System.nanoTime();
+		
 		Set<String> craftableOutputItemIds = computeCraftableOutputItemIds(menu);
+		long afterCraftable = System.nanoTime();
 
 		Set<String> desiredRemovedKeys = new LinkedHashSet<>();
 		for (Map.Entry<String, String> entry : universeItemIdByKey.entrySet()) {
@@ -379,7 +406,12 @@ public final class NearbyCraftingJeiCraftableFilterController {
 				desiredRemovedKeys.add(entry.getKey());
 			}
 		}
+		
 		if (desiredRemovedKeys.equals(removedKeys)) {
+			long noChangeTime = System.nanoTime() - startTime;
+			if (isDebugLoggingEnabled()) {
+				NearbyCrafting.LOGGER.info("[NC-JEI] Refresh SKIPPED (no changes) in {}ms", noChangeTime / 1_000_000.0);
+			}
 			hideNonItemIngredients(ingredientManager);
 			return;
 		}
@@ -390,24 +422,50 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		Set<String> toHide = new LinkedHashSet<>(desiredRemovedKeys);
 		toHide.removeAll(removedKeys);
 
+		long beforeMutations = System.nanoTime();
+		long beforeRestore = System.nanoTime();
 		invokeIngredientMutation(ingredientManager, "addIngredientsAtRuntime", getStacksForKeys(toRestore));
+		long afterRestore = System.nanoTime();
+		long beforeHideCall = System.nanoTime();
 		invokeIngredientMutation(ingredientManager, "removeIngredientsAtRuntime", getStacksForKeys(toHide));
+		long afterMutations = System.nanoTime();
+		
+		if (isDebugLoggingEnabled()) {
+			NearbyCrafting.LOGGER.info(
+					"[NC-JEI] Mutations breakdown: restore({} items)={}ms, hide({} items)={}ms",
+					toRestore.size(),
+					(afterRestore - beforeRestore) / 1_000_000.0,
+					toHide.size(),
+					(afterMutations - beforeHideCall) / 1_000_000.0
+			);
+		}
+		
+		long beforeHide = System.nanoTime();
 		hideNonItemIngredients(ingredientManager);
-		forceIngredientListOverlayRebuild();
+		long afterHide = System.nanoTime();
+		
+		long beforeRebuild = System.nanoTime();
+		// Defer overlay rebuild to next tick to avoid blocking render thread
+		pendingIngredientListRebuild = true;
+		long afterRebuild = System.nanoTime();
 
 		removedKeys.removeAll(toRestore);
 		removedKeys.addAll(toHide);
 
 		if (isDebugLoggingEnabled()) {
 			NearbyCrafting.LOGGER.info(
-					"[NC-JEI] Refresh menu={} universe={} craftableItems={} hide={} restore={} removedNow={} nonItemTypesHidden={}",
+					"[NC-JEI] Refresh EXECUTED menu={} universe={} craftableItems={} hide={} restore={} | Time: universeLoadMs={} craftableMs={} mutationsMs={} hideMs={} rebuildMs={} totalMs={}",
 					menu.containerId,
 					universeStacksByKey.size(),
 					craftableOutputItemIds.size(),
 					toHide.size(),
 					toRestore.size(),
-					removedKeys.size(),
-					removedNonItemIngredientsByType.size()
+					(afterUniverse - startTime) / 1_000_000.0,
+					(afterCraftable - afterUniverse) / 1_000_000.0,
+					(afterMutations - beforeMutations) / 1_000_000.0,
+					(afterHide - beforeHide) / 1_000_000.0,
+					(afterRebuild - beforeRebuild) / 1_000_000.0,
+					(afterRebuild - startTime) / 1_000_000.0
 			);
 		}
 	}
@@ -528,7 +586,12 @@ public final class NearbyCraftingJeiCraftableFilterController {
 	}
 
 	private static List<CraftingRecipe> computeCraftableRecipes(NearbyCraftingMenu menu) {
+		long startTime = System.nanoTime();
+		
+		long poolStart = System.nanoTime();
 		List<AvailableIngredientStack> availableStacks = buildJeiAvailableItemPool(menu);
+		long poolTime = System.nanoTime() - poolStart;
+		
 		if (availableStacks.isEmpty()) {
 			logMatcherPoolDebug(menu, availableStacks, 0, 0);
 			return List.of();
@@ -536,6 +599,7 @@ public final class NearbyCraftingJeiCraftableFilterController {
 
 		List<CraftingRecipe> craftableRecipes = new ArrayList<>();
 		int candidateRecipes = 0;
+		long matchingStart = System.nanoTime();
 		for (CraftingRecipe recipe : menu.getLevel().getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING)) {
 			if (!isEligibleCraftingRecipe(recipe)) {
 				continue;
@@ -546,7 +610,16 @@ public final class NearbyCraftingJeiCraftableFilterController {
 			}
 			craftableRecipes.add(recipe);
 		}
+		long matchingTime = System.nanoTime() - matchingStart;
+		
 		logMatcherPoolDebug(menu, availableStacks, candidateRecipes, craftableRecipes.size());
+		
+		if (isDebugLoggingEnabled()) {
+			long totalTime = System.nanoTime() - startTime;
+			NearbyCrafting.LOGGER.info("[NC-JEI] computeCraftableRecipes in {}ms (pool: {}ms, matching: {}ms, results: {})",
+					totalTime / 1_000_000.0, poolTime / 1_000_000.0, matchingTime / 1_000_000.0, craftableRecipes.size());
+		}
+		
 		return craftableRecipes;
 	}
 
@@ -1012,6 +1085,7 @@ public final class NearbyCraftingJeiCraftableFilterController {
 	}
 
 	private static void forceIngredientListOverlayRebuild() {
+		long startTime = System.nanoTime();
 		Object runtime = jeiRuntime;
 		if (runtime == null) {
 			return;
@@ -1033,6 +1107,11 @@ public final class NearbyCraftingJeiCraftableFilterController {
 			}
 			Object chainedUpdater = updateScreenMethod.invoke(updater, Minecraft.getInstance().screen);
 			updateMethod.invoke(chainedUpdater != null ? chainedUpdater : updater);
+			
+			if (isDebugLoggingEnabled()) {
+				long elapsedMs = (System.nanoTime() - startTime) / 1_000_000;
+				NearbyCrafting.LOGGER.info("[NC-JEI] forceIngredientListOverlayRebuild completed in {}ms", elapsedMs);
+			}
 		} catch (ReflectiveOperationException | RuntimeException ignored) {
 		}
 	}

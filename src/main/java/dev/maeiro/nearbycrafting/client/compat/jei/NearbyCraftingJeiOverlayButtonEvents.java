@@ -122,6 +122,9 @@ public final class NearbyCraftingJeiOverlayButtonEvents {
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void onScreenRenderPost(ScreenEvent.Render.Post event) {
+		// Process any deferred overlay rebuilds from the JEI filter controller
+		NearbyCraftingJeiCraftableFilterController.processDeferred();
+		
 		if (!(event.getScreen() instanceof NearbyCraftingScreen screen)) {
 			lastRenderedButtonBounds = null;
 			lastRenderedContainerId = -1;
