@@ -38,9 +38,15 @@ public class C2SRequestRecipeFill {
 			}
 
 			FillResult result = menu.fillRecipeById(recipeId, craftAll);
+			NearbyCraftingNetwork.CHANNEL.send(
+					PacketDistributor.PLAYER.with(() -> player),
+					new S2CRecipeBookSourceSnapshot(
+							menu.containerId,
+							RecipeBookSourceSnapshotBuilder.build(menu)
+					)
+			);
 			NearbyCraftingNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new S2CRecipeFillFeedback(result.success(), result.messageKey(), result.craftedAmount()));
 		});
 		ctx.setPacketHandled(true);
 	}
 }
-

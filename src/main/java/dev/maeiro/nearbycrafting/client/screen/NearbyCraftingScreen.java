@@ -142,6 +142,11 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeBookSources(this.menu.containerId));
 	}
 
+	public void requestImmediateSourceSyncAndRefresh() {
+		requestRecipeBookSourceSync();
+		NearbyCraftingJeiCraftableFilterController.refreshIfEnabled(this.menu);
+	}
+
 	@Override
 	public void removed() {
 		NearbyCraftingJeiCraftableFilterController.handleMenuClosed(this.menu.containerId);

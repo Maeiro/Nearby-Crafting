@@ -22,6 +22,11 @@ public class RecipeFillService {
 
 	public static FillResult fillFromRecipe(NearbyCraftingMenu menu, CraftingRecipe recipe, boolean craftAll) {
 		List<Ingredient> targetGrid = buildTargetGrid(recipe);
+
+		// Release any currently loaded grid ingredients back to their tracked sources
+		// before scanning/planning. Otherwise they look "consumed" for subsequent fills.
+		menu.clearCraftGridToPlayerOrDrop();
+
 		List<ItemSourceRef> sources = NearbyInventoryScanner.collectSources(
 				menu.getLevel(),
 				menu.getTablePos(),
@@ -41,7 +46,6 @@ public class RecipeFillService {
 			return FillResult.failure("nearbycrafting.feedback.fill_failed");
 		}
 
-		menu.clearCraftGridToPlayerOrDrop();
 		if (!applyCommitAsSet(menu, firstCommit)) {
 			rollbackCommit(firstCommit);
 			return FillResult.failure("nearbycrafting.feedback.fill_failed");

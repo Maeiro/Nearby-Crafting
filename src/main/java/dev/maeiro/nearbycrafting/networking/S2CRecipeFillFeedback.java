@@ -1,5 +1,6 @@
 package dev.maeiro.nearbycrafting.networking;
 
+import dev.maeiro.nearbycrafting.client.screen.NearbyCraftingScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -42,8 +43,11 @@ public class S2CRecipeFillFeedback {
 					? Component.translatable(messageKey, craftedAmount)
 					: Component.translatable(messageKey);
 			minecraft.player.displayClientMessage(feedback, true);
+
+			if (minecraft.screen instanceof NearbyCraftingScreen nearbyCraftingScreen) {
+				nearbyCraftingScreen.requestImmediateSourceSyncAndRefresh();
+			}
 		});
 		ctx.setPacketHandled(true);
 	}
 }
-
