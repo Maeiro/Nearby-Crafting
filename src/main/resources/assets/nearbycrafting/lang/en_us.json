@@ -11,5 +11,7 @@
   "nearbycrafting.feedback.recipe_not_found": "Recipe not found",
   "nearbycrafting.feedback.invalid_recipe_type": "Recipe type is not supported",
   "nearbycrafting.jei.updating.enable": "Filtering craftable items...",
-  "nearbycrafting.jei.updating.disable": "Restoring ingredient list..."
+  "nearbycrafting.jei.updating.disable": "Restoring ingredient list...",
+  "nearbycrafting.emi.updating.enable": "Filtering craftable items...",
+  "nearbycrafting.emi.updating.disable": "Restoring ingredient list..."
 }
