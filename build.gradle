@@ -30,7 +30,8 @@ minecraft {
 
     runs {
         configureEach {
-            workingDirectory project.file("run/${it.name}")
+            // Keep dev runs isolated from manually-copied modpacks under run/client/mods.
+            workingDirectory project.file("run_dev/${it.name}")
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
 
@@ -71,7 +72,9 @@ dependencies {
     runtimeOnly fg.deobf("mezz.jei:jei-${jei_mc_version}:${jei_version}")
 
     compileOnly fg.deobf("dev.emi:emi-forge:${emi_version}:api")
-    runtimeOnly fg.deobf("dev.emi:emi-forge:${emi_version}")
+    if (project.findProperty('enable_emi_dev_runtime')?.toString()?.toBoolean()) {
+        runtimeOnly fg.deobf("dev.emi:emi-forge:${emi_version}")
+    }
 
     compileOnly fg.deobf("curse.maven:sophisticated-backpacks-422301:7645913")
     compileOnly fg.deobf("curse.maven:sophisticated-core-618298:7645911")
