@@ -1,5 +1,6 @@
 package dev.maeiro.nearbycrafting.client.screen;
 
+import dev.maeiro.nearbycrafting.client.compat.jei.NearbyCraftingJeiCraftableFilterController;
 import dev.maeiro.nearbycrafting.config.NearbyCraftingConfig;
 import dev.maeiro.nearbycrafting.menu.NearbyCraftingMenu;
 import dev.maeiro.nearbycrafting.networking.C2SRequestRecipeBookSources;
@@ -65,6 +66,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		if (recipeBookSourceSyncTicker >= RECIPE_BOOK_SOURCE_SYNC_INTERVAL_TICKS) {
 			recipeBookSourceSyncTicker = 0;
 			requestRecipeBookSourceSync();
+			NearbyCraftingJeiCraftableFilterController.refreshIfEnabled(this.menu);
 		}
 	}
 
@@ -133,9 +135,16 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		} else {
 			this.recipeBookComponent.recipesUpdated();
 		}
+		NearbyCraftingJeiCraftableFilterController.refreshIfEnabled(this.menu);
 	}
 
 	private void requestRecipeBookSourceSync() {
 		NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeBookSources(this.menu.containerId));
+	}
+
+	@Override
+	public void removed() {
+		NearbyCraftingJeiCraftableFilterController.handleMenuClosed(this.menu.containerId);
+		super.removed();
 	}
 }

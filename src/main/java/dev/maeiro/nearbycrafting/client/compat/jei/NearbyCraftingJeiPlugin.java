@@ -15,6 +15,7 @@ import mezz.jei.api.recipe.transfer.IRecipeTransferHandler;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandlerHelper;
 import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.registration.IRecipeTransferRegistration;
+import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
@@ -43,6 +44,16 @@ public class NearbyCraftingJeiPlugin implements IModPlugin {
 	public void registerRecipeTransferHandlers(IRecipeTransferRegistration registration) {
 		IRecipeTransferHandlerHelper transferHelper = registration.getTransferHelper();
 		registration.addRecipeTransferHandler(new NearbyCraftingTransferHandler(transferHelper), RecipeTypes.CRAFTING);
+	}
+
+	@Override
+	public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
+		NearbyCraftingJeiCraftableFilterController.onRuntimeAvailable(jeiRuntime);
+	}
+
+	@Override
+	public void onRuntimeUnavailable() {
+		NearbyCraftingJeiCraftableFilterController.onRuntimeUnavailable();
 	}
 
 	private static class NearbyCraftingTransferHandler implements IRecipeTransferHandler<NearbyCraftingMenu, CraftingRecipe> {
