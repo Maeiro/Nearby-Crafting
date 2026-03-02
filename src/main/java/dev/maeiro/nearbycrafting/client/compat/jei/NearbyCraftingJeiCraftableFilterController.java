@@ -892,8 +892,10 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		try {
 			Class<?> roleClass = Class.forName("mezz.jei.api.recipe.RecipeIngredientRole");
 			@SuppressWarnings("unchecked")
-			Class<? extends Enum> enumClass = (Class<? extends Enum>) roleClass.asSubclass(Enum.class);
-			return Enum.valueOf(enumClass, enumName);
+			Class<? extends Enum<?>> enumClass = (Class<? extends Enum<?>>) roleClass.asSubclass(Enum.class);
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			Enum<?> result = Enum.valueOf((Class) enumClass, enumName);
+			return result;
 		} catch (ReflectiveOperationException | RuntimeException exception) {
 			NearbyCrafting.LOGGER.warn("Unable to resolve JEI RecipeIngredientRole.{}", enumName, exception);
 			return null;
