@@ -199,7 +199,33 @@ public class RecipeFillService {
 			return FillResult.failure("nearbycrafting.feedback.no_recipe_selected");
 		}
 
-		return fillFromRecipe(menu, lastRecipe, false);
+		List<Ingredient> targetGrid = buildTargetGrid(lastRecipe);
+		List<ItemSourceRef> sources = NearbyInventoryScanner.collectSources(
+				menu.getLevel(),
+				menu.getTablePos(),
+				menu.getPlayer(),
+				menu.isIncludePlayerInventory(),
+				menu.getSourcePriority()
+		);
+		IngredientSourcePool pool = new IngredientSourcePool(sources);
+		Optional<ExtractionPlan> refillPlanOptional = pool.plan(targetGrid);
+		if (refillPlanOptional.isEmpty()) {
+			return FillResult.failure("nearbycrafting.feedback.not_enough_ingredients");
+		}
+
+		ExtractionCommitResult refillCommit = refillPlanOptional.get().commit();
+		if (refillCommit == null) {
+			return FillResult.failure("nearbycrafting.feedback.fill_failed");
+		}
+
+		if (!applyCommitAsAdd(menu, refillCommit)) {
+			rollbackCommit(refillCommit);
+			return FillResult.failure("nearbycrafting.feedback.fill_failed");
+		}
+
+		menu.slotsChanged(menu.getCraftSlots());
+		menu.broadcastChanges();
+		return FillResult.success("nearbycrafting.feedback.filled", 0);
 	}
 
 	public static List<Ingredient> buildTargetGrid(CraftingRecipe recipe) {

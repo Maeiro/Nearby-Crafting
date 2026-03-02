@@ -122,6 +122,10 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	@Override
 	public void fillCraftSlotsStackedContents(StackedContents itemHelper) {
 		this.craftSlots.fillStackedContents(itemHelper);
+		fillSupplementalRecipeBookSources(itemHelper);
+	}
+
+	public void fillSupplementalRecipeBookSources(StackedContents itemHelper) {
 		for (RecipeBookSourceEntry sourceEntry : clientRecipeBookSupplementalSources) {
 			if (sourceEntry.count() <= 0 || sourceEntry.stack().isEmpty()) {
 				continue;
@@ -502,6 +506,10 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 			sanitized.add(new RecipeBookSourceEntry(normalized, sourceEntry.count()));
 		}
 		this.clientRecipeBookSupplementalSources = List.copyOf(sanitized);
+	}
+
+	public List<RecipeBookSourceEntry> getClientRecipeBookSupplementalSources() {
+		return clientRecipeBookSupplementalSources;
 	}
 
 	public record RecipeBookSourceEntry(ItemStack stack, int count) {

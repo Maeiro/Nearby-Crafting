@@ -5,19 +5,17 @@ import dev.maeiro.nearbycrafting.config.NearbyCraftingConfig;
 import dev.maeiro.nearbycrafting.menu.NearbyCraftingMenu;
 import dev.maeiro.nearbycrafting.networking.C2SRequestRecipeFill;
 import dev.maeiro.nearbycrafting.networking.NearbyCraftingNetwork;
-import net.minecraft.client.ClientRecipeBook;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.recipebook.RecipeCollection;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.player.StackedContents;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
-import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
@@ -381,6 +379,10 @@ public final class NearbyCraftingJeiCraftableFilterController {
 				desiredRemovedKeys.add(entry.getKey());
 			}
 		}
+		if (desiredRemovedKeys.equals(removedKeys)) {
+			hideNonItemIngredients(ingredientManager);
+			return;
+		}
 
 		Set<String> toRestore = new LinkedHashSet<>(removedKeys);
 		toRestore.removeAll(desiredRemovedKeys);
@@ -391,6 +393,7 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		invokeIngredientMutation(ingredientManager, "addIngredientsAtRuntime", getStacksForKeys(toRestore));
 		invokeIngredientMutation(ingredientManager, "removeIngredientsAtRuntime", getStacksForKeys(toHide));
 		hideNonItemIngredients(ingredientManager);
+		forceIngredientListOverlayRebuild();
 
 		removedKeys.removeAll(toRestore);
 		removedKeys.addAll(toHide);
@@ -448,66 +451,33 @@ public final class NearbyCraftingJeiCraftableFilterController {
 	}
 
 	private static Set<String> computeCraftableOutputItemIds(NearbyCraftingMenu menu) {
-		StackedContents availableContents = new StackedContents();
-		if (menu.isIncludePlayerInventory()) {
-			menu.getPlayer().getInventory().fillStackedContents(availableContents);
-		}
-		menu.fillCraftSlotsStackedContents(availableContents);
-
 		Set<String> itemIds = new LinkedHashSet<>();
-		Minecraft minecraft = Minecraft.getInstance();
-		if (minecraft.player == null) {
-			return itemIds;
-		}
-
-		ClientRecipeBook recipeBook = minecraft.player.getRecipeBook();
-		int collectionsSeen = 0;
-		int recipeEntriesSeen = 0;
-		int skippedNotEligible = 0;
+		List<CraftingRecipe> craftableRecipes = computeCraftableRecipes(menu);
 		List<String> sample = isDebugLoggingEnabled() ? new ArrayList<>() : List.of();
-
-		for (RecipeCollection collection : recipeBook.getCollections()) {
-			collectionsSeen++;
-			collection.canCraft(availableContents, menu.getGridWidth(), menu.getGridHeight(), recipeBook);
-			if (!collection.hasCraftable()) {
+		for (CraftingRecipe craftingRecipe : craftableRecipes) {
+			ItemStack result = craftingRecipe.getResultItem(menu.getLevel().registryAccess());
+			if (result.isEmpty() || !result.isItemEnabled(menu.getLevel().enabledFeatures())) {
 				continue;
 			}
 
-			for (Recipe<?> recipe : collection.getRecipes(true)) {
-				recipeEntriesSeen++;
-				if (!(recipe instanceof CraftingRecipe craftingRecipe)) {
-					continue;
-				}
-				if (!isEligibleCraftingRecipe(craftingRecipe)) {
-					skippedNotEligible++;
-					continue;
-				}
+			ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(result.getItem());
+			if (itemId == null) {
+				continue;
+			}
 
-				ItemStack result = craftingRecipe.getResultItem(menu.getLevel().registryAccess());
-				if (result.isEmpty() || !result.isItemEnabled(menu.getLevel().enabledFeatures())) {
-					continue;
-				}
-
-				ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(result.getItem());
-				if (itemId == null) {
-					continue;
-				}
-
-				String itemIdString = itemId.toString();
-				if (itemIds.add(itemIdString) && sample.size() < 12) {
-					sample.add(craftingRecipe.getId() + " -> " + itemIdString);
-				}
+			String itemIdString = itemId.toString();
+			if (itemIds.add(itemIdString) && sample.size() < 12) {
+				sample.add(craftingRecipe.getId() + " -> " + itemIdString);
 			}
 		}
 
 		if (isDebugLoggingEnabled()) {
 			NearbyCrafting.LOGGER.info(
-					"[NC-JEI] Craftable snapshot menu={} includePlayer={} collectionsSeen={} recipeEntriesSeen={} skippedNotEligible={} craftableItems={} sample={}",
+					"[NC-JEI] Craftable snapshot menu={} includePlayer={} recipeCandidates={} craftableRecipes={} craftableItems={} sample={}",
 					menu.containerId,
 					menu.isIncludePlayerInventory(),
-					collectionsSeen,
-					recipeEntriesSeen,
-					skippedNotEligible,
+					menu.getLevel().getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING).size(),
+					craftableRecipes.size(),
 					itemIds.size(),
 					sample
 			);
@@ -521,48 +491,189 @@ public final class NearbyCraftingJeiCraftableFilterController {
 			return null;
 		}
 
-		StackedContents availableContents = new StackedContents();
-		if (menu.isIncludePlayerInventory()) {
-			menu.getPlayer().getInventory().fillStackedContents(availableContents);
-		}
-		menu.fillCraftSlotsStackedContents(availableContents);
-
-		Minecraft minecraft = Minecraft.getInstance();
-		if (minecraft.player == null) {
-			return null;
-		}
-
-		ClientRecipeBook recipeBook = minecraft.player.getRecipeBook();
-		for (RecipeCollection collection : recipeBook.getCollections()) {
-			collection.canCraft(availableContents, menu.getGridWidth(), menu.getGridHeight(), recipeBook);
-			if (!collection.hasCraftable()) {
+		for (CraftingRecipe craftingRecipe : computeCraftableRecipes(menu)) {
+			ItemStack result = craftingRecipe.getResultItem(menu.getLevel().registryAccess());
+			if (result.isEmpty() || !result.isItemEnabled(menu.getLevel().enabledFeatures())) {
+				continue;
+			}
+			if (!ItemStack.isSameItemSameTags(result, outputStack)) {
 				continue;
 			}
 
-			for (Recipe<?> recipe : collection.getRecipes(true)) {
-				if (!(recipe instanceof CraftingRecipe craftingRecipe)) {
-					continue;
-				}
-				if (!isEligibleCraftingRecipe(craftingRecipe)) {
-					continue;
-				}
+			ResourceLocation recipeId = craftingRecipe.getId();
+			if (recipeId != null) {
+				return recipeId;
+			}
+		}
 
-				ItemStack result = craftingRecipe.getResultItem(menu.getLevel().registryAccess());
-				if (result.isEmpty() || !result.isItemEnabled(menu.getLevel().enabledFeatures())) {
-					continue;
-				}
-				if (!ItemStack.isSameItemSameTags(result, outputStack)) {
-					continue;
-				}
-
-				ResourceLocation recipeId = craftingRecipe.getId();
-				if (recipeId != null) {
-					return recipeId;
-				}
+		// Fallback: allow recipe switching from current grid-loaded ingredients.
+		for (CraftingRecipe craftingRecipe : menu.getLevel().getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING)) {
+			if (!isEligibleCraftingRecipe(craftingRecipe)) {
+				continue;
+			}
+			ItemStack result = craftingRecipe.getResultItem(menu.getLevel().registryAccess());
+			if (result.isEmpty() || !result.isItemEnabled(menu.getLevel().enabledFeatures())) {
+				continue;
+			}
+			if (!ItemStack.isSameItemSameTags(result, outputStack)) {
+				continue;
+			}
+			ResourceLocation recipeId = craftingRecipe.getId();
+			if (recipeId != null) {
+				return recipeId;
 			}
 		}
 
 		return null;
+	}
+
+	private static List<CraftingRecipe> computeCraftableRecipes(NearbyCraftingMenu menu) {
+		List<AvailableIngredientStack> availableStacks = buildJeiAvailableItemPool(menu);
+		if (availableStacks.isEmpty()) {
+			logMatcherPoolDebug(menu, availableStacks, 0, 0);
+			return List.of();
+		}
+
+		List<CraftingRecipe> craftableRecipes = new ArrayList<>();
+		int candidateRecipes = 0;
+		for (CraftingRecipe recipe : menu.getLevel().getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING)) {
+			if (!isEligibleCraftingRecipe(recipe)) {
+				continue;
+			}
+			candidateRecipes++;
+			if (!canCraftWithAvailableStacks(recipe, availableStacks)) {
+				continue;
+			}
+			craftableRecipes.add(recipe);
+		}
+		logMatcherPoolDebug(menu, availableStacks, candidateRecipes, craftableRecipes.size());
+		return craftableRecipes;
+	}
+
+	private static List<AvailableIngredientStack> buildJeiAvailableItemPool(NearbyCraftingMenu menu) {
+		Map<String, AvailableIngredientStack> pooledStacks = new LinkedHashMap<>();
+		for (int slot = 0; slot < menu.getCraftSlots().getContainerSize(); slot++) {
+			ItemStack stack = menu.getCraftSlots().getItem(slot);
+			addAvailableStack(pooledStacks, stack, stack.getCount());
+		}
+		if (menu.isIncludePlayerInventory()) {
+			Inventory inventory = menu.getPlayer().getInventory();
+			for (ItemStack stack : inventory.items) {
+				addAvailableStack(pooledStacks, stack, stack.getCount());
+			}
+			for (ItemStack stack : inventory.armor) {
+				addAvailableStack(pooledStacks, stack, stack.getCount());
+			}
+			for (ItemStack stack : inventory.offhand) {
+				addAvailableStack(pooledStacks, stack, stack.getCount());
+			}
+		}
+		for (NearbyCraftingMenu.RecipeBookSourceEntry sourceEntry : menu.getClientRecipeBookSupplementalSources()) {
+			addAvailableStack(pooledStacks, sourceEntry.stack(), sourceEntry.count());
+		}
+		return new ArrayList<>(pooledStacks.values());
+	}
+
+	private static void addAvailableStack(Map<String, AvailableIngredientStack> pooledStacks, ItemStack stack, int count) {
+		if (stack == null || stack.isEmpty() || count <= 0) {
+			return;
+		}
+		ItemStack normalized = normalizeForIngredientList(stack);
+		String key = getStackKey(normalized);
+		pooledStacks.compute(key, (ignored, existing) -> {
+			if (existing == null) {
+				return new AvailableIngredientStack(normalized, count);
+			}
+			existing.count += count;
+			return existing;
+		});
+	}
+
+	private static boolean canCraftWithAvailableStacks(CraftingRecipe recipe, List<AvailableIngredientStack> availableStacks) {
+		List<Ingredient> ingredients = recipe.getIngredients();
+		if (ingredients == null || ingredients.isEmpty()) {
+			return false;
+		}
+
+		int[] remaining = new int[availableStacks.size()];
+		for (int i = 0; i < availableStacks.size(); i++) {
+			remaining[i] = availableStacks.get(i).count;
+		}
+		return matchIngredientRecursive(ingredients, 0, availableStacks, remaining);
+	}
+
+	private static void logMatcherPoolDebug(
+			NearbyCraftingMenu menu,
+			List<AvailableIngredientStack> availableStacks,
+			int candidateRecipes,
+			int craftableRecipes
+	) {
+		if (!isDebugLoggingEnabled()) {
+			return;
+		}
+
+		int totalItems = 0;
+		int diamondCount = 0;
+		int stickCount = 0;
+		List<String> sample = new ArrayList<>();
+		for (AvailableIngredientStack entry : availableStacks) {
+			totalItems += entry.count;
+			ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(entry.stack.getItem());
+			String itemIdString = itemId == null ? "unknown" : itemId.toString();
+			if ("minecraft:diamond".equals(itemIdString)) {
+				diamondCount += entry.count;
+			} else if ("minecraft:stick".equals(itemIdString)) {
+				stickCount += entry.count;
+			}
+
+			if (sample.size() < 12) {
+				sample.add(itemIdString + " x" + entry.count);
+			}
+		}
+
+		NearbyCrafting.LOGGER.info(
+				"[NC-JEI] MatcherPool menu={} entries={} totalItems={} diamonds={} sticks={} recipeCandidates={} craftableRecipes={} sample={}",
+				menu.containerId,
+				availableStacks.size(),
+				totalItems,
+				diamondCount,
+				stickCount,
+				candidateRecipes,
+				craftableRecipes,
+				sample
+		);
+	}
+
+	private static boolean matchIngredientRecursive(
+			List<Ingredient> ingredients,
+			int ingredientIndex,
+			List<AvailableIngredientStack> availableStacks,
+			int[] remaining
+	) {
+		if (ingredientIndex >= ingredients.size()) {
+			return true;
+		}
+
+		Ingredient ingredient = ingredients.get(ingredientIndex);
+		if (ingredient == null || ingredient.isEmpty()) {
+			return matchIngredientRecursive(ingredients, ingredientIndex + 1, availableStacks, remaining);
+		}
+
+		for (int i = 0; i < availableStacks.size(); i++) {
+			if (remaining[i] <= 0) {
+				continue;
+			}
+			ItemStack candidate = availableStacks.get(i).stack;
+			if (!ingredient.test(candidate)) {
+				continue;
+			}
+			remaining[i]--;
+			if (matchIngredientRecursive(ingredients, ingredientIndex + 1, availableStacks, remaining)) {
+				return true;
+			}
+			remaining[i]++;
+		}
+		return false;
 	}
 
 	private static boolean isEligibleCraftingRecipe(CraftingRecipe recipe) {
@@ -898,6 +1009,32 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		}
 	}
 
+	private static void forceIngredientListOverlayRebuild() {
+		Object runtime = jeiRuntime;
+		if (runtime == null) {
+			return;
+		}
+
+		try {
+			Object ingredientListOverlay = invokeNoArg(runtime, "getIngredientListOverlay");
+			if (ingredientListOverlay == null) {
+				return;
+			}
+			Object updater = invokeNoArg(ingredientListOverlay, "getScreenPropertiesUpdater");
+			if (updater == null) {
+				return;
+			}
+			Method updateScreenMethod = findMethod(updater.getClass(), "updateScreen", 1);
+			Method updateMethod = findMethod(updater.getClass(), "update", 0);
+			if (updateScreenMethod == null || updateMethod == null) {
+				return;
+			}
+			Object chainedUpdater = updateScreenMethod.invoke(updater, Minecraft.getInstance().screen);
+			updateMethod.invoke(chainedUpdater != null ? chainedUpdater : updater);
+		} catch (ReflectiveOperationException | RuntimeException ignored) {
+		}
+	}
+
 	@Nullable
 	private static Object getTypedIngredientUnderMouse(@Nullable Object overlay) {
 		if (overlay == null) {
@@ -969,6 +1106,16 @@ public final class NearbyCraftingJeiCraftableFilterController {
 			return new HoveredTypedIngredient(typedIngredient, "bookmark");
 		}
 		return null;
+	}
+
+	private static final class AvailableIngredientStack {
+		private final ItemStack stack;
+		private int count;
+
+		private AvailableIngredientStack(ItemStack stack, int count) {
+			this.stack = stack;
+			this.count = count;
+		}
 	}
 
 	private static final class HoveredTypedIngredient {

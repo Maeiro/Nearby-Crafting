@@ -11,11 +11,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-final class RecipeBookSourceSnapshotBuilder {
+public final class RecipeBookSourceSnapshotBuilder {
 	private RecipeBookSourceSnapshotBuilder() {
 	}
 
-	static List<NearbyCraftingMenu.RecipeBookSourceEntry> build(NearbyCraftingMenu menu) {
+	public static List<NearbyCraftingMenu.RecipeBookSourceEntry> build(NearbyCraftingMenu menu) {
 		List<ItemSourceRef> sourceRefs = collectRecipeBookSources(menu);
 		return aggregateSourceEntries(sourceRefs);
 	}

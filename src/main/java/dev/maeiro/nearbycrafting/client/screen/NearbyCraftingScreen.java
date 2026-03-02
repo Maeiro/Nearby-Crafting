@@ -27,6 +27,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	private final RecipeBookComponent recipeBookComponent = new RecipeBookComponent();
 	private boolean widthTooNarrow;
 	private int recipeBookSourceSyncTicker = 0;
+	private int deferredRefreshTicks = 0;
 
 	public NearbyCraftingScreen(NearbyCraftingMenu menu, Inventory playerInventory, Component title) {
 		super(menu, playerInventory, title);
@@ -62,11 +63,16 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	public void containerTick() {
 		super.containerTick();
 		this.recipeBookComponent.tick();
+		if (deferredRefreshTicks > 0) {
+			deferredRefreshTicks--;
+			if (deferredRefreshTicks == 0) {
+				refreshRecipeBookFromSyncedSources();
+			}
+		}
 		recipeBookSourceSyncTicker++;
 		if (recipeBookSourceSyncTicker >= RECIPE_BOOK_SOURCE_SYNC_INTERVAL_TICKS) {
 			recipeBookSourceSyncTicker = 0;
 			requestRecipeBookSourceSync();
-			NearbyCraftingJeiCraftableFilterController.refreshIfEnabled(this.menu);
 		}
 	}
 
@@ -144,7 +150,11 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 
 	public void requestImmediateSourceSyncAndRefresh() {
 		requestRecipeBookSourceSync();
-		NearbyCraftingJeiCraftableFilterController.refreshIfEnabled(this.menu);
+		scheduleDeferredRecipeBookRefresh();
+	}
+
+	public void scheduleDeferredRecipeBookRefresh() {
+		deferredRefreshTicks = Math.max(deferredRefreshTicks, 2);
 	}
 
 	@Override

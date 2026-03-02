@@ -57,6 +57,7 @@ public class S2CRecipeBookSourceSnapshot {
 			menu.setClientRecipeBookSupplementalSources(sourceEntries);
 			if (minecraft.screen instanceof NearbyCraftingScreen nearbyCraftingScreen) {
 				nearbyCraftingScreen.refreshRecipeBookFromSyncedSources();
+				nearbyCraftingScreen.scheduleDeferredRecipeBookRefresh();
 			}
 		});
 		ctx.setPacketHandled(true);
