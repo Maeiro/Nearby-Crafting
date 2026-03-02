@@ -379,6 +379,10 @@ public final class NearbyCraftingJeiCraftableFilterController {
 				desiredRemovedKeys.add(entry.getKey());
 			}
 		}
+		if (desiredRemovedKeys.equals(removedKeys)) {
+			hideNonItemIngredients(ingredientManager);
+			return;
+		}
 
 		Set<String> toRestore = new LinkedHashSet<>(removedKeys);
 		toRestore.removeAll(desiredRemovedKeys);
@@ -386,15 +390,13 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		Set<String> toHide = new LinkedHashSet<>(desiredRemovedKeys);
 		toHide.removeAll(removedKeys);
 
-		if (!toRestore.isEmpty() || !toHide.isEmpty()) {
-			invokeIngredientMutation(ingredientManager, "addIngredientsAtRuntime", getStacksForKeys(toRestore));
-			invokeIngredientMutation(ingredientManager, "removeIngredientsAtRuntime", getStacksForKeys(toHide));
-			removedKeys.removeAll(toRestore);
-			removedKeys.addAll(toHide);
-		}
-
+		invokeIngredientMutation(ingredientManager, "addIngredientsAtRuntime", getStacksForKeys(toRestore));
+		invokeIngredientMutation(ingredientManager, "removeIngredientsAtRuntime", getStacksForKeys(toHide));
 		hideNonItemIngredients(ingredientManager);
 		forceIngredientListOverlayRebuild();
+
+		removedKeys.removeAll(toRestore);
+		removedKeys.addAll(toHide);
 
 		if (isDebugLoggingEnabled()) {
 			NearbyCrafting.LOGGER.info(
@@ -451,7 +453,7 @@ public final class NearbyCraftingJeiCraftableFilterController {
 	private static Set<String> computeCraftableOutputItemIds(NearbyCraftingMenu menu) {
 		Set<String> itemIds = new LinkedHashSet<>();
 		List<CraftingRecipe> craftableRecipes = computeCraftableRecipes(menu);
-		List<String> sample = new ArrayList<>();
+		List<String> sample = isDebugLoggingEnabled() ? new ArrayList<>() : List.of();
 		for (CraftingRecipe craftingRecipe : craftableRecipes) {
 			ItemStack result = craftingRecipe.getResultItem(menu.getLevel().registryAccess());
 			if (result.isEmpty() || !result.isItemEnabled(menu.getLevel().enabledFeatures())) {
