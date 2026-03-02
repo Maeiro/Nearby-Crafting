@@ -453,7 +453,7 @@ public final class NearbyCraftingJeiCraftableFilterController {
 	private static Set<String> computeCraftableOutputItemIds(NearbyCraftingMenu menu) {
 		Set<String> itemIds = new LinkedHashSet<>();
 		List<CraftingRecipe> craftableRecipes = computeCraftableRecipes(menu);
-		List<String> sample = isDebugLoggingEnabled() ? new ArrayList<>() : List.of();
+		List<String> sample = new ArrayList<>();
 		for (CraftingRecipe craftingRecipe : craftableRecipes) {
 			ItemStack result = craftingRecipe.getResultItem(menu.getLevel().registryAccess());
 			if (result.isEmpty() || !result.isItemEnabled(menu.getLevel().enabledFeatures())) {
