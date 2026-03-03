@@ -1,7 +1,7 @@
 package dev.maeiro.nearbycrafting.networking;
 
+import dev.maeiro.nearbycrafting.NearbyCrafting;
 import dev.maeiro.nearbycrafting.config.NearbyCraftingConfig;
-import dev.maeiro.nearbycrafting.menu.NearbyCraftingMenu;
 import dev.maeiro.nearbycrafting.service.prefs.PlayerPreferenceStore;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -9,29 +9,21 @@ import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
 
-public class C2SUpdateClientPreferences {
-	private final int containerId;
-	private final boolean autoRefillAfterCraft;
+public class C2SSyncSharedPreferences {
 	private final boolean includePlayerInventory;
 	private final String sourcePriority;
 
-	public C2SUpdateClientPreferences(int containerId, boolean autoRefillAfterCraft, boolean includePlayerInventory, String sourcePriority) {
-		this.containerId = containerId;
-		this.autoRefillAfterCraft = autoRefillAfterCraft;
+	public C2SSyncSharedPreferences(boolean includePlayerInventory, String sourcePriority) {
 		this.includePlayerInventory = includePlayerInventory;
 		this.sourcePriority = sourcePriority;
 	}
 
-	public C2SUpdateClientPreferences(FriendlyByteBuf buf) {
-		this.containerId = buf.readInt();
-		this.autoRefillAfterCraft = buf.readBoolean();
+	public C2SSyncSharedPreferences(FriendlyByteBuf buf) {
 		this.includePlayerInventory = buf.readBoolean();
 		this.sourcePriority = buf.readUtf();
 	}
 
 	public void encode(FriendlyByteBuf buf) {
-		buf.writeInt(containerId);
-		buf.writeBoolean(autoRefillAfterCraft);
 		buf.writeBoolean(includePlayerInventory);
 		buf.writeUtf(sourcePriority);
 	}
@@ -46,11 +38,14 @@ public class C2SUpdateClientPreferences {
 
 			NearbyCraftingConfig.SourcePriority resolvedPriority = NearbyCraftingConfig.SourcePriority.fromConfig(sourcePriority);
 			PlayerPreferenceStore.update(player.getUUID(), includePlayerInventory, resolvedPriority);
-
-			if (!(player.containerMenu instanceof NearbyCraftingMenu menu) || menu.containerId != containerId) {
-				return;
+			if (NearbyCraftingConfig.SERVER.debugLogging.get()) {
+				NearbyCrafting.LOGGER.info(
+						"[NC-ADV-UPGRADE] synced shared prefs player={} includePlayerInventory={} sourcePriority={}",
+						player.getGameProfile().getName(),
+						includePlayerInventory,
+						resolvedPriority
+				);
 			}
-			menu.setClientPreferences(autoRefillAfterCraft, includePlayerInventory, resolvedPriority);
 		});
 		ctx.setPacketHandled(true);
 	}

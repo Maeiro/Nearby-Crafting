@@ -71,8 +71,10 @@ public class NearbyCraftingConfig {
 
 	public static class Server {
 		public final ForgeConfigSpec.IntValue scanRadius;
+		public final ForgeConfigSpec.IntValue advancedBackpackScanRadius;
 		public final ForgeConfigSpec.IntValue minSlotCount;
 		public final ForgeConfigSpec.ConfigValue<List<String>> blacklistedBlockEntities;
+		public final ForgeConfigSpec.ConfigValue<String> advancedBackpackSourcePriority;
 		public final ForgeConfigSpec.IntValue maxShiftCraftIterations;
 		public final ForgeConfigSpec.BooleanValue debugLogging;
 
@@ -82,6 +84,10 @@ public class NearbyCraftingConfig {
 			scanRadius = builder
 					.comment("Radius in blocks to scan for nearby item handlers around the nearby crafting table.")
 					.defineInRange("scanRadius", 6, 0, Integer.MAX_VALUE);
+
+			advancedBackpackScanRadius = builder
+					.comment("Radius in blocks to scan for nearby item handlers around player position when using Advanced Crafting Upgrade.")
+					.defineInRange("advancedBackpackScanRadius", 6, 0, Integer.MAX_VALUE);
 
 			minSlotCount = builder
 					.comment("Minimum number of slots for a container to be considered as an ingredient source.")
@@ -94,6 +100,10 @@ public class NearbyCraftingConfig {
 							"minecraft:blast_furnace",
 							"minecraft:smoker"
 					));
+
+			advancedBackpackSourcePriority = builder
+					.comment("Source priority for Advanced Crafting Upgrade. Allowed values: CONTAINERS_FIRST, PLAYER_FIRST")
+					.define("advancedBackpackSourcePriority", SourcePriority.CONTAINERS_FIRST.name());
 
 			maxShiftCraftIterations = builder
 					.comment("Maximum number of recipe units to place in the grid during max-transfer operations.")

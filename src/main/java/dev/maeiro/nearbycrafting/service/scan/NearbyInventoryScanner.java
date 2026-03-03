@@ -15,7 +15,9 @@ import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.wrapper.InvWrapper;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -76,7 +78,10 @@ public class NearbyInventoryScanner {
 	}
 
 	public static List<ItemSourceRef> collectContainerSources(Level level, BlockPos centerPos) {
-		int scanRadius = NearbyCraftingConfig.SERVER.scanRadius.get();
+		return collectContainerSources(level, centerPos, NearbyCraftingConfig.SERVER.scanRadius.get());
+	}
+
+	public static List<ItemSourceRef> collectContainerSources(Level level, BlockPos centerPos, int scanRadius) {
 		int minSlotCount = NearbyCraftingConfig.SERVER.minSlotCount.get();
 		Set<BlockEntityType<?>> blacklist = NearbyCraftingConfig.blockEntityBlacklist == null
 				? Set.of()
@@ -106,6 +111,44 @@ public class NearbyInventoryScanner {
 			);
 		}
 		return sources;
+	}
+
+	public static List<ItemSourceRef> collectAdvancedBackpackSources(
+			Level level,
+			BlockPos anchorPos,
+			Player player,
+			boolean includePlayerInventory,
+			NearbyCraftingConfig.SourcePriority priority,
+			IItemHandler hostBackpackInventory
+	) {
+		int radius = NearbyCraftingConfig.SERVER.advancedBackpackScanRadius.get();
+		List<ItemSourceRef> containerSources = collectContainerSources(level, anchorPos, radius);
+		List<ItemSourceRef> hostBackpackSources = collectHostBackpackSources(hostBackpackInventory);
+		List<ItemSourceRef> playerSources = collectPlayerSources(player, includePlayerInventory);
+
+		List<ItemSourceRef> result = new ArrayList<>(containerSources.size() + hostBackpackSources.size() + playerSources.size());
+		if (priority == NearbyCraftingConfig.SourcePriority.PLAYER_FIRST) {
+			result.addAll(hostBackpackSources);
+			result.addAll(playerSources);
+			result.addAll(containerSources);
+		} else {
+			result.addAll(containerSources);
+			result.addAll(hostBackpackSources);
+			result.addAll(playerSources);
+		}
+
+		List<ItemSourceRef> deduped = dedupeByHandlerAndSlot(result);
+		if (NearbyCraftingConfig.SERVER.debugLogging.get()) {
+			NearbyCrafting.LOGGER.info(
+					"Collected advanced backpack sources around {} -> containers: {}, host backpack: {}, player+backpacks: {}, deduped total: {}",
+					anchorPos,
+					containerSources.size(),
+					hostBackpackSources.size(),
+					playerSources.size(),
+					deduped.size()
+			);
+		}
+		return deduped;
 	}
 
 	public static List<ItemSourceRef> collectPlayerSources(Player player, boolean includePlayerInventory) {
@@ -145,5 +188,37 @@ public class NearbyInventoryScanner {
 		for (int slot = 0; slot < handler.getSlots(); slot++) {
 			sink.add(new ItemSourceRef(handler, slot, sourceType, blockPos));
 		}
+	}
+
+	private static List<ItemSourceRef> collectHostBackpackSources(IItemHandler hostBackpackInventory) {
+		if (hostBackpackInventory == null || hostBackpackInventory.getSlots() == 0) {
+			return List.of();
+		}
+		List<ItemSourceRef> sources = new ArrayList<>(hostBackpackInventory.getSlots());
+		addHandlerSlots(sources, hostBackpackInventory, ItemSourceRef.SourceType.PLAYER_BACKPACK, null);
+		return sources;
+	}
+
+	private static List<ItemSourceRef> dedupeByHandlerAndSlot(List<ItemSourceRef> sources) {
+		if (sources.isEmpty()) {
+			return List.of();
+		}
+
+		Set<IItemHandler> seenHandlers = Collections.newSetFromMap(new IdentityHashMap<>());
+		Set<String> seenSlots = new HashSet<>();
+		List<ItemSourceRef> deduped = new ArrayList<>(sources.size());
+
+		for (ItemSourceRef source : sources) {
+			IItemHandler handler = source.handler();
+			if (!seenHandlers.contains(handler)) {
+				seenHandlers.add(handler);
+			}
+			String slotKey = System.identityHashCode(handler) + ":" + source.slot();
+			if (seenSlots.add(slotKey)) {
+				deduped.add(source);
+			}
+		}
+
+		return deduped;
 	}
 }
