@@ -1,6 +1,6 @@
-# Nearby Crafting
+# Proximity Crafting
 
-Forge 1.20.1 mod that adds a **Nearby Crafting Table**.
+Forge 1.20.1 mod that adds a **Proximity Crafting Table**.
 
 ## Features
 - Craft using items from nearby containers + player inventory

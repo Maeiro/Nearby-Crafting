@@ -1,8 +1,8 @@
 {
-  "block.nearbycrafting.nearby_crafting_table": "Nearby Crafting Table",
-  "item.nearbycrafting.nearby_crafting_table": "Nearby Crafting Table",
-  "container.nearbycrafting.nearby_crafting_table": "Nearby Crafting",
-  "nearbycrafting.feedback.filled": "Nearby crafting recipe filled",
+  "block.nearbycrafting.nearby_crafting_table": "Proximity Crafting Table",
+  "item.nearbycrafting.nearby_crafting_table": "Proximity Crafting Table",
+  "container.nearbycrafting.nearby_crafting_table": "Proximity Crafting",
+  "nearbycrafting.feedback.filled": "Proximity crafting recipe filled",
   "nearbycrafting.feedback.filled_max": "Loaded %s craft(s) into the grid",
   "nearbycrafting.feedback.crafted_all": "Crafted %s item(s)",
   "nearbycrafting.feedback.not_enough_ingredients": "Not enough nearby ingredients",
