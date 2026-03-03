@@ -1,13 +1,13 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "CIC",
-    "ITI",
-    "CIC"
+    "CDC",
+    "DTD",
+    "CDC"
   ],
   "key": {
     "C": { "item": "minecraft:chest" },
-    "I": { "item": "minecraft:iron_ingot" },
+    "D": { "item": "minecraft:diamond" },
     "T": { "item": "minecraft:crafting_table" }
   },
   "result": {
