@@ -34,8 +34,11 @@ public final class NearbyCraftingEmiCraftableFilterController {
 	private static final String EMI_SCREEN_MANAGER_CLASS = "dev.emi.emi.screen.EmiScreenManager";
 	private static final String EMI_SIDEBARS_CLASS = "dev.emi.emi.runtime.EmiSidebars";
 	private static final String EMI_SEARCH_CLASS = "dev.emi.emi.search.EmiSearch";
+	private static final String EMI_CONFIG_CLASS = "dev.emi.emi.config.EmiConfig";
 	private static final String EMI_SIDEBAR_TYPE_CLASS = "dev.emi.emi.config.SidebarType";
 	private static final long REFRESH_DEBOUNCE_MS = 75L;
+	private static final String SEARCH_SIDEBAR_FOCUS_FIELD = "searchSidebarFocus";
+	private static final String EMPTY_SEARCH_SIDEBAR_FOCUS_FIELD = "emptySearchSidebarFocus";
 
 	private static boolean enabled;
 	private static boolean transitionActive;
@@ -46,6 +49,11 @@ public final class NearbyCraftingEmiCraftableFilterController {
 	private static Object previousSearchSidebarType;
 	@Nullable
 	private static List<?> previousCraftables;
+	@Nullable
+	private static Object previousSearchSidebarFocusSetting;
+	@Nullable
+	private static Object previousEmptySearchSidebarFocusSetting;
+	private static boolean searchSidebarFocusOverridden;
 
 	private NearbyCraftingEmiCraftableFilterController() {
 	}
@@ -77,6 +85,9 @@ public final class NearbyCraftingEmiCraftableFilterController {
 			}
 			previousSearchSidebarType = null;
 			previousCraftables = null;
+			previousSearchSidebarFocusSetting = null;
+			previousEmptySearchSidebarFocusSetting = null;
+			searchSidebarFocusOverridden = false;
 		}
 
 		enabled = true;
@@ -108,6 +119,7 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		}
 		Object craftablesType = resolveSidebarType("CRAFTABLES");
 		if (craftablesType != null) {
+			applyCraftablesSearchSidebarConfig(craftablesType);
 			focusSearchSidebarType(craftablesType);
 		}
 	}
@@ -204,6 +216,7 @@ public final class NearbyCraftingEmiCraftableFilterController {
 				List<?> currentCraftables = getCurrentCraftables();
 				previousCraftables = currentCraftables == null ? List.of() : List.copyOf(currentCraftables);
 			}
+			applyCraftablesSearchSidebarConfig(craftablesType);
 
 			Set<String> craftableOutputIds = computeCraftableOutputItemIds(menu);
 			List<?> indexIngredients = getSidebarStacks(indexType);
@@ -239,6 +252,7 @@ public final class NearbyCraftingEmiCraftableFilterController {
 			if (previousSearchSidebarType != null) {
 				focusSearchSidebarType(previousSearchSidebarType);
 			}
+			restoreSearchSidebarConfig();
 			requestSearchRefresh(indexType, craftablesType);
 
 			if (isDebugLoggingEnabled()) {
@@ -249,6 +263,9 @@ public final class NearbyCraftingEmiCraftableFilterController {
 			activeContainerId = -1;
 			previousSearchSidebarType = null;
 			previousCraftables = null;
+			previousSearchSidebarFocusSetting = null;
+			previousEmptySearchSidebarFocusSetting = null;
+			searchSidebarFocusOverridden = false;
 			transitionActive = false;
 		}
 	}
@@ -269,6 +286,55 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		if (searchClass != null) {
 			invokeStatic(searchClass, "update", 0);
 		}
+
+		if (screenManagerClass != null) {
+			invokeStatic(screenManagerClass, "updateSearchSidebar", 0);
+		}
+	}
+
+	private static void applyCraftablesSearchSidebarConfig(Object craftablesType) {
+		if (craftablesType == null) {
+			return;
+		}
+
+		if (!searchSidebarFocusOverridden) {
+			previousSearchSidebarFocusSetting = getEmiConfigSidebarFocus(SEARCH_SIDEBAR_FOCUS_FIELD);
+			previousEmptySearchSidebarFocusSetting = getEmiConfigSidebarFocus(EMPTY_SEARCH_SIDEBAR_FOCUS_FIELD);
+			searchSidebarFocusOverridden = true;
+		}
+
+		setEmiConfigSidebarFocus(SEARCH_SIDEBAR_FOCUS_FIELD, craftablesType);
+		setEmiConfigSidebarFocus(EMPTY_SEARCH_SIDEBAR_FOCUS_FIELD, craftablesType);
+	}
+
+	private static void restoreSearchSidebarConfig() {
+		if (!searchSidebarFocusOverridden) {
+			return;
+		}
+
+		if (previousSearchSidebarFocusSetting != null) {
+			setEmiConfigSidebarFocus(SEARCH_SIDEBAR_FOCUS_FIELD, previousSearchSidebarFocusSetting);
+		}
+		if (previousEmptySearchSidebarFocusSetting != null) {
+			setEmiConfigSidebarFocus(EMPTY_SEARCH_SIDEBAR_FOCUS_FIELD, previousEmptySearchSidebarFocusSetting);
+		}
+	}
+
+	@Nullable
+	private static Object getEmiConfigSidebarFocus(String fieldName) {
+		Class<?> emiConfigClass = findClass(EMI_CONFIG_CLASS);
+		if (emiConfigClass == null) {
+			return null;
+		}
+		return getStaticFieldValue(emiConfigClass, fieldName);
+	}
+
+	private static void setEmiConfigSidebarFocus(String fieldName, Object value) {
+		Class<?> emiConfigClass = findClass(EMI_CONFIG_CLASS);
+		if (emiConfigClass == null || value == null) {
+			return;
+		}
+		setStaticFieldValue(emiConfigClass, fieldName, value);
 	}
 
 	private static List<Object> filterIngredientsByItemId(List<?> ingredients, Set<String> allowedItemIds) {
