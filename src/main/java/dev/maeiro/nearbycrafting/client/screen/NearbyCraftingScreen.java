@@ -16,6 +16,7 @@ import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
 import net.minecraft.client.gui.screens.recipebook.RecipeUpdateListener;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -51,6 +52,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	private static final int STATUS_COLOR_INFO = 0xFFFFFF;
 	private static final int NEARBY_PANEL_WIDTH = 74;
 	private static final int NEARBY_PANEL_PADDING = 8;
+	private static final int NEARBY_PANEL_RECIPE_BOOK_EXTRA_SHIFT = 26;
 	private static final int TOGGLE_SIZE = 18;
 	private static final int TOGGLE_ICON_SIZE = 16;
 	private static final int TOGGLE_ICON_TEX_WIDTH = 16;
@@ -188,20 +190,48 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	}
 
 	public boolean tryHandleRecipeScaleScroll(double mouseX, double mouseY, double scrollDelta, String source) {
+		if (scrollDelta == 0.0D) {
+			return false;
+		}
+
+		if (showNearbyItemsPanel && getNearbyPanelBounds().contains((int) mouseX, (int) mouseY)) {
+			return false;
+		}
+
 		ResourceLocation hoveredRecipeId = resolveHoveredOverlayRecipeId(mouseX, mouseY);
 		ResourceLocation activeRecipeId = getActiveRecipeIdForScroll();
+		boolean activeRecipeLoaded = hasActiveRecipeLoadedInGrid();
+		if (scrollDelta > 0.0D && hoveredRecipeId != null && !activeRecipeLoaded) {
+			int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
+			if (isDebugLoggingEnabled()) {
+				NearbyCrafting.LOGGER.info(
+						"[NC-SCROLL] client source={} priming empty grid with hovered recipe={} steps={}",
+						source,
+						hoveredRecipeId,
+						steps
+				);
+			}
+			NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(hoveredRecipeId, false));
+			rememberPendingScrollRecipe(hoveredRecipeId);
+			if (steps > 1) {
+				NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SAdjustRecipeLoad(steps - 1));
+			}
+			return true;
+		}
 		if (hoveredRecipeId != null
 				&& !hoveredRecipeId.equals(activeRecipeId)
 				&& !isSameRecipeOutput(hoveredRecipeId, activeRecipeId)) {
 			int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
 			if (scrollDelta > 0.0D) {
-				NearbyCrafting.LOGGER.info(
-						"[NC-SCROLL] client source={} switching active recipe from {} to {} with steps={}",
-						source,
-						activeRecipeId,
-						hoveredRecipeId,
-						steps
-				);
+				if (isDebugLoggingEnabled()) {
+					NearbyCrafting.LOGGER.info(
+							"[NC-SCROLL] client source={} switching active recipe from {} to {} with steps={}",
+							source,
+							activeRecipeId,
+							hoveredRecipeId,
+							steps
+					);
+				}
 				NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(hoveredRecipeId, false));
 				rememberPendingScrollRecipe(hoveredRecipeId);
 				if (steps > 1) {
@@ -209,44 +239,49 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 				}
 				return true;
 			} else {
-				NearbyCrafting.LOGGER.info(
-						"[NC-SCROLL] client source={} ignoring negative scroll while switching recipe {} -> {}",
-						source,
-						activeRecipeId,
-						hoveredRecipeId
-				);
+				if (isDebugLoggingEnabled()) {
+					NearbyCrafting.LOGGER.info(
+							"[NC-SCROLL] client source={} ignoring negative scroll while switching recipe {} -> {}",
+							source,
+							activeRecipeId,
+							hoveredRecipeId
+					);
+				}
 			}
 		}
 
 		int hoveredMenuSlot = getHoveredMenuSlotIndex();
 		boolean overScaleArea = isMouseOverRecipeScaleArea(mouseX, mouseY);
-		boolean activeRecipeFallback = hasActiveRecipeForScroll();
-		boolean shouldHandle = overScaleArea || activeRecipeFallback;
-		NearbyCrafting.LOGGER.info(
-				"[NC-SCROLL] client source={} delta={} hoveredSlot={} overScaleArea={} activeRecipeFallback={} shouldHandle={} mouse=({}, {})",
-				source,
-				scrollDelta,
-				hoveredMenuSlot,
-				overScaleArea,
-				activeRecipeFallback,
-				shouldHandle,
-				(int) mouseX,
-				(int) mouseY
-		);
+		boolean shouldHandle = overScaleArea && activeRecipeLoaded;
+		if (isDebugLoggingEnabled()) {
+			NearbyCrafting.LOGGER.info(
+					"[NC-SCROLL] client source={} delta={} hoveredSlot={} overScaleArea={} activeRecipeLoaded={} shouldHandle={} mouse=({}, {})",
+					source,
+					scrollDelta,
+					hoveredMenuSlot,
+					overScaleArea,
+					activeRecipeLoaded,
+					shouldHandle,
+					(int) mouseX,
+					(int) mouseY
+			);
+		}
 
-		if (!shouldHandle || scrollDelta == 0.0D) {
+		if (!shouldHandle) {
 			return tryHandleOverlayHoverRecipeScroll(mouseX, mouseY, scrollDelta);
 		}
 
 		int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
 		int signedSteps = scrollDelta > 0.0D ? steps : -steps;
-		NearbyCrafting.LOGGER.info("[NC-SCROLL] client sending adjust packet steps={} menu={}", signedSteps, this.menu.containerId);
+		if (isDebugLoggingEnabled()) {
+			NearbyCrafting.LOGGER.info("[NC-SCROLL] client sending adjust packet steps={} menu={}", signedSteps, this.menu.containerId);
+		}
 		NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SAdjustRecipeLoad(signedSteps));
 		return true;
 	}
 
 	private boolean tryHandleOverlayHoverRecipeScroll(double mouseX, double mouseY, double scrollDelta) {
-		if (scrollDelta <= 0.0D || hasActiveRecipeForScroll()) {
+		if (scrollDelta <= 0.0D || hasActiveRecipeLoadedInGrid()) {
 			return false;
 		}
 
@@ -256,11 +291,13 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		}
 
 		int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
-		NearbyCrafting.LOGGER.info(
-				"[NC-SCROLL] client source=overlay_hover recipe={} steps={}",
-				hoveredRecipeId,
-				steps
-		);
+		if (isDebugLoggingEnabled()) {
+			NearbyCrafting.LOGGER.info(
+					"[NC-SCROLL] client source=overlay_hover recipe={} steps={}",
+					hoveredRecipeId,
+					steps
+			);
+		}
 
 		NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(hoveredRecipeId, false));
 		rememberPendingScrollRecipe(hoveredRecipeId);
@@ -402,9 +439,10 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		}
 
 		List<IngredientAvailabilityEntry> availabilityEntries = collectCurrentRecipeAvailabilityEntries();
-		int panelX = leftPos - NEARBY_PANEL_WIDTH - NEARBY_PANEL_PADDING;
-		int panelY = topPos;
-		int panelHeight = imageHeight;
+		Rect2i panelBounds = getNearbyPanelBounds();
+		int panelX = panelBounds.getX();
+		int panelY = panelBounds.getY();
+		int panelHeight = panelBounds.getHeight();
 
 		guiGraphics.fill(panelX, panelY, panelX + NEARBY_PANEL_WIDTH, panelY + panelHeight, PANEL_OUTER_BG_COLOR);
 		guiGraphics.fill(panelX + 1, panelY + 1, panelX + NEARBY_PANEL_WIDTH - 1, panelY + panelHeight - 1, PANEL_INNER_BG_COLOR);
@@ -464,11 +502,8 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 			return true;
 		}
 
-		if (showNearbyItemsPanel) {
-			int panelX = leftPos - NEARBY_PANEL_WIDTH - NEARBY_PANEL_PADDING;
-			if (mouseX >= panelX && mouseX < panelX + NEARBY_PANEL_WIDTH) {
-				return false;
-			}
+		if (showNearbyItemsPanel && getNearbyPanelBounds().contains((int) mouseX, (int) mouseY)) {
+			return false;
 		}
 		int gridLeft = this.leftPos + CRAFT_GRID_X;
 		int gridTop = this.topPos + CRAFT_GRID_Y;
@@ -486,10 +521,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		return this.menu.slots.indexOf(this.hoveredSlot);
 	}
 
-	private boolean hasActiveRecipeForScroll() {
-		if (getActiveRecipeIdForScroll() != null) {
-			return true;
-		}
+	private boolean hasActiveRecipeLoadedInGrid() {
 		if (this.menu.getLevel() == null) {
 			return false;
 		}
@@ -546,6 +578,25 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 			return;
 		}
 		NearbyCraftingConfig.CLIENT.nearbyItemsPanelOpen.set(isOpen);
+	}
+
+	private Rect2i getNearbyPanelBounds() {
+		int baseX = this.leftPos - NEARBY_PANEL_WIDTH - NEARBY_PANEL_PADDING;
+		if (this.recipeBookComponent.isVisible()) {
+			baseX -= RecipeBookComponent.IMAGE_WIDTH + NEARBY_PANEL_RECIPE_BOOK_EXTRA_SHIFT;
+		}
+		int baseY = this.topPos;
+		int panelX = baseX + NearbyCraftingConfig.CLIENT.nearbyItemsPanelOffsetX.get();
+		int panelY = baseY + NearbyCraftingConfig.CLIENT.nearbyItemsPanelOffsetY.get();
+		return new Rect2i(panelX, panelY, NEARBY_PANEL_WIDTH, this.imageHeight);
+	}
+
+	private static boolean isDebugLoggingEnabled() {
+		try {
+			return NearbyCraftingConfig.SERVER.debugLogging.get();
+		} catch (RuntimeException exception) {
+			return false;
+		}
 	}
 
 	private List<IngredientAvailabilityEntry> collectCurrentRecipeAvailabilityEntries() {

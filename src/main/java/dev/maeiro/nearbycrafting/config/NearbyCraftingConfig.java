@@ -113,6 +113,8 @@ public class NearbyCraftingConfig {
 		public final ForgeConfigSpec.ConfigValue<String> sourcePriority;
 		public final ForgeConfigSpec.BooleanValue rememberToggleStates;
 		public final ForgeConfigSpec.BooleanValue nearbyItemsPanelOpen;
+		public final ForgeConfigSpec.IntValue nearbyItemsPanelOffsetX;
+		public final ForgeConfigSpec.IntValue nearbyItemsPanelOffsetY;
 		public final ForgeConfigSpec.BooleanValue jeiCraftableOnlyEnabled;
 		public final ForgeConfigSpec.BooleanValue emiCraftableOnlyEnabled;
 
@@ -138,6 +140,14 @@ public class NearbyCraftingConfig {
 			nearbyItemsPanelOpen = builder
 					.comment("Last remembered state for the Nearby Items panel.")
 					.define("nearbyItemsPanelOpen", true);
+
+			nearbyItemsPanelOffsetX = builder
+					.comment("Nearby Items panel X offset. Negative moves left, positive moves right.")
+					.defineInRange("nearbyItemsPanelOffsetX", 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
+
+			nearbyItemsPanelOffsetY = builder
+					.comment("Nearby Items panel Y offset. Negative moves up, positive moves down.")
+					.defineInRange("nearbyItemsPanelOffsetY", 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
 
 			jeiCraftableOnlyEnabled = builder
 					.comment("Last remembered state for JEI Craftable Only toggle.")
