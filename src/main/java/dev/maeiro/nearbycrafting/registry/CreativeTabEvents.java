@@ -16,8 +16,6 @@ public class CreativeTabEvents {
 		if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
 			event.accept(ModItems.NEARBY_CRAFTING_TABLE.get());
 		}
-		if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
-			event.accept(ModItems.ADVANCED_CRAFTING_UPGRADE.get());
-		}
 	}
 }
+

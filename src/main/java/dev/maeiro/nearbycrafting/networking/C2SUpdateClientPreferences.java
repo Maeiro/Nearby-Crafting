@@ -2,7 +2,6 @@ package dev.maeiro.nearbycrafting.networking;
 
 import dev.maeiro.nearbycrafting.config.NearbyCraftingConfig;
 import dev.maeiro.nearbycrafting.menu.NearbyCraftingMenu;
-import dev.maeiro.nearbycrafting.service.prefs.PlayerPreferenceStore;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
@@ -40,16 +39,14 @@ public class C2SUpdateClientPreferences {
 		NetworkEvent.Context ctx = ctxSupplier.get();
 		ctx.enqueueWork(() -> {
 			ServerPlayer player = ctx.getSender();
-			if (player == null) {
+			if (player == null || !(player.containerMenu instanceof NearbyCraftingMenu menu)) {
+				return;
+			}
+			if (menu.containerId != containerId) {
 				return;
 			}
 
 			NearbyCraftingConfig.SourcePriority resolvedPriority = NearbyCraftingConfig.SourcePriority.fromConfig(sourcePriority);
-			PlayerPreferenceStore.update(player.getUUID(), includePlayerInventory, resolvedPriority);
-
-			if (!(player.containerMenu instanceof NearbyCraftingMenu menu) || menu.containerId != containerId) {
-				return;
-			}
 			menu.setClientPreferences(autoRefillAfterCraft, includePlayerInventory, resolvedPriority);
 		});
 		ctx.setPacketHandled(true);

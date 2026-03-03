@@ -1,8 +1,6 @@
 {
   "block.nearbycrafting.nearby_crafting_table": "Nearby Crafting Table",
   "item.nearbycrafting.nearby_crafting_table": "Nearby Crafting Table",
-  "item.nearbycrafting.advanced_crafting_upgrade": "Advanced Crafting Upgrade",
-  "nearbycrafting.upgrade.advanced_crafting.conflict": "Cannot be installed together with regular Crafting Upgrade",
   "container.nearbycrafting.nearby_crafting_table": "Nearby Crafting",
   "nearbycrafting.feedback.filled": "Nearby crafting recipe filled",
   "nearbycrafting.feedback.filled_max": "Loaded %s craft(s) into the grid",
