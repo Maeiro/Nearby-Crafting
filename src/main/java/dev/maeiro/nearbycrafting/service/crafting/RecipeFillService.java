@@ -231,7 +231,7 @@ public class RecipeFillService {
 
 	public static FillResult addSingleCraft(NearbyCraftingMenu menu, CraftingRecipe recipe) {
 		List<Ingredient> targetGrid = buildTargetGrid(recipe);
-		if (!hasRoomForAnotherCraft(menu, targetGrid)) {
+		if (!hasRoomForSingleCraftAdd(menu, targetGrid)) {
 			return FillResult.failure("nearbycrafting.feedback.not_enough_space");
 		}
 
@@ -261,6 +261,29 @@ public class RecipeFillService {
 		menu.slotsChanged(menu.getCraftSlots());
 		menu.broadcastChanges();
 		return FillResult.success("nearbycrafting.feedback.filled", 0);
+	}
+
+	private static boolean hasRoomForSingleCraftAdd(NearbyCraftingMenu menu, List<Ingredient> targetGrid) {
+		for (int slot = 0; slot < 9; slot++) {
+			Ingredient ingredient = targetGrid.get(slot);
+			if (ingredient.isEmpty()) {
+				continue;
+			}
+
+			ItemStack current = menu.getCraftSlots().getItem(slot);
+			if (current.isEmpty()) {
+				continue;
+			}
+			if (!ingredient.test(current)) {
+				return false;
+			}
+
+			int slotLimit = Math.min(menu.getCraftSlots().getMaxStackSize(), current.getMaxStackSize());
+			if (current.getCount() >= slotLimit) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public static FillResult removeSingleCraft(NearbyCraftingMenu menu, CraftingRecipe recipe) {

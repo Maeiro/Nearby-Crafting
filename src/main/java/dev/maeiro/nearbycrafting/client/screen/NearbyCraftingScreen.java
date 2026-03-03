@@ -30,6 +30,7 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -77,6 +78,8 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	private long statusMessageUntilMs = 0L;
 	private int statusMessageColor = STATUS_COLOR_INFO;
 	private IngredientAvailabilityEntry hoveredNearbyEntry;
+	@Nullable
+	private ResourceLocation localScrollRecipeId;
 
 	public NearbyCraftingScreen(NearbyCraftingMenu menu, Inventory playerInventory, Component title) {
 		super(menu, playerInventory, title);
@@ -185,6 +188,36 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	}
 
 	public boolean tryHandleRecipeScaleScroll(double mouseX, double mouseY, double scrollDelta, String source) {
+		ResourceLocation hoveredRecipeId = resolveHoveredOverlayRecipeId(mouseX, mouseY);
+		ResourceLocation activeRecipeId = getActiveRecipeIdForScroll();
+		if (hoveredRecipeId != null
+				&& !hoveredRecipeId.equals(activeRecipeId)
+				&& !isSameRecipeOutput(hoveredRecipeId, activeRecipeId)) {
+			int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
+			if (scrollDelta > 0.0D) {
+				NearbyCrafting.LOGGER.info(
+						"[NC-SCROLL] client source={} switching active recipe from {} to {} with steps={}",
+						source,
+						activeRecipeId,
+						hoveredRecipeId,
+						steps
+				);
+				NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(hoveredRecipeId, false));
+				rememberPendingScrollRecipe(hoveredRecipeId);
+				if (steps > 1) {
+					NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SAdjustRecipeLoad(steps - 1));
+				}
+				return true;
+			} else {
+				NearbyCrafting.LOGGER.info(
+						"[NC-SCROLL] client source={} ignoring negative scroll while switching recipe {} -> {}",
+						source,
+						activeRecipeId,
+						hoveredRecipeId
+				);
+			}
+		}
+
 		int hoveredMenuSlot = getHoveredMenuSlotIndex();
 		boolean overScaleArea = isMouseOverRecipeScaleArea(mouseX, mouseY);
 		boolean activeRecipeFallback = hasActiveRecipeForScroll();
@@ -217,29 +250,51 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 			return false;
 		}
 
-		ResourceLocation hoveredRecipeId = NearbyCraftingEmiCraftableFilterController.resolveHoveredRecipeId(this.menu, mouseX, mouseY);
-		String source = "emi";
-		if (hoveredRecipeId == null) {
-			hoveredRecipeId = NearbyCraftingJeiCraftableFilterController.resolveHoveredRecipeId(this.menu);
-			source = "jei";
-		}
+		ResourceLocation hoveredRecipeId = resolveHoveredOverlayRecipeId(mouseX, mouseY);
 		if (hoveredRecipeId == null) {
 			return false;
 		}
 
 		int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
 		NearbyCrafting.LOGGER.info(
-				"[NC-SCROLL] client source=overlay_hover overlay={} recipe={} steps={}",
-				source,
+				"[NC-SCROLL] client source=overlay_hover recipe={} steps={}",
 				hoveredRecipeId,
 				steps
 		);
 
 		NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(hoveredRecipeId, false));
+		rememberPendingScrollRecipe(hoveredRecipeId);
 		if (steps > 1) {
 			NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SAdjustRecipeLoad(steps - 1));
 		}
 		return true;
+	}
+
+	@Nullable
+	private ResourceLocation resolveHoveredOverlayRecipeId(double mouseX, double mouseY) {
+		ResourceLocation hoveredRecipeId = NearbyCraftingEmiCraftableFilterController.resolveHoveredRecipeId(this.menu, mouseX, mouseY);
+		if (hoveredRecipeId != null) {
+			return hoveredRecipeId;
+		}
+		return NearbyCraftingJeiCraftableFilterController.resolveHoveredRecipeId(this.menu);
+	}
+
+	private boolean isSameRecipeOutput(@Nullable ResourceLocation leftRecipeId, @Nullable ResourceLocation rightRecipeId) {
+		if (leftRecipeId == null || rightRecipeId == null || this.menu.getLevel() == null) {
+			return false;
+		}
+		var manager = this.menu.getLevel().getRecipeManager();
+		var left = manager.byKey(leftRecipeId);
+		var right = manager.byKey(rightRecipeId);
+		if (left.isEmpty() || right.isEmpty()) {
+			return false;
+		}
+		if (!(left.get() instanceof CraftingRecipe leftCrafting) || !(right.get() instanceof CraftingRecipe rightCrafting)) {
+			return false;
+		}
+		ItemStack leftResult = leftCrafting.getResultItem(this.menu.getLevel().registryAccess());
+		ItemStack rightResult = rightCrafting.getResultItem(this.menu.getLevel().registryAccess());
+		return !leftResult.isEmpty() && !rightResult.isEmpty() && ItemStack.isSameItemSameTags(leftResult, rightResult);
 	}
 
 	@Override
@@ -432,7 +487,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	}
 
 	private boolean hasActiveRecipeForScroll() {
-		if (this.menu.getLastPlacedRecipe() != null) {
+		if (getActiveRecipeIdForScroll() != null) {
 			return true;
 		}
 		if (this.menu.getLevel() == null) {
@@ -442,6 +497,32 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 				.getRecipeManager()
 				.getRecipeFor(RecipeType.CRAFTING, this.menu.getCraftSlots(), this.menu.getLevel())
 				.isPresent();
+	}
+
+	@Nullable
+	private ResourceLocation getActiveRecipeIdForScroll() {
+		if (this.menu.getLevel() != null) {
+			Optional<CraftingRecipe> currentRecipe = this.menu.getLevel()
+					.getRecipeManager()
+					.getRecipeFor(RecipeType.CRAFTING, this.menu.getCraftSlots(), this.menu.getLevel());
+			if (currentRecipe.isPresent() && currentRecipe.get().getId() != null) {
+				return currentRecipe.get().getId();
+			}
+		}
+
+		return localScrollRecipeId;
+	}
+
+	private void rememberPendingScrollRecipe(ResourceLocation recipeId) {
+		this.localScrollRecipeId = recipeId;
+	}
+
+	@Override
+	public void removed() {
+		this.localScrollRecipeId = null;
+		NearbyCraftingEmiCraftableFilterController.handleMenuClosed(this.menu.containerId);
+		NearbyCraftingJeiCraftableFilterController.handleMenuClosed(this.menu.containerId);
+		super.removed();
 	}
 
 	private void applyRememberedUiState() {
@@ -555,13 +636,6 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 
 	public void scheduleDeferredRecipeBookRefresh() {
 		deferredRefreshTicks = Math.max(deferredRefreshTicks, 2);
-	}
-
-	@Override
-	public void removed() {
-		NearbyCraftingEmiCraftableFilterController.handleMenuClosed(this.menu.containerId);
-		NearbyCraftingJeiCraftableFilterController.handleMenuClosed(this.menu.containerId);
-		super.removed();
 	}
 
 	private static final class IngredientTracker {
