@@ -171,6 +171,34 @@ public final class NearbyCraftingEmiCraftableFilterController {
 	}
 
 	@Nullable
+	public static ResourceLocation resolveHoveredRecipeId(NearbyCraftingMenu menu, double mouseX, double mouseY) {
+		if (!isRuntimeAvailable()) {
+			return null;
+		}
+
+		Class<?> screenManagerClass = findClass(EMI_SCREEN_MANAGER_CLASS);
+		if (screenManagerClass == null) {
+			return null;
+		}
+
+		Object hovered = invokeStatic(screenManagerClass, "getHoveredStack", 3, (int) mouseX, (int) mouseY, false);
+		if (hovered == null) {
+			return null;
+		}
+
+		ResourceLocation recipeId = resolveRecipeIdFromInteraction(hovered);
+		if (recipeId != null) {
+			return recipeId;
+		}
+
+		ItemStack outputStack = resolveOutputStackFromInteraction(hovered);
+		if (outputStack.isEmpty()) {
+			return null;
+		}
+		return resolveCraftableRecipeIdForOutput(menu, outputStack);
+	}
+
+	@Nullable
 	public static Rect2i getEmiSearchFieldBounds() {
 		if (!isRuntimeAvailable()) {
 			return null;

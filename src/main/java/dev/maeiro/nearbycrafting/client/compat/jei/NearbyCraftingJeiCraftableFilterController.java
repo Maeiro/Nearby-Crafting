@@ -239,6 +239,31 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		}
 	}
 
+	@Nullable
+	public static ResourceLocation resolveHoveredRecipeId(NearbyCraftingMenu menu) {
+		if (!isRuntimeAvailable()) {
+			return null;
+		}
+		Object runtime = jeiRuntime;
+		if (runtime == null) {
+			return null;
+		}
+
+		try {
+			HoveredTypedIngredient hoveredTypedIngredient = getHoveredTypedIngredient(runtime);
+			if (hoveredTypedIngredient == null) {
+				return null;
+			}
+			ItemStack hoveredItem = getItemStackFromTypedIngredient(hoveredTypedIngredient.typedIngredient);
+			if (hoveredItem.isEmpty()) {
+				return null;
+			}
+			return resolveCraftableRecipeIdForOutput(menu, hoveredItem);
+		} catch (RuntimeException exception) {
+			return null;
+		}
+	}
+
 	private static boolean openRecipesGuiFallback(
 			NearbyCraftingMenu menu,
 			int mouseButton,

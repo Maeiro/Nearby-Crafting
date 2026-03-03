@@ -276,6 +276,64 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		return RecipeFillService.fillFromRecipe(this, craftingRecipe, craftAll);
 	}
 
+	public FillResult adjustRecipeLoad(int steps) {
+		NearbyCrafting.LOGGER.info(
+				"[NC-SCROLL] menu adjustRecipeLoad steps={} menu={} hasLastRecipe={}",
+				steps,
+				this.containerId,
+				this.lastPlacedRecipe != null
+		);
+		if (steps == 0) {
+			return FillResult.success("nearbycrafting.feedback.filled", 0);
+		}
+
+		Optional<CraftingRecipe> currentRecipeOptional = getCurrentCraftingRecipe();
+		CraftingRecipe activeRecipe = currentRecipeOptional.orElse(lastPlacedRecipe);
+		if (activeRecipe == null) {
+			NearbyCrafting.LOGGER.info("[NC-SCROLL] menu no active recipe to adjust");
+			return FillResult.failure("nearbycrafting.feedback.no_recipe_selected");
+		}
+
+		setLastPlacedRecipe(activeRecipe);
+		int appliedSteps = 0;
+		FillResult lastResult = FillResult.failure("nearbycrafting.feedback.fill_failed");
+		int direction = steps > 0 ? 1 : -1;
+
+		for (int i = 0; i < Math.abs(steps); i++) {
+			FillResult stepResult = direction > 0
+					? RecipeFillService.addSingleCraft(this, activeRecipe)
+					: RecipeFillService.removeSingleCraft(this, activeRecipe);
+			if (!stepResult.success()) {
+				NearbyCrafting.LOGGER.info(
+						"[NC-SCROLL] menu stopped at iteration={} reason={}",
+						i,
+						stepResult.messageKey()
+				);
+				lastResult = stepResult;
+				break;
+			}
+			appliedSteps++;
+		}
+
+		if (appliedSteps > 0) {
+			String messageKey = direction > 0
+					? "nearbycrafting.feedback.scroll_increase"
+					: "nearbycrafting.feedback.scroll_decrease";
+			return FillResult.success(messageKey, appliedSteps);
+		}
+
+		return lastResult;
+	}
+
+	private Optional<CraftingRecipe> getCurrentCraftingRecipe() {
+		if (player.level() == null) {
+			return Optional.empty();
+		}
+		return player.level()
+				.getRecipeManager()
+				.getRecipeFor(RecipeType.CRAFTING, craftSlots, player.level());
+	}
+
 	public void clearCraftGridToPlayerOrDrop() {
 		if (this.player.level().isClientSide) {
 			return;
@@ -338,6 +396,76 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		clearCraftSlotSource(slotIndex);
 		if (!storedStack.isEmpty() && sourceRef != null) {
 			addCraftSlotSource(slotIndex, sourceRef, storedStack.getCount());
+		}
+	}
+
+	public boolean removeFromCraftSlotToSources(int slot, int count) {
+		if (slot < 0 || slot >= craftSlots.getContainerSize() || count <= 0) {
+			return false;
+		}
+
+		ItemStack current = craftSlots.getItem(slot);
+		if (current.isEmpty()) {
+			return false;
+		}
+
+		int amountToRemove = Math.min(count, current.getCount());
+		if (amountToRemove <= 0) {
+			return false;
+		}
+
+		ItemStack removed = current.copy();
+		removed.setCount(amountToRemove);
+		returnStackToSourcesOrPlayer(slot, removed);
+
+		ItemStack updated = current.copy();
+		updated.shrink(amountToRemove);
+		int slotIndex = slot;
+		runWithSourceTrackingMutation(() -> craftSlots.setItem(slotIndex, updated.isEmpty() ? ItemStack.EMPTY : updated));
+		consumeCraftSlotSource(slotIndex, amountToRemove);
+		craftSlots.setChanged();
+		return true;
+	}
+
+	private void returnStackToSourcesOrPlayer(int slot, ItemStack stack) {
+		if (stack.isEmpty()) {
+			return;
+		}
+
+		ItemStack remaining = stack.copy();
+		Map<ItemSourceRef, Integer> sourceAllocations = craftSlotSourceLedger[slot];
+		for (Map.Entry<ItemSourceRef, Integer> allocation : sourceAllocations.entrySet()) {
+			if (remaining.isEmpty()) {
+				break;
+			}
+
+			ItemSourceRef sourceRef = allocation.getKey();
+			int targetAmount = Math.min(allocation.getValue(), remaining.getCount());
+			if (targetAmount <= 0) {
+				continue;
+			}
+
+			try {
+				ItemStack toReturn = remaining.copy();
+				toReturn.setCount(targetAmount);
+				ItemStack notInserted = sourceRef.handler().insertItem(sourceRef.slot(), toReturn, false);
+				int inserted = targetAmount - notInserted.getCount();
+				if (inserted > 0) {
+					remaining.shrink(inserted);
+				}
+			} catch (RuntimeException exception) {
+				NearbyCrafting.LOGGER.warn(
+						"Failed to return crafting item to source {}:{}; fallback to player inventory",
+						sourceRef.sourceType(),
+						sourceRef.slot(),
+						exception
+				);
+			}
+		}
+
+		boolean inserted = this.player.getInventory().add(remaining);
+		if (!inserted && !remaining.isEmpty()) {
+			this.player.drop(remaining, false);
 		}
 	}
 

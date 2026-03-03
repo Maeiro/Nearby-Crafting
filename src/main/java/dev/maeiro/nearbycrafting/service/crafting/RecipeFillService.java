@@ -21,6 +21,8 @@ public class RecipeFillService {
 	}
 
 	public static FillResult fillFromRecipe(NearbyCraftingMenu menu, CraftingRecipe recipe, boolean craftAll) {
+		// Keep selected recipe context even if fill fails, so scroll scaling can start from selection.
+		menu.setLastPlacedRecipe(recipe);
 		List<Ingredient> targetGrid = buildTargetGrid(recipe);
 
 		// Release any currently loaded grid ingredients back to their tracked sources
@@ -56,7 +58,6 @@ public class RecipeFillService {
 			loadedCrafts += fillAdditionalCrafts(menu, pool, targetGrid);
 		}
 
-		menu.setLastPlacedRecipe(recipe);
 		menu.slotsChanged(menu.getCraftSlots());
 		menu.broadcastChanges();
 
@@ -221,6 +222,66 @@ public class RecipeFillService {
 		if (!applyCommitAsAdd(menu, refillCommit)) {
 			rollbackCommit(refillCommit);
 			return FillResult.failure("nearbycrafting.feedback.fill_failed");
+		}
+
+		menu.slotsChanged(menu.getCraftSlots());
+		menu.broadcastChanges();
+		return FillResult.success("nearbycrafting.feedback.filled", 0);
+	}
+
+	public static FillResult addSingleCraft(NearbyCraftingMenu menu, CraftingRecipe recipe) {
+		List<Ingredient> targetGrid = buildTargetGrid(recipe);
+		if (!hasRoomForAnotherCraft(menu, targetGrid)) {
+			return FillResult.failure("nearbycrafting.feedback.not_enough_space");
+		}
+
+		List<ItemSourceRef> sources = NearbyInventoryScanner.collectSources(
+				menu.getLevel(),
+				menu.getTablePos(),
+				menu.getPlayer(),
+				menu.isIncludePlayerInventory(),
+				menu.getSourcePriority()
+		);
+		IngredientSourcePool pool = new IngredientSourcePool(sources);
+		Optional<ExtractionPlan> refillPlanOptional = pool.plan(targetGrid);
+		if (refillPlanOptional.isEmpty()) {
+			return FillResult.failure("nearbycrafting.feedback.not_enough_ingredients");
+		}
+
+		ExtractionCommitResult refillCommit = refillPlanOptional.get().commit();
+		if (refillCommit == null) {
+			return FillResult.failure("nearbycrafting.feedback.fill_failed");
+		}
+
+		if (!applyCommitAsAdd(menu, refillCommit)) {
+			rollbackCommit(refillCommit);
+			return FillResult.failure("nearbycrafting.feedback.fill_failed");
+		}
+
+		menu.slotsChanged(menu.getCraftSlots());
+		menu.broadcastChanges();
+		return FillResult.success("nearbycrafting.feedback.filled", 0);
+	}
+
+	public static FillResult removeSingleCraft(NearbyCraftingMenu menu, CraftingRecipe recipe) {
+		List<Ingredient> targetGrid = buildTargetGrid(recipe);
+		for (int slot = 0; slot < 9; slot++) {
+			if (targetGrid.get(slot).isEmpty()) {
+				continue;
+			}
+			ItemStack current = menu.getCraftSlots().getItem(slot);
+			if (current.isEmpty() || current.getCount() < 1 || !targetGrid.get(slot).test(current)) {
+				return FillResult.failure("nearbycrafting.feedback.cannot_reduce_loaded_recipe");
+			}
+		}
+
+		for (int slot = 0; slot < 9; slot++) {
+			if (targetGrid.get(slot).isEmpty()) {
+				continue;
+			}
+			if (!menu.removeFromCraftSlotToSources(slot, 1)) {
+				return FillResult.failure("nearbycrafting.feedback.fill_failed");
+			}
 		}
 
 		menu.slotsChanged(menu.getCraftSlots());
