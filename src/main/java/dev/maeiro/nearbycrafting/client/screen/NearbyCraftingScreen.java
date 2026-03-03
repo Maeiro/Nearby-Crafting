@@ -71,6 +71,11 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	private static final int RESULT_SLOT_X = 124;
 	private static final int RESULT_SLOT_Y = 35;
 	private static final int RESULT_SLOT_SIZE = 18;
+	private static final int AUTO_REFILL_TOGGLE_SIZE = 9;
+	private static final int AUTO_REFILL_TOGGLE_OFFSET_BASE_X = 1;
+	private static final int AUTO_REFILL_TOGGLE_OFFSET_BASE_Y = 21;
+	private static final int AUTO_REFILL_TOGGLE_SCREEN_MOVE_X = -18;
+	private static final int AUTO_REFILL_TOGGLE_SCREEN_MOVE_Y = 7;
 	private final RecipeBookComponent recipeBookComponent = new RecipeBookComponent();
 	private boolean widthTooNarrow;
 	private int recipeBookSourceSyncTicker = 0;
@@ -145,10 +150,12 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 			this.recipeBookComponent.renderGhostRecipe(guiGraphics, this.leftPos, this.topPos, true, partialTick);
 		}
 		renderNearbyItemsToggle(guiGraphics, mouseX, mouseY);
+		renderAutoRefillToggle(guiGraphics, mouseX, mouseY);
 		renderNearbyItemsPanel(guiGraphics, mouseX, mouseY);
 
 		this.renderTooltip(guiGraphics, mouseX, mouseY);
 		renderNearbyItemsTooltip(guiGraphics, mouseX, mouseY);
+		renderAutoRefillTooltip(guiGraphics, mouseX, mouseY);
 		this.recipeBookComponent.renderTooltip(guiGraphics, this.leftPos, this.topPos, mouseX, mouseY);
 		renderStatusMessage(guiGraphics);
 	}
@@ -170,6 +177,18 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		if (button == 0 && isMouseOverNearbyItemsToggle(mouseX, mouseY)) {
 			showNearbyItemsPanel = !showNearbyItemsPanel;
 			saveNearbyItemsPanelState(showNearbyItemsPanel);
+			Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+			return true;
+		}
+		if (button == 0 && isMouseOverAutoRefillToggle(mouseX, mouseY)) {
+			boolean nextAutoRefill = !NearbyCraftingConfig.CLIENT.autoRefillAfterCraft.get();
+			NearbyCraftingConfig.CLIENT.autoRefillAfterCraft.set(nextAutoRefill);
+			sendClientPreferencesUpdate();
+			showInfoStatusMessage(Component.translatable(
+					nextAutoRefill
+							? "nearbycrafting.auto_refill.enabled"
+							: "nearbycrafting.auto_refill.disabled"
+			));
 			Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
 			return true;
 		}
@@ -458,6 +477,31 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		guiGraphics.blit(icon, iconX, iconY, 0, 0, TOGGLE_ICON_SIZE, TOGGLE_ICON_SIZE, TOGGLE_ICON_TEX_WIDTH, TOGGLE_ICON_TEX_HEIGHT);
 	}
 
+	private void renderAutoRefillToggle(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		Rect2i bounds = getAutoRefillToggleBounds();
+		int x = bounds.getX();
+		int y = bounds.getY();
+		boolean hovered = bounds.contains(mouseX, mouseY);
+		boolean enabled = NearbyCraftingConfig.CLIENT.autoRefillAfterCraft.get();
+
+		int background = hovered ? 0xFFE2E2E2 : 0xFFD1D1D1;
+		guiGraphics.fill(x, y, x + AUTO_REFILL_TOGGLE_SIZE, y + AUTO_REFILL_TOGGLE_SIZE, background);
+		guiGraphics.fill(x, y, x + AUTO_REFILL_TOGGLE_SIZE, y + 1, PANEL_LINE_LIGHT);
+		guiGraphics.fill(x, y + AUTO_REFILL_TOGGLE_SIZE - 1, x + AUTO_REFILL_TOGGLE_SIZE, y + AUTO_REFILL_TOGGLE_SIZE, PANEL_LINE_DARK);
+		guiGraphics.fill(x, y, x + 1, y + AUTO_REFILL_TOGGLE_SIZE, PANEL_LINE_LIGHT);
+		guiGraphics.fill(x + AUTO_REFILL_TOGGLE_SIZE - 1, y, x + AUTO_REFILL_TOGGLE_SIZE, y + AUTO_REFILL_TOGGLE_SIZE, PANEL_LINE_DARK);
+
+		int indicatorInset = 2;
+		int indicatorColor = enabled ? 0xFF4CAF50 : 0xFFB94A48;
+		guiGraphics.fill(
+				x + indicatorInset,
+				y + indicatorInset,
+				x + AUTO_REFILL_TOGGLE_SIZE - indicatorInset,
+				y + AUTO_REFILL_TOGGLE_SIZE - indicatorInset,
+				indicatorColor
+		);
+	}
+
 	private void renderNearbyItemsPanel(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		if (!showNearbyItemsPanel) {
 			return;
@@ -519,6 +563,39 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		int x = leftPos + 4;
 		int y = topPos + 4;
 		return mouseX >= x && mouseX < x + TOGGLE_SIZE && mouseY >= y && mouseY < y + TOGGLE_SIZE;
+	}
+
+	private boolean isMouseOverAutoRefillToggle(double mouseX, double mouseY) {
+		return getAutoRefillToggleBounds().contains((int) mouseX, (int) mouseY);
+	}
+
+	private Rect2i getAutoRefillToggleBounds() {
+		double guiScale = Minecraft.getInstance().getWindow().getGuiScale();
+		if (guiScale <= 0.0D) {
+			guiScale = 1.0D;
+		}
+		int scaledMoveX = (int) Math.round(AUTO_REFILL_TOGGLE_SCREEN_MOVE_X / guiScale);
+		int scaledMoveY = (int) Math.round(AUTO_REFILL_TOGGLE_SCREEN_MOVE_Y / guiScale);
+		int x = this.leftPos + RESULT_SLOT_X + AUTO_REFILL_TOGGLE_OFFSET_BASE_X + scaledMoveX;
+		int y = this.topPos + RESULT_SLOT_Y + AUTO_REFILL_TOGGLE_OFFSET_BASE_Y + scaledMoveY;
+		return new Rect2i(x, y, AUTO_REFILL_TOGGLE_SIZE, AUTO_REFILL_TOGGLE_SIZE);
+	}
+
+	private void renderAutoRefillTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		Rect2i bounds = getAutoRefillToggleBounds();
+		if (!bounds.contains(mouseX, mouseY)) {
+			return;
+		}
+
+		boolean enabled = NearbyCraftingConfig.CLIENT.autoRefillAfterCraft.get();
+		Component state = enabled
+				? Component.translatable("options.on")
+				: Component.translatable("options.off");
+		List<Component> tooltip = List.of(
+				Component.translatable("nearbycrafting.auto_refill.toggle"),
+				Component.translatable("nearbycrafting.auto_refill.state", state)
+		);
+		guiGraphics.renderTooltip(this.font, tooltip, Optional.empty(), mouseX, mouseY);
 	}
 
 	private boolean isMouseOverRecipeScaleArea(double mouseX, double mouseY) {
@@ -712,6 +789,17 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 
 	public void scheduleDeferredRecipeBookRefresh() {
 		deferredRefreshTicks = Math.max(deferredRefreshTicks, 2);
+	}
+
+	private void sendClientPreferencesUpdate() {
+		NearbyCraftingNetwork.CHANNEL.sendToServer(
+				new C2SUpdateClientPreferences(
+						this.menu.containerId,
+						NearbyCraftingConfig.CLIENT.autoRefillAfterCraft.get(),
+						NearbyCraftingConfig.CLIENT.includePlayerInventory.get(),
+						NearbyCraftingConfig.CLIENT.sourcePriority.get()
+				)
+		);
 	}
 
 	private static final class IngredientTracker {
