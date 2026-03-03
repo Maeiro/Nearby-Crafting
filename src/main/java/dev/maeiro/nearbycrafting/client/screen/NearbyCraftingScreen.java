@@ -81,6 +81,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	private static final int AUTO_REFILL_TOGGLE_SCREEN_MOVE_Y = 7;
 	private final RecipeBookComponent recipeBookComponent = new RecipeBookComponent();
 	private boolean widthTooNarrow;
+	private boolean vanillaRecipeBookSuppressedByEmi;
 	private int recipeBookSourceSyncTicker = 0;
 	private int deferredRefreshTicks = 0;
 	private boolean showNearbyItemsPanel = true;
@@ -109,15 +110,21 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		requestRecipeBookSourceSync();
 
 		this.widthTooNarrow = this.width < 379;
-		this.recipeBookComponent.init(this.width, this.height, this.minecraft, this.widthTooNarrow, this.menu);
-		this.leftPos = this.recipeBookComponent.updateScreenPosition(this.width, this.imageWidth);
-		this.addRenderableWidget(new ImageButton(this.leftPos + 5, this.height / 2 - 49, 20, 18, 0, 0, 19, RECIPE_BUTTON_LOCATION, button -> {
-			this.recipeBookComponent.toggleVisibility();
+		this.vanillaRecipeBookSuppressedByEmi = NearbyCraftingEmiCraftableFilterController.isRuntimeAvailable();
+		if (this.vanillaRecipeBookSuppressedByEmi) {
+			NearbyCraftingEmiCraftableFilterController.enforceIndexOnlyMode();
+			this.leftPos = (this.width - this.imageWidth) / 2;
+		} else {
+			this.recipeBookComponent.init(this.width, this.height, this.minecraft, this.widthTooNarrow, this.menu);
 			this.leftPos = this.recipeBookComponent.updateScreenPosition(this.width, this.imageWidth);
-			button.setPosition(this.leftPos + 5, this.height / 2 - 49);
-		}));
-		this.addWidget(this.recipeBookComponent);
-		this.setInitialFocus(this.recipeBookComponent);
+			this.addRenderableWidget(new ImageButton(this.leftPos + 5, this.height / 2 - 49, 20, 18, 0, 0, 19, RECIPE_BUTTON_LOCATION, button -> {
+				this.recipeBookComponent.toggleVisibility();
+				this.leftPos = this.recipeBookComponent.updateScreenPosition(this.width, this.imageWidth);
+				button.setPosition(this.leftPos + 5, this.height / 2 - 49);
+			}));
+			this.addWidget(this.recipeBookComponent);
+			this.setInitialFocus(this.recipeBookComponent);
+		}
 		this.titleLabelX = 29;
 
 		applyRememberedUiState();
@@ -126,7 +133,11 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	@Override
 	public void containerTick() {
 		super.containerTick();
-		this.recipeBookComponent.tick();
+		if (!this.vanillaRecipeBookSuppressedByEmi) {
+			this.recipeBookComponent.tick();
+		} else {
+			NearbyCraftingEmiCraftableFilterController.enforceIndexOnlyMode();
+		}
 		if (deferredRefreshTicks > 0) {
 			deferredRefreshTicks--;
 			if (deferredRefreshTicks == 0) {
@@ -144,13 +155,17 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 		hoveredNearbyEntry = null;
 		this.renderBackground(guiGraphics);
-		if (this.recipeBookComponent.isVisible() && this.widthTooNarrow) {
-			this.renderBg(guiGraphics, partialTick, mouseX, mouseY);
-			this.recipeBookComponent.render(guiGraphics, mouseX, mouseY, partialTick);
-		} else {
-			this.recipeBookComponent.render(guiGraphics, mouseX, mouseY, partialTick);
+		if (this.vanillaRecipeBookSuppressedByEmi) {
 			super.render(guiGraphics, mouseX, mouseY, partialTick);
-			this.recipeBookComponent.renderGhostRecipe(guiGraphics, this.leftPos, this.topPos, true, partialTick);
+		} else {
+			if (this.recipeBookComponent.isVisible() && this.widthTooNarrow) {
+				this.renderBg(guiGraphics, partialTick, mouseX, mouseY);
+				this.recipeBookComponent.render(guiGraphics, mouseX, mouseY, partialTick);
+			} else {
+				this.recipeBookComponent.render(guiGraphics, mouseX, mouseY, partialTick);
+				super.render(guiGraphics, mouseX, mouseY, partialTick);
+				this.recipeBookComponent.renderGhostRecipe(guiGraphics, this.leftPos, this.topPos, true, partialTick);
+			}
 		}
 		renderNearbyItemsToggle(guiGraphics, mouseX, mouseY);
 		renderAutoRefillToggle(guiGraphics, mouseX, mouseY);
@@ -159,7 +174,9 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		this.renderTooltip(guiGraphics, mouseX, mouseY);
 		renderNearbyItemsTooltip(guiGraphics, mouseX, mouseY);
 		renderAutoRefillTooltip(guiGraphics, mouseX, mouseY);
-		this.recipeBookComponent.renderTooltip(guiGraphics, this.leftPos, this.topPos, mouseX, mouseY);
+		if (!this.vanillaRecipeBookSuppressedByEmi) {
+			this.recipeBookComponent.renderTooltip(guiGraphics, this.leftPos, this.topPos, mouseX, mouseY);
+		}
 		renderStatusMessage(guiGraphics);
 	}
 
@@ -172,6 +189,9 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 
 	@Override
 	protected boolean isHovering(int x, int y, int width, int height, double mouseX, double mouseY) {
+		if (this.vanillaRecipeBookSuppressedByEmi) {
+			return super.isHovering(x, y, width, height, mouseX, mouseY);
+		}
 		return (!this.widthTooNarrow || !this.recipeBookComponent.isVisible()) && super.isHovering(x, y, width, height, mouseX, mouseY);
 	}
 
@@ -196,11 +216,14 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 			return true;
 		}
 
-		if (this.recipeBookComponent.mouseClicked(mouseX, mouseY, button)) {
-			this.setFocused(this.recipeBookComponent);
-			return true;
+		if (!this.vanillaRecipeBookSuppressedByEmi) {
+			if (this.recipeBookComponent.mouseClicked(mouseX, mouseY, button)) {
+				this.setFocused(this.recipeBookComponent);
+				return true;
+			}
+			return this.widthTooNarrow && this.recipeBookComponent.isVisible() || super.mouseClicked(mouseX, mouseY, button);
 		}
-		return this.widthTooNarrow && this.recipeBookComponent.isVisible() || super.mouseClicked(mouseX, mouseY, button);
+		return super.mouseClicked(mouseX, mouseY, button);
 	}
 
 	@Override
@@ -389,6 +412,9 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 
 	@Nullable
 	private ResourceLocation resolveHoveredVanillaRecipeBookRecipeId() {
+		if (this.vanillaRecipeBookSuppressedByEmi) {
+			return null;
+		}
 		if (!this.recipeBookComponent.isVisible()) {
 			if (isDebugLoggingEnabled()) {
 				NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve skipped: recipe book not visible");
@@ -691,18 +717,25 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	@Override
 	protected boolean hasClickedOutside(double mouseX, double mouseY, int guiLeft, int guiTop, int mouseButton) {
 		boolean outside = mouseX < (double) guiLeft || mouseY < (double) guiTop || mouseX >= (double) (guiLeft + this.imageWidth) || mouseY >= (double) (guiTop + this.imageHeight);
+		if (this.vanillaRecipeBookSuppressedByEmi) {
+			return outside;
+		}
 		return this.recipeBookComponent.hasClickedOutside(mouseX, mouseY, this.leftPos, this.topPos, this.imageWidth, this.imageHeight, mouseButton) && outside;
 	}
 
 	@Override
 	protected void slotClicked(Slot slot, int slotId, int mouseButton, ClickType clickType) {
 		super.slotClicked(slot, slotId, mouseButton, clickType);
-		this.recipeBookComponent.slotClicked(slot);
+		if (!this.vanillaRecipeBookSuppressedByEmi) {
+			this.recipeBookComponent.slotClicked(slot);
+		}
 	}
 
 	@Override
 	public void recipesUpdated() {
-		this.recipeBookComponent.recipesUpdated();
+		if (!this.vanillaRecipeBookSuppressedByEmi) {
+			this.recipeBookComponent.recipesUpdated();
+		}
 	}
 
 	@Override
@@ -711,10 +744,12 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	}
 
 	public void refreshRecipeBookFromSyncedSources() {
-		if (!this.menu.slots.isEmpty()) {
-			this.recipeBookComponent.slotClicked(this.menu.slots.get(0));
-		} else {
-			this.recipeBookComponent.recipesUpdated();
+		if (!this.vanillaRecipeBookSuppressedByEmi) {
+			if (!this.menu.slots.isEmpty()) {
+				this.recipeBookComponent.slotClicked(this.menu.slots.get(0));
+			} else {
+				this.recipeBookComponent.recipesUpdated();
+			}
 		}
 		NearbyCraftingJeiCraftableFilterController.refreshIfEnabled(this.menu);
 		NearbyCraftingEmiCraftableFilterController.refreshIfEnabled(this.menu);
@@ -994,7 +1029,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 
 	private Rect2i getNearbyPanelBounds() {
 		int baseX = this.leftPos - NEARBY_PANEL_WIDTH - NEARBY_PANEL_PADDING;
-		if (this.recipeBookComponent.isVisible()) {
+		if (!this.vanillaRecipeBookSuppressedByEmi && this.recipeBookComponent.isVisible()) {
 			baseX -= RecipeBookComponent.IMAGE_WIDTH + NEARBY_PANEL_RECIPE_BOOK_EXTRA_SHIFT;
 		}
 		int baseY = this.topPos;

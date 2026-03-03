@@ -109,6 +109,19 @@ public final class NearbyCraftingEmiOverlayButtonEvents {
 		event.setCanceled(true);
 	}
 
+	@SubscribeEvent(priority = EventPriority.HIGHEST)
+	public static void onScreenRenderPre(ScreenEvent.Render.Pre event) {
+		if (!(event.getScreen() instanceof NearbyCraftingScreen screen)) {
+			return;
+		}
+		if (!NearbyCraftingEmiCraftableFilterController.isRuntimeAvailable()) {
+			return;
+		}
+
+		NearbyCraftingEmiCraftableFilterController.enforceIndexOnlyMode();
+		NearbyCraftingEmiCraftableFilterController.enforceCraftableSidebarIfEnabled(screen.getMenu());
+	}
+
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void onScreenRenderPost(ScreenEvent.Render.Post event) {
 		if (!(event.getScreen() instanceof NearbyCraftingScreen screen)) {
@@ -121,6 +134,7 @@ public final class NearbyCraftingEmiOverlayButtonEvents {
 			lastRenderedContainerId = -1;
 			return;
 		}
+		NearbyCraftingEmiCraftableFilterController.enforceIndexOnlyMode();
 		NearbyCraftingEmiCraftableFilterController.enforceCraftableSidebarIfEnabled(screen.getMenu());
 
 		NearbyCraftingMenu menu = screen.getMenu();

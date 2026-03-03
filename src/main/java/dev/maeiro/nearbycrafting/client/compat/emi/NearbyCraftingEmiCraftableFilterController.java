@@ -33,10 +33,12 @@ import java.util.Set;
 public final class NearbyCraftingEmiCraftableFilterController {
 	private static final String EMI_SCREEN_MANAGER_CLASS = "dev.emi.emi.screen.EmiScreenManager";
 	private static final String EMI_SIDEBARS_CLASS = "dev.emi.emi.runtime.EmiSidebars";
+	private static final String EMI_STACK_LIST_CLASS = "dev.emi.emi.registry.EmiStackList";
 	private static final String EMI_SEARCH_CLASS = "dev.emi.emi.search.EmiSearch";
 	private static final String EMI_CONFIG_CLASS = "dev.emi.emi.config.EmiConfig";
 	private static final String EMI_SIDEBAR_TYPE_CLASS = "dev.emi.emi.config.SidebarType";
-	private static final long REFRESH_DEBOUNCE_MS = 75L;
+	private static final String EMI_RECIPE_BOOK_ACTION_CLASS = "dev.emi.emi.config.RecipeBookAction";
+	private static final long REFRESH_DEBOUNCE_MS = 150L;
 	private static final String SEARCH_SIDEBAR_FOCUS_FIELD = "searchSidebarFocus";
 	private static final String EMPTY_SEARCH_SIDEBAR_FOCUS_FIELD = "emptySearchSidebarFocus";
 
@@ -44,11 +46,16 @@ public final class NearbyCraftingEmiCraftableFilterController {
 	private static boolean transitionActive;
 	private static int activeContainerId = -1;
 	private static long lastRefreshAtMs = 0L;
+	private static boolean hasAppliedCraftables = false;
+	private static final Set<String> lastAppliedCraftableOutputIds = new LinkedHashSet<>();
+	private static List<?> pinnedIndexStacks = List.of();
+	private static long lastRuntimeLogAtMs = 0L;
+	private static boolean nativeCraftablesSuppressed = false;
 
 	@Nullable
 	private static Object previousSearchSidebarType;
 	@Nullable
-	private static List<?> previousCraftables;
+	private static List<?> previousIndexFilteredStacks;
 	@Nullable
 	private static Object previousSearchSidebarFocusSetting;
 	@Nullable
@@ -70,6 +77,48 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		return transitionActive;
 	}
 
+	public static boolean isNativeCraftablesSuppressed() {
+		return nativeCraftablesSuppressed;
+	}
+
+	public static void enforceIndexOnlyMode() {
+		if (!isRuntimeAvailable()) {
+			return;
+		}
+		nativeCraftablesSuppressed = true;
+
+		Object indexType = resolveSidebarType("INDEX");
+		if (indexType == null) {
+			return;
+		}
+
+		Class<?> emiConfigClass = findClass(EMI_CONFIG_CLASS);
+		if (emiConfigClass == null) {
+			return;
+		}
+
+		Object toggleVisibilityAction = resolveRecipeBookAction("TOGGLE_VISIBILITY");
+		if (toggleVisibilityAction != null) {
+			setStaticFieldValue(emiConfigClass, "recipeBookAction", toggleVisibilityAction);
+		}
+		sanitizeSidebarPages(emiConfigClass, "leftSidebarPages", indexType);
+		sanitizeSidebarPages(emiConfigClass, "rightSidebarPages", indexType);
+		sanitizeSidebarPages(emiConfigClass, "topSidebarPages", indexType);
+		sanitizeSidebarPages(emiConfigClass, "bottomSidebarPages", indexType);
+		sanitizeSidebarSubpanels(emiConfigClass, "leftSidebarSubpanels");
+		sanitizeSidebarSubpanels(emiConfigClass, "rightSidebarSubpanels");
+		sanitizeSidebarSubpanels(emiConfigClass, "topSidebarSubpanels");
+		sanitizeSidebarSubpanels(emiConfigClass, "bottomSidebarSubpanels");
+		// Keep Nearby Crafting's own toggle operational.
+		if (!enabled) {
+			applySearchSidebarConfig(indexType);
+			setCraftables(List.of());
+			pinnedIndexStacks = List.of();
+			focusSearchSidebarType(indexType);
+			requestIndexRefresh(indexType);
+		}
+	}
+
 	public static void setEnabled(NearbyCraftingMenu menu, boolean shouldEnable) {
 		if (!isRuntimeAvailable()) {
 			return;
@@ -84,14 +133,18 @@ public final class NearbyCraftingEmiCraftableFilterController {
 				disableAndRestore();
 			}
 			previousSearchSidebarType = null;
-			previousCraftables = null;
+			previousIndexFilteredStacks = null;
 			previousSearchSidebarFocusSetting = null;
 			previousEmptySearchSidebarFocusSetting = null;
 			searchSidebarFocusOverridden = false;
+			hasAppliedCraftables = false;
+			lastAppliedCraftableOutputIds.clear();
+			pinnedIndexStacks = List.of();
 		}
 
 		enabled = true;
 		activeContainerId = menu.containerId;
+		lastRefreshAtMs = 0L;
 		refresh(menu);
 	}
 
@@ -99,11 +152,17 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		if (!isEnabledFor(menu.containerId) || !isRuntimeAvailable()) {
 			return;
 		}
+		if (transitionActive) {
+			logRuntimeState(menu, "refreshIfEnabled:skip_transition");
+			return;
+		}
 		long now = System.currentTimeMillis();
 		if (now - lastRefreshAtMs < REFRESH_DEBOUNCE_MS) {
+			logRuntimeState(menu, "refreshIfEnabled:skip_debounce");
 			return;
 		}
 		lastRefreshAtMs = now;
+		logRuntimeState(menu, "refreshIfEnabled:run");
 		refresh(menu);
 	}
 
@@ -117,10 +176,21 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		if (!isEnabledFor(menu.containerId) || !isRuntimeAvailable()) {
 			return;
 		}
-		Object craftablesType = resolveSidebarType("CRAFTABLES");
-		if (craftablesType != null) {
-			applyCraftablesSearchSidebarConfig(craftablesType);
-			focusSearchSidebarType(craftablesType);
+		if (transitionActive) {
+			logRuntimeState(menu, "enforce:skip_transition");
+			return;
+		}
+		Object indexType = resolveSidebarType("INDEX");
+		if (indexType != null) {
+			applySearchSidebarConfig(indexType);
+			setIndexFilteredStacks(pinnedIndexStacks);
+			Object current = getCurrentSearchSidebarType();
+			if (current == null || !current.equals(indexType)) {
+				focusSearchSidebarType(indexType);
+				logRuntimeState(menu, "enforce:forced_focus_index");
+			} else {
+				logRuntimeState(menu, "enforce:focus_ok_index");
+			}
 		}
 	}
 
@@ -232,35 +302,61 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		transitionActive = true;
 		try {
 			Object indexType = resolveSidebarType("INDEX");
-			Object craftablesType = resolveSidebarType("CRAFTABLES");
-			if (indexType == null || craftablesType == null) {
+			if (indexType == null) {
 				return;
 			}
 
 			if (previousSearchSidebarType == null) {
 				previousSearchSidebarType = getCurrentSearchSidebarType();
 			}
-			if (previousCraftables == null) {
-				List<?> currentCraftables = getCurrentCraftables();
-				previousCraftables = currentCraftables == null ? List.of() : List.copyOf(currentCraftables);
+			if (previousIndexFilteredStacks == null) {
+				List<?> currentFiltered = getCurrentIndexFilteredStacks();
+				previousIndexFilteredStacks = currentFiltered == null ? List.of() : List.copyOf(currentFiltered);
 			}
-			applyCraftablesSearchSidebarConfig(craftablesType);
+			applySearchSidebarConfig(indexType);
 
 			Set<String> craftableOutputIds = computeCraftableOutputItemIds(menu);
-			List<?> indexIngredients = getSidebarStacks(indexType);
-			List<Object> filteredCraftables = filterIngredientsByItemId(indexIngredients, craftableOutputIds);
-
-			setCraftables(filteredCraftables);
-			focusSearchSidebarType(craftablesType);
-			requestSearchRefresh(indexType, craftablesType);
+			List<?> indexIngredients = getAllIndexStacks();
+			if (indexIngredients.isEmpty()) {
+				indexIngredients = getSidebarStacks(indexType);
+			}
+			List<Object> filteredIndexStacks = filterIngredientsByItemId(indexIngredients, craftableOutputIds);
+			boolean changed = !hasAppliedCraftables || !craftableOutputIds.equals(lastAppliedCraftableOutputIds);
+			setIndexFilteredStacks(filteredIndexStacks);
+			pinnedIndexStacks = List.copyOf(filteredIndexStacks);
+			focusSearchSidebarType(indexType);
+			logRuntimeState(
+					menu,
+					"refresh:applied changed=" + changed
+							+ " outputs=" + craftableOutputIds.size()
+							+ " filtered=" + filteredIndexStacks.size()
+							+ " index=" + indexIngredients.size()
+			);
+			if (!changed) {
+				updateSearchSidebarOnly();
+				if (isDebugLoggingEnabled()) {
+					NearbyCrafting.LOGGER.info(
+							"[NC-EMI] refresh lightweight (unchanged index-filter set) menu={} craftableOutputs={} filteredIngredients={}",
+							menu.containerId,
+							craftableOutputIds.size(),
+							filteredIndexStacks.size()
+					);
+				}
+				return;
+			}
+			requestIndexRefresh(indexType);
+			focusSearchSidebarType(indexType);
+			hasAppliedCraftables = true;
+			lastAppliedCraftableOutputIds.clear();
+			lastAppliedCraftableOutputIds.addAll(craftableOutputIds);
 
 			if (isDebugLoggingEnabled()) {
 				NearbyCrafting.LOGGER.info(
-						"[NC-EMI] refresh menu={} indexCandidates={} craftableOutputs={} filteredIngredients={}",
+						"[NC-EMI] refresh menu={} indexCandidates={} craftableOutputs={} filteredIndex={}",
 						menu.containerId,
 						indexIngredients.size(),
 						craftableOutputIds.size(),
-						filteredCraftables.size()
+						filteredIndexStacks.size()
 				);
 			}
 		} finally {
@@ -272,56 +368,82 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		transitionActive = true;
 		try {
 			Object indexType = resolveSidebarType("INDEX");
-			Object craftablesType = resolveSidebarType("CRAFTABLES");
-
-			if (previousCraftables != null) {
-				setCraftables(previousCraftables);
+			if (previousIndexFilteredStacks != null) {
+				setIndexFilteredStacks(previousIndexFilteredStacks);
 			}
 			if (previousSearchSidebarType != null) {
 				focusSearchSidebarType(previousSearchSidebarType);
 			}
 			restoreSearchSidebarConfig();
-			requestSearchRefresh(indexType, craftablesType);
+			requestIndexRefresh(indexType);
 
 			if (isDebugLoggingEnabled()) {
-				NearbyCrafting.LOGGER.info("[NC-EMI] disableAndRestore restoredCraftables={}", previousCraftables == null ? 0 : previousCraftables.size());
+				NearbyCrafting.LOGGER.info("[NC-EMI] disableAndRestore restoredIndexFiltered={}", previousIndexFilteredStacks == null ? 0 : previousIndexFilteredStacks.size());
 			}
 		} finally {
 			enabled = false;
 			activeContainerId = -1;
 			previousSearchSidebarType = null;
-			previousCraftables = null;
+			previousIndexFilteredStacks = null;
 			previousSearchSidebarFocusSetting = null;
 			previousEmptySearchSidebarFocusSetting = null;
 			searchSidebarFocusOverridden = false;
+			hasAppliedCraftables = false;
+			lastAppliedCraftableOutputIds.clear();
+			pinnedIndexStacks = List.of();
 			transitionActive = false;
 		}
 	}
 
-	private static void requestSearchRefresh(@Nullable Object indexType, @Nullable Object craftablesType) {
+	private static void updateSearchSidebarOnly() {
+		Class<?> screenManagerClass = findClass(EMI_SCREEN_MANAGER_CLASS);
+		if (screenManagerClass != null) {
+			invokeStatic(screenManagerClass, "updateSearchSidebar", 0);
+		}
+	}
+
+	private static void requestIndexRefresh(@Nullable Object indexType) {
 		Class<?> screenManagerClass = findClass(EMI_SCREEN_MANAGER_CLASS);
 		if (screenManagerClass != null) {
 			if (indexType != null) {
 				invokeStatic(screenManagerClass, "repopulatePanels", 1, indexType);
 			}
-			if (craftablesType != null) {
-				invokeStatic(screenManagerClass, "repopulatePanels", 1, craftablesType);
-			}
-			invokeStatic(screenManagerClass, "recalculate", 0);
+			invokeStatic(screenManagerClass, "updateSearchSidebar", 0);
 		}
 
 		Class<?> searchClass = findClass(EMI_SEARCH_CLASS);
 		if (searchClass != null) {
 			invokeStatic(searchClass, "update", 0);
 		}
-
-		if (screenManagerClass != null) {
-			invokeStatic(screenManagerClass, "updateSearchSidebar", 0);
-		}
 	}
 
-	private static void applyCraftablesSearchSidebarConfig(Object craftablesType) {
-		if (craftablesType == null) {
+	private static void logRuntimeState(NearbyCraftingMenu menu, String stage) {
+		if (!isDebugLoggingEnabled()) {
+			return;
+		}
+		long now = System.currentTimeMillis();
+		if (now - lastRuntimeLogAtMs < 300L) {
+			return;
+		}
+		lastRuntimeLogAtMs = now;
+
+		Object currentType = getCurrentSearchSidebarType();
+		String currentTypeName = currentType instanceof Enum<?> e ? e.name() : String.valueOf(currentType);
+		NearbyCrafting.LOGGER.info(
+				"[NC-EMI-RUNTIME] stage={} menu={} enabled={} transition={} currentSidebar={} pinned={} applied={} refreshDebounceMs={}",
+				stage,
+				menu.containerId,
+				enabled,
+				transitionActive,
+				currentTypeName,
+				pinnedIndexStacks.size(),
+				hasAppliedCraftables,
+				REFRESH_DEBOUNCE_MS
+		);
+	}
+
+	private static void applySearchSidebarConfig(Object sidebarType) {
+		if (sidebarType == null) {
 			return;
 		}
 
@@ -331,8 +453,8 @@ public final class NearbyCraftingEmiCraftableFilterController {
 			searchSidebarFocusOverridden = true;
 		}
 
-		setEmiConfigSidebarFocus(SEARCH_SIDEBAR_FOCUS_FIELD, craftablesType);
-		setEmiConfigSidebarFocus(EMPTY_SEARCH_SIDEBAR_FOCUS_FIELD, craftablesType);
+		setEmiConfigSidebarFocus(SEARCH_SIDEBAR_FOCUS_FIELD, sidebarType);
+		setEmiConfigSidebarFocus(EMPTY_SEARCH_SIDEBAR_FOCUS_FIELD, sidebarType);
 	}
 
 	private static void restoreSearchSidebarConfig() {
@@ -363,6 +485,105 @@ public final class NearbyCraftingEmiCraftableFilterController {
 			return;
 		}
 		setStaticFieldValue(emiConfigClass, fieldName, value);
+	}
+
+	@Nullable
+	private static Object resolveRecipeBookAction(String name) {
+		Class<?> recipeBookActionClass = findClass(EMI_RECIPE_BOOK_ACTION_CLASS);
+		if (recipeBookActionClass == null || !recipeBookActionClass.isEnum()) {
+			return null;
+		}
+
+		Object[] constants = recipeBookActionClass.getEnumConstants();
+		if (constants == null) {
+			return null;
+		}
+		for (Object constant : constants) {
+			if (constant instanceof Enum<?> enumConstant && enumConstant.name().equals(name)) {
+				return constant;
+			}
+		}
+		return null;
+	}
+
+	private static void sanitizeSidebarPages(Class<?> emiConfigClass, String fieldName, Object fallbackType) {
+		Object sidebarPages = getStaticFieldValue(emiConfigClass, fieldName);
+		if (sidebarPages == null) {
+			return;
+		}
+		Field pagesField = findField(sidebarPages.getClass(), "pages");
+		if (pagesField == null) {
+			return;
+		}
+		try {
+			Object pagesObject = pagesField.get(sidebarPages);
+			if (!(pagesObject instanceof List<?> pages)) {
+				return;
+			}
+			Class<?> pageEntryClass = null;
+			if (!pages.isEmpty() && pages.get(0) != null) {
+				pageEntryClass = pages.get(0).getClass();
+			}
+			@SuppressWarnings("unchecked")
+			List<Object> mutablePages = (List<Object>) pages;
+			mutablePages.removeIf(NearbyCraftingEmiCraftableFilterController::isCraftablesTypeEntry);
+			if (mutablePages.isEmpty()) {
+				Object indexPage = newSidebarPageEntry(pageEntryClass, fallbackType);
+				if (indexPage != null) {
+					mutablePages.add(indexPage);
+				}
+			}
+		} catch (IllegalAccessException ignored) {
+		}
+	}
+
+	private static void sanitizeSidebarSubpanels(Class<?> emiConfigClass, String fieldName) {
+		Object sidebarSubpanels = getStaticFieldValue(emiConfigClass, fieldName);
+		if (sidebarSubpanels == null) {
+			return;
+		}
+		Field subpanelsField = findField(sidebarSubpanels.getClass(), "subpanels");
+		if (subpanelsField == null) {
+			return;
+		}
+		try {
+			Object subpanelsObject = subpanelsField.get(sidebarSubpanels);
+			if (!(subpanelsObject instanceof List<?> subpanels)) {
+				return;
+			}
+			@SuppressWarnings("unchecked")
+			List<Object> mutableSubpanels = (List<Object>) subpanels;
+			mutableSubpanels.removeIf(NearbyCraftingEmiCraftableFilterController::isCraftablesTypeEntry);
+		} catch (IllegalAccessException ignored) {
+		}
+	}
+
+	private static boolean isCraftablesTypeEntry(@Nullable Object entry) {
+		if (entry == null) {
+			return false;
+		}
+		Field typeField = findField(entry.getClass(), "type");
+		if (typeField == null) {
+			return false;
+		}
+		try {
+			Object typeValue = typeField.get(entry);
+			return typeValue instanceof Enum<?> enumValue && enumValue.name().equals("CRAFTABLES");
+		} catch (IllegalAccessException ignored) {
+			return false;
+		}
+	}
+
+	@Nullable
+	private static Object newSidebarPageEntry(@Nullable Class<?> entryClass, Object sidebarType) {
+		if (entryClass == null || sidebarType == null) {
+			return null;
+		}
+		try {
+			return entryClass.getConstructor(sidebarType.getClass()).newInstance(sidebarType);
+		} catch (ReflectiveOperationException ignored) {
+			return null;
+		}
 	}
 
 	private static List<Object> filterIngredientsByItemId(List<?> ingredients, Set<String> allowedItemIds) {
@@ -632,17 +853,37 @@ public final class NearbyCraftingEmiCraftableFilterController {
 	}
 
 	@Nullable
-	private static List<?> getCurrentCraftables() {
-		Class<?> sidebarsClass = findClass(EMI_SIDEBARS_CLASS);
-		if (sidebarsClass == null) {
+	private static List<?> getCurrentIndexFilteredStacks() {
+		Class<?> stackListClass = findClass(EMI_STACK_LIST_CLASS);
+		if (stackListClass == null) {
 			return null;
 		}
 
-		Object value = getStaticFieldValue(sidebarsClass, "craftables");
+		Object value = getStaticFieldValue(stackListClass, "filteredStacks");
 		if (value instanceof List<?> list) {
 			return list;
 		}
 		return null;
+	}
+
+	private static List<?> getAllIndexStacks() {
+		Class<?> stackListClass = findClass(EMI_STACK_LIST_CLASS);
+		if (stackListClass == null) {
+			return List.of();
+		}
+		Object value = getStaticFieldValue(stackListClass, "stacks");
+		if (value instanceof List<?> list) {
+			return list;
+		}
+		return List.of();
+	}
+
+	private static void setIndexFilteredStacks(List<?> stacks) {
+		Class<?> stackListClass = findClass(EMI_STACK_LIST_CLASS);
+		if (stackListClass == null) {
+			return;
+		}
+		setStaticFieldValue(stackListClass, "filteredStacks", List.copyOf(stacks));
 	}
 
 	private static void setCraftables(List<?> craftables) {
