@@ -661,7 +661,6 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		invokeStatic(screenManagerClass, "focusSearchSidebarType", 1, sidebarType);
 	}
 
-	@SuppressWarnings("unchecked")
 	@Nullable
 	private static Object resolveSidebarType(String name) {
 		Class<?> sidebarTypeClass = findClass(EMI_SIDEBAR_TYPE_CLASS);
@@ -669,11 +668,16 @@ public final class NearbyCraftingEmiCraftableFilterController {
 			return null;
 		}
 
-		try {
-			return Enum.valueOf((Class<? extends Enum>) sidebarTypeClass.asSubclass(Enum.class), name);
-		} catch (IllegalArgumentException exception) {
+		Object[] constants = sidebarTypeClass.getEnumConstants();
+		if (constants == null) {
 			return null;
 		}
+		for (Object constant : constants) {
+			if (constant instanceof Enum<?> enumConstant && enumConstant.name().equals(name)) {
+				return constant;
+			}
+		}
+		return null;
 	}
 
 	private static List<?> getSidebarStacks(Object sidebarType) {

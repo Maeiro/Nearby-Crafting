@@ -430,9 +430,6 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 				getRecipeMethod = findNoArgMethodReturningTypeNameContains(hoveredButton.getClass(), "RecipeHolder");
 			}
 			if (getRecipeMethod == null) {
-				getRecipeMethod = findNoArgMethodReturningTypeNameContains(hoveredButton.getClass(), "Recipe");
-			}
-			if (getRecipeMethod == null) {
 				ResourceLocation fieldExtractedId = tryResolveRecipeIdFromRecipeButtonFields(hoveredButton);
 				if (fieldExtractedId != null) {
 					if (isDebugLoggingEnabled()) {
@@ -452,6 +449,16 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 					NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve failed: getRecipe returned null");
 				}
 				return null;
+			}
+			if (recipeHolder.getClass().getSimpleName().contains("RecipeCollection")
+					|| recipeHolder.getClass().getName().contains("recipebook.RecipeCollection")) {
+				ResourceLocation collectionId = tryResolveRecipeIdFromRecipeCollection(recipeHolder, hoveredButton);
+				if (collectionId != null) {
+					if (isDebugLoggingEnabled()) {
+						NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve success via RecipeCollection: {}", collectionId);
+					}
+					return collectionId;
+				}
 			}
 
 			Method idMethod = findMethod(recipeHolder.getClass(), "id", 0);
@@ -501,6 +508,13 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 			if (directId != null) {
 				return directId;
 			}
+			if (value != null && (value.getClass().getSimpleName().contains("RecipeCollection")
+					|| value.getClass().getName().contains("recipebook.RecipeCollection"))) {
+				ResourceLocation collectionId = tryResolveRecipeIdFromRecipeCollection(value, recipeButton);
+				if (collectionId != null) {
+					return collectionId;
+				}
+			}
 			if (value instanceof List<?> listValue && !listValue.isEmpty()) {
 				int index = currentIndex != null ? currentIndex : 0;
 				if (index < 0) {
@@ -518,6 +532,48 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 					if (candidate != null) {
 						return candidate;
 					}
+				}
+			}
+		}
+		return null;
+	}
+
+	@Nullable
+	private ResourceLocation tryResolveRecipeIdFromRecipeCollection(Object recipeCollection, @Nullable Object recipeButton) {
+		Integer currentIndex = recipeButton == null ? null : tryGetRecipeButtonCurrentIndex(recipeButton);
+		int preferredIndex = currentIndex == null ? 0 : Math.max(0, currentIndex);
+		for (Method method : recipeCollection.getClass().getMethods()) {
+			if (!List.class.isAssignableFrom(method.getReturnType())) {
+				continue;
+			}
+			if (Modifier.isStatic(method.getModifiers())) {
+				continue;
+			}
+			Object rawList = null;
+			try {
+				if (method.getParameterCount() == 0) {
+					rawList = method.invoke(recipeCollection);
+				} else if (method.getParameterCount() == 1 && method.getParameterTypes()[0] == boolean.class) {
+					rawList = method.invoke(recipeCollection, true);
+					if (!(rawList instanceof List<?> list && !list.isEmpty())) {
+						rawList = method.invoke(recipeCollection, false);
+					}
+				}
+			} catch (ReflectiveOperationException | RuntimeException ignored) {
+				continue;
+			}
+			if (!(rawList instanceof List<?> listValue) || listValue.isEmpty()) {
+				continue;
+			}
+			int index = Math.min(preferredIndex, listValue.size() - 1);
+			ResourceLocation indexedId = tryExtractRecipeId(listValue.get(index));
+			if (indexedId != null) {
+				return indexedId;
+			}
+			for (Object entry : listValue) {
+				ResourceLocation candidate = tryExtractRecipeId(entry);
+				if (candidate != null) {
+					return candidate;
 				}
 			}
 		}
@@ -559,7 +615,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 			return null;
 		}
 		if (maybeRecipeLike instanceof ResourceLocation directResourceLocation) {
-			return directResourceLocation;
+			return isValidScrollRecipeId(directResourceLocation) ? directResourceLocation : null;
 		}
 
 		Class<?> valueClass = maybeRecipeLike.getClass();
@@ -571,7 +627,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 			try {
 				Object idValue = idMethod.invoke(maybeRecipeLike);
 				if (idValue instanceof ResourceLocation recipeId) {
-					return recipeId;
+					return isValidScrollRecipeId(recipeId) ? recipeId : null;
 				}
 			} catch (ReflectiveOperationException ignored) {
 			}
@@ -579,7 +635,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 
 		Object namedFieldId = getFieldValue(maybeRecipeLike, "id");
 		if (namedFieldId instanceof ResourceLocation recipeId) {
-			return recipeId;
+			return isValidScrollRecipeId(recipeId) ? recipeId : null;
 		}
 		for (Field field : getAllFields(valueClass)) {
 			if (field.getType() != ResourceLocation.class) {
@@ -592,12 +648,26 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 			try {
 				Object fieldValue = field.get(maybeRecipeLike);
 				if (fieldValue instanceof ResourceLocation recipeId) {
-					return recipeId;
+					if (isValidScrollRecipeId(recipeId)) {
+						return recipeId;
+					}
 				}
 			} catch (IllegalAccessException ignored) {
 			}
 		}
 		return null;
+	}
+
+	private boolean isValidScrollRecipeId(@Nullable ResourceLocation recipeId) {
+		if (recipeId == null || this.menu.getLevel() == null) {
+			return false;
+		}
+		Optional<?> recipeOptional = this.menu.getLevel().getRecipeManager().byKey(recipeId);
+		if (recipeOptional.isEmpty()) {
+			return false;
+		}
+		Object recipe = recipeOptional.get();
+		return recipe instanceof CraftingRecipe;
 	}
 
 	private boolean isSameRecipeOutput(@Nullable ResourceLocation leftRecipeId, @Nullable ResourceLocation rightRecipeId) {
