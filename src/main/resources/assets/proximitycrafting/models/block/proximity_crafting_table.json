@@ -1,0 +1,14 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "down": "proximitycrafting:block/proximity_crafting_table_bottom",
+    "east": "proximitycrafting:block/proximity_crafting_table_side",
+    "north": "proximitycrafting:block/proximity_crafting_table_front",
+    "particle": "proximitycrafting:block/proximity_crafting_table_front",
+    "south": "proximitycrafting:block/proximity_crafting_table_side",
+    "up": "proximitycrafting:block/proximity_crafting_table_top",
+    "west": "proximitycrafting:block/proximity_crafting_table_front"
+  }
+}
+
+

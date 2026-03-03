@@ -1,0 +1,30 @@
+{
+  "block.proximitycrafting.proximity_crafting_table": "Proximity Crafting Table",
+  "item.proximitycrafting.proximity_crafting_table": "Proximity Crafting Table",
+  "container.proximitycrafting.proximity_crafting_table": "Proximity Crafting",
+  "proximitycrafting.feedback.filled": "Proximity crafting recipe filled",
+  "proximitycrafting.feedback.filled_max": "Loaded %s craft(s) into the grid",
+  "proximitycrafting.feedback.crafted_all": "Crafted %s item(s)",
+  "proximitycrafting.feedback.not_enough_ingredients": "Not enough proximity ingredients",
+  "proximitycrafting.feedback.not_enough_space": "Not enough room in crafting grid",
+  "proximitycrafting.feedback.cannot_reduce_loaded_recipe": "No loaded recipe ingredients to remove",
+  "proximitycrafting.feedback.fill_failed": "Could not fill recipe from proximity sources",
+  "proximitycrafting.feedback.no_recipe_selected": "No previous recipe to refill",
+  "proximitycrafting.feedback.recipe_not_found": "Recipe not found",
+  "proximitycrafting.feedback.invalid_recipe_type": "Recipe type is not supported",
+  "proximitycrafting.feedback.scroll_increase": "Added %s craft step(s)",
+  "proximitycrafting.feedback.scroll_decrease": "Removed %s craft step(s)",
+  "proximitycrafting.auto_refill.toggle": "Auto Refill After Craft",
+  "proximitycrafting.auto_refill.state": "State: %s",
+  "proximitycrafting.auto_refill.enabled": "Auto refill enabled",
+  "proximitycrafting.auto_refill.disabled": "Auto refill disabled",
+  "proximitycrafting.proximity_items.title": "Ingredients",
+  "proximitycrafting.proximity_items.available": "Available: %s",
+  "proximitycrafting.proximity_items.required": "Required: %s",
+  "proximitycrafting.jei.updating.enable": "Filtering craftable items...",
+  "proximitycrafting.jei.updating.disable": "Restoring ingredient list...",
+  "proximitycrafting.emi.updating.enable": "Filtering craftable items...",
+  "proximitycrafting.emi.updating.disable": "Restoring ingredient list..."
+}
+
+

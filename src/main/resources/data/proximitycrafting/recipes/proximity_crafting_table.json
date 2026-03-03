@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "CDC",
+    "DTD",
+    "CDC"
+  ],
+  "key": {
+    "C": { "item": "minecraft:chest" },
+    "D": { "item": "minecraft:diamond" },
+    "T": { "item": "minecraft:crafting_table" }
+  },
+  "result": {
+    "item": "proximitycrafting:proximity_crafting_table"
+  }
+}
+
+

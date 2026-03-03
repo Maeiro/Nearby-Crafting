@@ -95,8 +95,15 @@ tasks.withType(ProcessResources).configureEach {
     ]
     inputs.properties replaceProperties
 
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+    filesMatching(['META-INF/mods.toml', 'meta-inf/mods.toml', 'pack.mcmeta']) {
         expand replaceProperties + [project: project]
+    }
+
+    // Windows can preserve a lowercase source path (meta-inf); force canonical Forge path in the jar.
+    eachFile { details ->
+        if (details.path == 'meta-inf/mods.toml') {
+            details.path = 'META-INF/mods.toml'
+        }
     }
 }
 

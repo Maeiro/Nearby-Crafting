@@ -1,6 +1,8 @@
 {
   "replace": false,
   "values": [
-    "nearbycrafting:nearby_crafting_table"
+    "proximitycrafting:proximity_crafting_table"
   ]
 }
+
+

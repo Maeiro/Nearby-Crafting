@@ -9,35 +9,35 @@ displayName="${mod_name}"
 authors="${mod_authors}"
 description='''${mod_description}'''
 
-[[dependencies.nearbycrafting]]
+[[dependencies.proximitycrafting]]
 modId="forge"
 mandatory=true
 versionRange="${forge_version_range}"
 ordering="NONE"
 side="BOTH"
 
-[[dependencies.nearbycrafting]]
+[[dependencies.proximitycrafting]]
 modId="minecraft"
 mandatory=true
 versionRange="${minecraft_version_range}"
 ordering="NONE"
 side="BOTH"
 
-[[dependencies.nearbycrafting]]
+[[dependencies.proximitycrafting]]
 modId="jei"
 mandatory=false
 versionRange="[15.0.0,)"
 ordering="AFTER"
 side="CLIENT"
 
-[[dependencies.nearbycrafting]]
+[[dependencies.proximitycrafting]]
 modId="emi"
 mandatory=false
 versionRange="[1.0.0,)"
 ordering="AFTER"
 side="CLIENT"
 
-[[dependencies.nearbycrafting]]
+[[dependencies.proximitycrafting]]
 modId="sophisticatedbackpacks"
 mandatory=false
 versionRange="[1.0.0,)"
