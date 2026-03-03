@@ -268,7 +268,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		}
 
 		if (!shouldHandle) {
-			return tryHandleOverlayHoverRecipeScroll(mouseX, mouseY, scrollDelta);
+			return tryHandleOverlayHoverRecipeScroll(mouseX, mouseY, scrollDelta, activeRecipeLoaded, activeRecipeId);
 		}
 
 		int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
@@ -280,30 +280,55 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		return true;
 	}
 
-	private boolean tryHandleOverlayHoverRecipeScroll(double mouseX, double mouseY, double scrollDelta) {
-		if (scrollDelta <= 0.0D || hasActiveRecipeLoadedInGrid()) {
-			return false;
-		}
-
+	private boolean tryHandleOverlayHoverRecipeScroll(
+			double mouseX,
+			double mouseY,
+			double scrollDelta,
+			boolean activeRecipeLoaded,
+			@Nullable ResourceLocation activeRecipeId
+	) {
 		ResourceLocation hoveredRecipeId = resolveHoveredOverlayRecipeId(mouseX, mouseY);
 		if (hoveredRecipeId == null) {
 			return false;
 		}
 
 		int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
-		if (isDebugLoggingEnabled()) {
-			NearbyCrafting.LOGGER.info(
-					"[NC-SCROLL] client source=overlay_hover recipe={} steps={}",
-					hoveredRecipeId,
-					steps
-			);
+		if (!activeRecipeLoaded) {
+			if (scrollDelta <= 0.0D) {
+				return false;
+			}
+
+			if (isDebugLoggingEnabled()) {
+				NearbyCrafting.LOGGER.info(
+						"[NC-SCROLL] client source=overlay_hover recipe={} steps={} mode=prime_empty_grid",
+						hoveredRecipeId,
+						steps
+				);
+			}
+
+			NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(hoveredRecipeId, false));
+			rememberPendingScrollRecipe(hoveredRecipeId);
+			if (steps > 1) {
+				NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SAdjustRecipeLoad(steps - 1));
+			}
+			return true;
 		}
 
-		NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(hoveredRecipeId, false));
-		rememberPendingScrollRecipe(hoveredRecipeId);
-		if (steps > 1) {
-			NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SAdjustRecipeLoad(steps - 1));
+		boolean matchesActiveRecipe = hoveredRecipeId.equals(activeRecipeId) || isSameRecipeOutput(hoveredRecipeId, activeRecipeId);
+		if (!matchesActiveRecipe) {
+			return false;
 		}
+
+		int signedSteps = scrollDelta > 0.0D ? steps : -steps;
+		if (isDebugLoggingEnabled()) {
+			NearbyCrafting.LOGGER.info(
+					"[NC-SCROLL] client source=overlay_hover recipe={} activeRecipe={} steps={} mode=adjust_loaded_grid",
+					hoveredRecipeId,
+					activeRecipeId,
+					signedSteps
+			);
+		}
+		NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SAdjustRecipeLoad(signedSteps));
 		return true;
 	}
 
