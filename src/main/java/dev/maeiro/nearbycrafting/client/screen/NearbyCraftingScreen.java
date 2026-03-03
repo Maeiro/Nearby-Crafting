@@ -33,6 +33,9 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.Nullable;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -220,6 +223,16 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		ResourceLocation hoveredRecipeId = resolveHoveredOverlayRecipeId(mouseX, mouseY);
 		ResourceLocation activeRecipeId = getActiveRecipeIdForScroll();
 		boolean activeRecipeLoaded = hasActiveRecipeLoadedInGrid();
+		if (isDebugLoggingEnabled()) {
+			NearbyCrafting.LOGGER.info(
+					"[NC-SCROLL] client source={} resolvedHoverRecipe={} activeRecipe={} activeLoaded={} delta={}",
+					source,
+					hoveredRecipeId,
+					activeRecipeId,
+					activeRecipeLoaded,
+					scrollDelta
+			);
+		}
 		if (scrollDelta > 0.0D && hoveredRecipeId != null && !activeRecipeLoaded) {
 			int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
 			if (isDebugLoggingEnabled()) {
@@ -355,9 +368,236 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	private ResourceLocation resolveHoveredOverlayRecipeId(double mouseX, double mouseY) {
 		ResourceLocation hoveredRecipeId = NearbyCraftingEmiCraftableFilterController.resolveHoveredRecipeId(this.menu, mouseX, mouseY);
 		if (hoveredRecipeId != null) {
+			if (isDebugLoggingEnabled()) {
+				NearbyCrafting.LOGGER.info("[NC-SCROLL] hover recipe resolved from EMI: {}", hoveredRecipeId);
+			}
 			return hoveredRecipeId;
 		}
-		return NearbyCraftingJeiCraftableFilterController.resolveHoveredRecipeId(this.menu);
+		hoveredRecipeId = NearbyCraftingJeiCraftableFilterController.resolveHoveredRecipeId(this.menu);
+		if (hoveredRecipeId != null) {
+			if (isDebugLoggingEnabled()) {
+				NearbyCrafting.LOGGER.info("[NC-SCROLL] hover recipe resolved from JEI: {}", hoveredRecipeId);
+			}
+			return hoveredRecipeId;
+		}
+		hoveredRecipeId = resolveHoveredVanillaRecipeBookRecipeId();
+		if (isDebugLoggingEnabled()) {
+			NearbyCrafting.LOGGER.info("[NC-SCROLL] hover recipe resolved from VANILLA book: {}", hoveredRecipeId);
+		}
+		return hoveredRecipeId;
+	}
+
+	@Nullable
+	private ResourceLocation resolveHoveredVanillaRecipeBookRecipeId() {
+		if (!this.recipeBookComponent.isVisible()) {
+			if (isDebugLoggingEnabled()) {
+				NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve skipped: recipe book not visible");
+			}
+			return null;
+		}
+
+		try {
+			Object recipeBookPage = getFieldValue(this.recipeBookComponent, "recipeBookPage");
+			if (recipeBookPage == null) {
+				Field recipeBookPageField = findFieldByTypeNameContains(this.recipeBookComponent.getClass(), "RecipeBookPage");
+				if (recipeBookPageField != null) {
+					recipeBookPage = recipeBookPageField.get(this.recipeBookComponent);
+				}
+			}
+			if (recipeBookPage == null) {
+				if (isDebugLoggingEnabled()) {
+					NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve failed: recipeBookPage field missing/null");
+				}
+				return null;
+			}
+
+			Object hoveredButton = getFieldValue(recipeBookPage, "hoveredButton");
+			if (hoveredButton == null) {
+				Field hoveredButtonField = findFieldByTypeNameContains(recipeBookPage.getClass(), "RecipeButton");
+				if (hoveredButtonField != null) {
+					hoveredButton = hoveredButtonField.get(recipeBookPage);
+				}
+			}
+			if (hoveredButton == null) {
+				if (isDebugLoggingEnabled()) {
+					NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve: no hovered recipe button");
+				}
+				return null;
+			}
+
+			Method getRecipeMethod = findMethod(hoveredButton.getClass(), "getRecipe", 0);
+			if (getRecipeMethod == null) {
+				getRecipeMethod = findNoArgMethodReturningTypeNameContains(hoveredButton.getClass(), "RecipeHolder");
+			}
+			if (getRecipeMethod == null) {
+				getRecipeMethod = findNoArgMethodReturningTypeNameContains(hoveredButton.getClass(), "Recipe");
+			}
+			if (getRecipeMethod == null) {
+				ResourceLocation fieldExtractedId = tryResolveRecipeIdFromRecipeButtonFields(hoveredButton);
+				if (fieldExtractedId != null) {
+					if (isDebugLoggingEnabled()) {
+						NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve success via RecipeButton fields: {}", fieldExtractedId);
+					}
+					return fieldExtractedId;
+				}
+				if (isDebugLoggingEnabled()) {
+					NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve failed: getRecipe method not found on {}", hoveredButton.getClass().getName());
+				}
+				return null;
+			}
+
+			Object recipeHolder = getRecipeMethod.invoke(hoveredButton);
+			if (recipeHolder == null) {
+				if (isDebugLoggingEnabled()) {
+					NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve failed: getRecipe returned null");
+				}
+				return null;
+			}
+
+			Method idMethod = findMethod(recipeHolder.getClass(), "id", 0);
+			if (idMethod == null) {
+				idMethod = findNoArgMethodReturningTypeNameContains(recipeHolder.getClass(), "ResourceLocation");
+			}
+			if (idMethod != null) {
+				Object recipeId = idMethod.invoke(recipeHolder);
+				if (recipeId instanceof ResourceLocation resourceLocation) {
+					if (isDebugLoggingEnabled()) {
+						NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve success via method id(): {}", resourceLocation);
+					}
+					return resourceLocation;
+				}
+			}
+
+			Object recipeIdFieldValue = getFieldValue(recipeHolder, "id");
+			if (recipeIdFieldValue instanceof ResourceLocation resourceLocation) {
+				if (isDebugLoggingEnabled()) {
+					NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve success via field id: {}", resourceLocation);
+				}
+				return resourceLocation;
+			}
+			if (isDebugLoggingEnabled()) {
+				NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve failed: could not extract recipe id from {}", recipeHolder.getClass().getName());
+			}
+		} catch (ReflectiveOperationException | RuntimeException ignored) {
+			if (isDebugLoggingEnabled()) {
+				NearbyCrafting.LOGGER.info("[NC-SCROLL] vanilla hover resolve exception: {}", ignored.toString());
+			}
+		}
+		return null;
+	}
+
+	@Nullable
+	private ResourceLocation tryResolveRecipeIdFromRecipeButtonFields(Object recipeButton) {
+		Integer currentIndex = tryGetRecipeButtonCurrentIndex(recipeButton);
+		for (Field field : getAllFields(recipeButton.getClass())) {
+			field.setAccessible(true);
+			Object value;
+			try {
+				value = field.get(recipeButton);
+			} catch (IllegalAccessException ignored) {
+				continue;
+			}
+			ResourceLocation directId = tryExtractRecipeId(value);
+			if (directId != null) {
+				return directId;
+			}
+			if (value instanceof List<?> listValue && !listValue.isEmpty()) {
+				int index = currentIndex != null ? currentIndex : 0;
+				if (index < 0) {
+					index = 0;
+				}
+				if (index >= listValue.size()) {
+					index = listValue.size() - 1;
+				}
+				ResourceLocation listId = tryExtractRecipeId(listValue.get(index));
+				if (listId != null) {
+					return listId;
+				}
+				for (Object listEntry : listValue) {
+					ResourceLocation candidate = tryExtractRecipeId(listEntry);
+					if (candidate != null) {
+						return candidate;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	@Nullable
+	private Integer tryGetRecipeButtonCurrentIndex(Object recipeButton) {
+		Object namedIndex = getFieldValue(recipeButton, "currentIndex");
+		if (namedIndex instanceof Integer indexValue) {
+			return indexValue;
+		}
+		for (Field field : getAllFields(recipeButton.getClass())) {
+			if (field.getType() != int.class && field.getType() != Integer.class) {
+				continue;
+			}
+			if (Modifier.isStatic(field.getModifiers())) {
+				continue;
+			}
+			String fieldName = field.getName();
+			if (!fieldName.toLowerCase().contains("index")) {
+				continue;
+			}
+			field.setAccessible(true);
+			try {
+				Object value = field.get(recipeButton);
+				if (value instanceof Integer indexValue) {
+					return indexValue;
+				}
+			} catch (IllegalAccessException ignored) {
+			}
+		}
+		return null;
+	}
+
+	@Nullable
+	private ResourceLocation tryExtractRecipeId(@Nullable Object maybeRecipeLike) {
+		if (maybeRecipeLike == null) {
+			return null;
+		}
+		if (maybeRecipeLike instanceof ResourceLocation directResourceLocation) {
+			return directResourceLocation;
+		}
+
+		Class<?> valueClass = maybeRecipeLike.getClass();
+		Method idMethod = findMethod(valueClass, "id", 0);
+		if (idMethod == null) {
+			idMethod = findNoArgMethodReturningTypeNameContains(valueClass, "ResourceLocation");
+		}
+		if (idMethod != null) {
+			try {
+				Object idValue = idMethod.invoke(maybeRecipeLike);
+				if (idValue instanceof ResourceLocation recipeId) {
+					return recipeId;
+				}
+			} catch (ReflectiveOperationException ignored) {
+			}
+		}
+
+		Object namedFieldId = getFieldValue(maybeRecipeLike, "id");
+		if (namedFieldId instanceof ResourceLocation recipeId) {
+			return recipeId;
+		}
+		for (Field field : getAllFields(valueClass)) {
+			if (field.getType() != ResourceLocation.class) {
+				continue;
+			}
+			if (Modifier.isStatic(field.getModifiers())) {
+				continue;
+			}
+			field.setAccessible(true);
+			try {
+				Object fieldValue = field.get(maybeRecipeLike);
+				if (fieldValue instanceof ResourceLocation recipeId) {
+					return recipeId;
+				}
+			} catch (IllegalAccessException ignored) {
+			}
+		}
+		return null;
 	}
 
 	private boolean isSameRecipeOutput(@Nullable ResourceLocation leftRecipeId, @Nullable ResourceLocation rightRecipeId) {
@@ -698,6 +938,92 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 			return NearbyCraftingConfig.SERVER.debugLogging.get();
 		} catch (RuntimeException exception) {
 			return false;
+		}
+	}
+
+	@Nullable
+	private static Method findMethod(Class<?> ownerClass, String methodName, int parameterCount) {
+		for (Method method : ownerClass.getMethods()) {
+			if (method.getName().equals(methodName) && method.getParameterCount() == parameterCount) {
+				return method;
+			}
+		}
+		return null;
+	}
+
+	@Nullable
+	private static Field findField(Class<?> ownerClass, String fieldName) {
+		Class<?> currentClass = ownerClass;
+		while (currentClass != null) {
+			try {
+				Field field = currentClass.getDeclaredField(fieldName);
+				field.setAccessible(true);
+				return field;
+			} catch (NoSuchFieldException ignored) {
+				currentClass = currentClass.getSuperclass();
+			}
+		}
+		return null;
+	}
+
+	@Nullable
+	private static Field findFieldByTypeNameContains(Class<?> ownerClass, String typeNameFragment) {
+		Class<?> currentClass = ownerClass;
+		while (currentClass != null) {
+			for (Field field : currentClass.getDeclaredFields()) {
+				String fieldTypeName = field.getType().getName();
+				String fieldTypeSimpleName = field.getType().getSimpleName();
+				if (fieldTypeName.contains(typeNameFragment) || fieldTypeSimpleName.contains(typeNameFragment)) {
+					field.setAccessible(true);
+					return field;
+				}
+			}
+			currentClass = currentClass.getSuperclass();
+		}
+		return null;
+	}
+
+	private static List<Field> getAllFields(Class<?> ownerClass) {
+		List<Field> fields = new ArrayList<>();
+		Class<?> currentClass = ownerClass;
+		while (currentClass != null) {
+			for (Field field : currentClass.getDeclaredFields()) {
+				fields.add(field);
+			}
+			currentClass = currentClass.getSuperclass();
+		}
+		return fields;
+	}
+
+	@Nullable
+	private static Method findNoArgMethodReturningTypeNameContains(Class<?> ownerClass, String typeNameFragment) {
+		for (Method method : ownerClass.getMethods()) {
+			if (method.getParameterCount() != 0) {
+				continue;
+			}
+			Class<?> returnType = method.getReturnType();
+			if (returnType == null || returnType == Void.TYPE) {
+				continue;
+			}
+			String returnTypeName = returnType.getName();
+			String returnTypeSimpleName = returnType.getSimpleName();
+			if (returnTypeName.contains(typeNameFragment) || returnTypeSimpleName.contains(typeNameFragment)) {
+				return method;
+			}
+		}
+		return null;
+	}
+
+	@Nullable
+	private static Object getFieldValue(Object owner, String fieldName) {
+		Field field = findField(owner.getClass(), fieldName);
+		if (field == null) {
+			return null;
+		}
+		try {
+			return field.get(owner);
+		} catch (IllegalAccessException ignored) {
+			return null;
 		}
 	}
 
