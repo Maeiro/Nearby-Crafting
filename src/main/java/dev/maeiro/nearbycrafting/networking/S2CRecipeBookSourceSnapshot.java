@@ -1,7 +1,5 @@
 package dev.maeiro.nearbycrafting.networking;
 
-import dev.maeiro.nearbycrafting.client.compat.RecipeSourceSnapshotCache;
-import dev.maeiro.nearbycrafting.client.compat.emi.NearbyCraftingEmiCraftableFilterController;
 import dev.maeiro.nearbycrafting.client.screen.NearbyCraftingScreen;
 import dev.maeiro.nearbycrafting.menu.NearbyCraftingMenu;
 import net.minecraft.client.Minecraft;
@@ -49,9 +47,6 @@ public class S2CRecipeBookSourceSnapshot {
 		NetworkEvent.Context ctx = ctxSupplier.get();
 		ctx.enqueueWork(() -> {
 			Minecraft minecraft = Minecraft.getInstance();
-			RecipeSourceSnapshotCache.update(containerId, sourceEntries);
-			NearbyCraftingEmiCraftableFilterController.onSourceSnapshotUpdated(containerId);
-
 			if (minecraft.player == null || !(minecraft.player.containerMenu instanceof NearbyCraftingMenu menu)) {
 				return;
 			}

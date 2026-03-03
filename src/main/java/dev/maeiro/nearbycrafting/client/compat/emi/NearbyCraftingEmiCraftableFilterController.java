@@ -1,18 +1,14 @@
 package dev.maeiro.nearbycrafting.client.compat.emi;
 
 import dev.maeiro.nearbycrafting.NearbyCrafting;
-import dev.maeiro.nearbycrafting.client.compat.RecipeSourceSnapshotCache;
 import dev.maeiro.nearbycrafting.config.NearbyCraftingConfig;
 import dev.maeiro.nearbycrafting.menu.NearbyCraftingMenu;
-import dev.maeiro.nearbycrafting.networking.C2SRequestAdvancedBackpackRecipeFill;
 import dev.maeiro.nearbycrafting.networking.C2SRequestRecipeFill;
 import dev.maeiro.nearbycrafting.networking.NearbyCraftingNetwork;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
@@ -75,13 +71,6 @@ public final class NearbyCraftingEmiCraftableFilterController {
 	}
 
 	public static void setEnabled(NearbyCraftingMenu menu, boolean shouldEnable) {
-		setEnabled(menu.containerId, shouldEnable);
-		if (shouldEnable) {
-			refresh(menu);
-		}
-	}
-
-	public static void setEnabled(int containerId, boolean shouldEnable) {
 		if (!isRuntimeAvailable()) {
 			return;
 		}
@@ -90,7 +79,7 @@ public final class NearbyCraftingEmiCraftableFilterController {
 			return;
 		}
 
-		if (!isEnabledFor(containerId)) {
+		if (!isEnabledFor(menu.containerId)) {
 			if (enabled) {
 				disableAndRestore();
 			}
@@ -102,7 +91,8 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		}
 
 		enabled = true;
-		activeContainerId = containerId;
+		activeContainerId = menu.containerId;
+		refresh(menu);
 	}
 
 	public static void refreshIfEnabled(NearbyCraftingMenu menu) {
@@ -117,31 +107,9 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		refresh(menu);
 	}
 
-	public static void refreshIfEnabledBackpack(Screen screen, int containerId) {
-		if (!isEnabledFor(containerId) || !isRuntimeAvailable()) {
-			return;
-		}
-		long now = System.currentTimeMillis();
-		if (now - lastRefreshAtMs < REFRESH_DEBOUNCE_MS) {
-			return;
-		}
-		lastRefreshAtMs = now;
-		refreshBackpack(screen, containerId);
-	}
-
 	public static void handleMenuClosed(int containerId) {
 		if (isEnabledFor(containerId)) {
 			disableAndRestore();
-		}
-	}
-
-	public static void onSourceSnapshotUpdated(int containerId) {
-		if (!isEnabledFor(containerId)) {
-			return;
-		}
-		Screen screen = Minecraft.getInstance().screen;
-		if (screen != null && AdvancedBackpackScreenHelper.isAdvancedBackpackScreen(screen)) {
-			refreshBackpack(screen, containerId);
 		}
 	}
 
@@ -149,17 +117,6 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		if (!isEnabledFor(menu.containerId) || !isRuntimeAvailable()) {
 			return;
 		}
-		enforceCraftableSidebarType();
-	}
-
-	public static void enforceCraftableSidebarIfEnabled(int containerId) {
-		if (!isEnabledFor(containerId) || !isRuntimeAvailable()) {
-			return;
-		}
-		enforceCraftableSidebarType();
-	}
-
-	private static void enforceCraftableSidebarType() {
 		Object craftablesType = resolveSidebarType("CRAFTABLES");
 		if (craftablesType != null) {
 			applyCraftablesSearchSidebarConfig(craftablesType);
@@ -210,38 +167,6 @@ public final class NearbyCraftingEmiCraftableFilterController {
 					(int) mouseY
 			);
 		}
-		return true;
-	}
-
-	public static boolean handleIngredientClickBackpack(int containerId, Screen screen, double mouseX, double mouseY, int mouseButton) {
-		if (!isEnabledFor(containerId) || !isRuntimeAvailable()) {
-			return false;
-		}
-		if (mouseButton != 0 || !Screen.hasAltDown()) {
-			return false;
-		}
-
-		Class<?> screenManagerClass = findClass(EMI_SCREEN_MANAGER_CLASS);
-		if (screenManagerClass == null) {
-			return false;
-		}
-
-		Object hovered = invokeStatic(screenManagerClass, "getHoveredStack", 3, (int) mouseX, (int) mouseY, false);
-		if (hovered == null) {
-			return false;
-		}
-
-		ResourceLocation recipeId = resolveRecipeIdFromInteraction(hovered);
-		if (recipeId == null) {
-			ItemStack outputStack = resolveOutputStackFromInteraction(hovered);
-			recipeId = resolveCraftableRecipeIdForBackpackOutput(containerId, screen, outputStack);
-		}
-		if (recipeId == null) {
-			return false;
-		}
-
-		boolean craftAll = Screen.hasShiftDown();
-		NearbyCraftingNetwork.CHANNEL.sendToServer(new C2SRequestAdvancedBackpackRecipeFill(containerId, recipeId, craftAll));
 		return true;
 	}
 
@@ -338,40 +263,6 @@ public final class NearbyCraftingEmiCraftableFilterController {
 						filteredCraftables.size()
 				);
 			}
-		} finally {
-			transitionActive = false;
-		}
-	}
-
-	private static void refreshBackpack(Screen screen, int containerId) {
-		if (!AdvancedBackpackScreenHelper.isAdvancedBackpackScreen(screen)) {
-			return;
-		}
-
-		transitionActive = true;
-		try {
-			Object indexType = resolveSidebarType("INDEX");
-			Object craftablesType = resolveSidebarType("CRAFTABLES");
-			if (indexType == null || craftablesType == null) {
-				return;
-			}
-
-			if (previousSearchSidebarType == null) {
-				previousSearchSidebarType = getCurrentSearchSidebarType();
-			}
-			if (previousCraftables == null) {
-				List<?> currentCraftables = getCurrentCraftables();
-				previousCraftables = currentCraftables == null ? List.of() : List.copyOf(currentCraftables);
-			}
-			applyCraftablesSearchSidebarConfig(craftablesType);
-
-			Set<String> craftableOutputIds = computeCraftableOutputItemIdsForBackpack(containerId, screen);
-			List<?> indexIngredients = getSidebarStacks(indexType);
-			List<Object> filteredCraftables = filterIngredientsByItemId(indexIngredients, craftableOutputIds);
-
-			setCraftables(filteredCraftables);
-			focusSearchSidebarType(craftablesType);
-			requestSearchRefresh(indexType, craftablesType);
 		} finally {
 			transitionActive = false;
 		}
@@ -532,40 +423,6 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		return itemIds;
 	}
 
-	private static Set<String> computeCraftableOutputItemIdsForBackpack(int containerId, Screen screen) {
-		Minecraft minecraft = Minecraft.getInstance();
-		Player player = minecraft.player;
-		if (player == null || player.level() == null) {
-			return Set.of();
-		}
-
-		List<AvailableIngredientStack> availableStacks = buildAvailableItemPool(
-				AdvancedBackpackScreenHelper.getCraftMatrixStacks(screen),
-				RecipeSourceSnapshotCache.get(containerId),
-				NearbyCraftingConfig.CLIENT.includePlayerInventory.get(),
-				player.getInventory()
-		);
-		if (availableStacks.isEmpty()) {
-			return Set.of();
-		}
-
-		Set<String> itemIds = new LinkedHashSet<>();
-		for (CraftingRecipe recipe : player.level().getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING)) {
-			if (!isEligibleCraftingRecipe(recipe) || !canCraftWithAvailableStacks(recipe, availableStacks)) {
-				continue;
-			}
-			ItemStack result = recipe.getResultItem(player.level().registryAccess());
-			if (result.isEmpty() || !result.isItemEnabled(player.level().enabledFeatures())) {
-				continue;
-			}
-			ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(result.getItem());
-			if (itemId != null) {
-				itemIds.add(itemId.toString());
-			}
-		}
-		return itemIds;
-	}
-
 	@Nullable
 	private static ResourceLocation resolveCraftableRecipeIdForOutput(NearbyCraftingMenu menu, ItemStack outputStack) {
 		if (outputStack.isEmpty() || menu.getLevel() == null) {
@@ -578,40 +435,6 @@ public final class NearbyCraftingEmiCraftableFilterController {
 				continue;
 			}
 			if (!ItemStack.isSameItemSameTags(result, outputStack)) {
-				continue;
-			}
-			ResourceLocation recipeId = recipe.getId();
-			if (recipeId != null) {
-				return recipeId;
-			}
-		}
-		return null;
-	}
-
-	@Nullable
-	private static ResourceLocation resolveCraftableRecipeIdForBackpackOutput(int containerId, Screen screen, ItemStack outputStack) {
-		if (outputStack.isEmpty()) {
-			return null;
-		}
-		Minecraft minecraft = Minecraft.getInstance();
-		Player player = minecraft.player;
-		if (player == null || player.level() == null) {
-			return null;
-		}
-
-		List<AvailableIngredientStack> availableStacks = buildAvailableItemPool(
-				AdvancedBackpackScreenHelper.getCraftMatrixStacks(screen),
-				RecipeSourceSnapshotCache.get(containerId),
-				NearbyCraftingConfig.CLIENT.includePlayerInventory.get(),
-				player.getInventory()
-		);
-
-		for (CraftingRecipe recipe : player.level().getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING)) {
-			if (!isEligibleCraftingRecipe(recipe) || !canCraftWithAvailableStacks(recipe, availableStacks)) {
-				continue;
-			}
-			ItemStack result = recipe.getResultItem(player.level().registryAccess());
-			if (result.isEmpty() || !ItemStack.isSameItemSameTags(result, outputStack)) {
 				continue;
 			}
 			ResourceLocation recipeId = recipe.getId();
@@ -641,34 +464,14 @@ public final class NearbyCraftingEmiCraftableFilterController {
 	}
 
 	private static List<AvailableIngredientStack> buildAvailableItemPool(NearbyCraftingMenu menu) {
-		return buildAvailableItemPool(
-				collectCraftMatrixStacks(menu),
-				menu.getClientRecipeBookSupplementalSources(),
-				menu.isIncludePlayerInventory(),
-				menu.getPlayer().getInventory()
-		);
-	}
-
-	private static List<ItemStack> collectCraftMatrixStacks(NearbyCraftingMenu menu) {
-		List<ItemStack> craftMatrix = new ArrayList<>(menu.getCraftSlots().getContainerSize());
-		for (int slot = 0; slot < menu.getCraftSlots().getContainerSize(); slot++) {
-			craftMatrix.add(menu.getCraftSlots().getItem(slot).copy());
-		}
-		return craftMatrix;
-	}
-
-	private static List<AvailableIngredientStack> buildAvailableItemPool(
-			List<ItemStack> craftMatrixStacks,
-			List<NearbyCraftingMenu.RecipeBookSourceEntry> sourceEntries,
-			boolean includePlayerInventory,
-			Inventory inventory
-	) {
 		Map<String, AvailableIngredientStack> pooledStacks = new LinkedHashMap<>();
-		for (ItemStack stack : craftMatrixStacks) {
+		for (int slot = 0; slot < menu.getCraftSlots().getContainerSize(); slot++) {
+			ItemStack stack = menu.getCraftSlots().getItem(slot);
 			addAvailableStack(pooledStacks, stack, stack.getCount());
 		}
 
-		if (includePlayerInventory) {
+		if (menu.isIncludePlayerInventory()) {
+			Inventory inventory = menu.getPlayer().getInventory();
 			for (ItemStack stack : inventory.items) {
 				addAvailableStack(pooledStacks, stack, stack.getCount());
 			}
@@ -680,7 +483,7 @@ public final class NearbyCraftingEmiCraftableFilterController {
 			}
 		}
 
-		for (NearbyCraftingMenu.RecipeBookSourceEntry sourceEntry : sourceEntries) {
+		for (NearbyCraftingMenu.RecipeBookSourceEntry sourceEntry : menu.getClientRecipeBookSupplementalSources()) {
 			addAvailableStack(pooledStacks, sourceEntry.stack(), sourceEntry.count());
 		}
 		return new ArrayList<>(pooledStacks.values());
