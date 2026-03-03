@@ -39,8 +39,8 @@ import java.util.Optional;
 public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCraftingMenu> implements RecipeUpdateListener {
 	private static final ResourceLocation CRAFTING_TABLE_LOCATION = new ResourceLocation("textures/gui/container/crafting_table.png");
 	private static final ResourceLocation RECIPE_BUTTON_LOCATION = new ResourceLocation("textures/gui/recipe_button.png");
-	private static final ResourceLocation NEARBY_ITEMS_TOGGLE_ON_ICON = new ResourceLocation("nearbycrafting", "icon/ok-icon.png");
-	private static final ResourceLocation NEARBY_ITEMS_TOGGLE_OFF_ICON = new ResourceLocation("nearbycrafting", "icon/x-icon.png");
+	private static final ResourceLocation NEARBY_ITEMS_TOGGLE_ON_ICON = new ResourceLocation("nearbycrafting", "icon/toggle_on.png");
+	private static final ResourceLocation NEARBY_ITEMS_TOGGLE_OFF_ICON = new ResourceLocation("nearbycrafting", "icon/toggle_off.png");
 	private static final int RECIPE_BOOK_SOURCE_SYNC_INTERVAL_TICKS = 20;
 	private static final int STATUS_COLOR_SUCCESS = 0x55FF55;
 	private static final int STATUS_COLOR_FAILURE = 0xFF5555;
@@ -48,11 +48,15 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	private static final int NEARBY_PANEL_WIDTH = 74;
 	private static final int NEARBY_PANEL_PADDING = 8;
 	private static final int TOGGLE_SIZE = 18;
-	private static final int TOGGLE_ICON_SIZE = 12;
-	private static final int TOGGLE_ICON_TEX_WIDTH = 479;
-	private static final int TOGGLE_ICON_TEX_HEIGHT = 440;
-	private static final int PANEL_HEADER_COLOR = 0xFFE5E5E5;
-	private static final int PANEL_COUNT_COLOR = 0xFFFFFFFF;
+	private static final int TOGGLE_ICON_SIZE = 16;
+	private static final int TOGGLE_ICON_TEX_WIDTH = 16;
+	private static final int TOGGLE_ICON_TEX_HEIGHT = 16;
+	private static final int PANEL_HEADER_COLOR = 0xFF202020;
+	private static final int PANEL_COUNT_COLOR = 0xFF404040;
+	private static final int PANEL_INNER_BG_COLOR = 0xFFC6C6C6;
+	private static final int PANEL_OUTER_BG_COLOR = 0xFFB8B8B8;
+	private static final int PANEL_LINE_LIGHT = 0xFFFFFFFF;
+	private static final int PANEL_LINE_DARK = 0xFF555555;
 	private final RecipeBookComponent recipeBookComponent = new RecipeBookComponent();
 	private boolean widthTooNarrow;
 	private int recipeBookSourceSyncTicker = 0;
@@ -244,12 +248,12 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		int y = topPos + 4;
 		boolean hovered = mouseX >= x && mouseX < x + TOGGLE_SIZE && mouseY >= y && mouseY < y + TOGGLE_SIZE;
 
-		int background = hovered ? 0xFF5E5E5E : 0xFF4A4A4A;
+		int background = hovered ? 0xFFE2E2E2 : 0xFFD1D1D1;
 		guiGraphics.fill(x, y, x + TOGGLE_SIZE, y + TOGGLE_SIZE, background);
-		guiGraphics.fill(x, y, x + TOGGLE_SIZE, y + 1, 0xFFFFFFFF);
-		guiGraphics.fill(x, y + TOGGLE_SIZE - 1, x + TOGGLE_SIZE, y + TOGGLE_SIZE, 0xFF1A1A1A);
-		guiGraphics.fill(x, y, x + 1, y + TOGGLE_SIZE, 0xFFFFFFFF);
-		guiGraphics.fill(x + TOGGLE_SIZE - 1, y, x + TOGGLE_SIZE, y + TOGGLE_SIZE, 0xFF1A1A1A);
+		guiGraphics.fill(x, y, x + TOGGLE_SIZE, y + 1, PANEL_LINE_LIGHT);
+		guiGraphics.fill(x, y + TOGGLE_SIZE - 1, x + TOGGLE_SIZE, y + TOGGLE_SIZE, PANEL_LINE_DARK);
+		guiGraphics.fill(x, y, x + 1, y + TOGGLE_SIZE, PANEL_LINE_LIGHT);
+		guiGraphics.fill(x + TOGGLE_SIZE - 1, y, x + TOGGLE_SIZE, y + TOGGLE_SIZE, PANEL_LINE_DARK);
 
 		ResourceLocation icon = showNearbyItemsPanel ? NEARBY_ITEMS_TOGGLE_ON_ICON : NEARBY_ITEMS_TOGGLE_OFF_ICON;
 		int iconX = x + (TOGGLE_SIZE - TOGGLE_ICON_SIZE) / 2;
@@ -267,14 +271,15 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		int panelY = topPos;
 		int panelHeight = imageHeight;
 
-		guiGraphics.fill(panelX, panelY, panelX + NEARBY_PANEL_WIDTH, panelY + panelHeight, 0xCC323232);
-		guiGraphics.fill(panelX, panelY, panelX + NEARBY_PANEL_WIDTH, panelY + 1, 0xFFFFFFFF);
-		guiGraphics.fill(panelX, panelY + panelHeight - 1, panelX + NEARBY_PANEL_WIDTH, panelY + panelHeight, 0xFF1A1A1A);
-		guiGraphics.fill(panelX, panelY, panelX + 1, panelY + panelHeight, 0xFFFFFFFF);
-		guiGraphics.fill(panelX + NEARBY_PANEL_WIDTH - 1, panelY, panelX + NEARBY_PANEL_WIDTH, panelY + panelHeight, 0xFF1A1A1A);
+		guiGraphics.fill(panelX, panelY, panelX + NEARBY_PANEL_WIDTH, panelY + panelHeight, PANEL_OUTER_BG_COLOR);
+		guiGraphics.fill(panelX + 1, panelY + 1, panelX + NEARBY_PANEL_WIDTH - 1, panelY + panelHeight - 1, PANEL_INNER_BG_COLOR);
+		guiGraphics.fill(panelX, panelY, panelX + NEARBY_PANEL_WIDTH, panelY + 1, PANEL_LINE_LIGHT);
+		guiGraphics.fill(panelX, panelY + panelHeight - 1, panelX + NEARBY_PANEL_WIDTH, panelY + panelHeight, PANEL_LINE_DARK);
+		guiGraphics.fill(panelX, panelY, panelX + 1, panelY + panelHeight, PANEL_LINE_LIGHT);
+		guiGraphics.fill(panelX + NEARBY_PANEL_WIDTH - 1, panelY, panelX + NEARBY_PANEL_WIDTH, panelY + panelHeight, PANEL_LINE_DARK);
 
-		guiGraphics.drawCenteredString(font, Component.translatable("nearbycrafting.nearby_items.title"), panelX + NEARBY_PANEL_WIDTH / 2, panelY + 6, PANEL_HEADER_COLOR);
-		guiGraphics.fill(panelX + 5, panelY + 20, panelX + NEARBY_PANEL_WIDTH - 5, panelY + 21, 0x66FFFFFF);
+		guiGraphics.drawString(font, Component.translatable("nearbycrafting.nearby_items.title"), panelX + 6, panelY + 6, PANEL_HEADER_COLOR, false);
+		guiGraphics.fill(panelX + 5, panelY + 19, panelX + NEARBY_PANEL_WIDTH - 5, panelY + 20, 0x66444444);
 
 		int rowY = panelY + 27;
 		int maxRows = Math.max(0, (panelHeight - 34) / 20);
@@ -282,13 +287,17 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 			IngredientAvailabilityEntry entry = availabilityEntries.get(i);
 			int entryY = rowY + i * 20;
 			int iconX = panelX + 7;
+			boolean hovered = mouseX >= panelX + 4 && mouseX < panelX + NEARBY_PANEL_WIDTH - 4 && mouseY >= entryY && mouseY < entryY + 18;
+
+			int rowBg = hovered ? 0x40FFFFFF : 0x20000000;
+			guiGraphics.fill(panelX + 4, entryY - 1, panelX + NEARBY_PANEL_WIDTH - 4, entryY + 17, rowBg);
 
 			guiGraphics.renderItem(entry.displayStack(), iconX, entryY);
 			String countText = Integer.toString(entry.availableCount());
 			int countX = panelX + NEARBY_PANEL_WIDTH - 8 - font.width(countText);
 			guiGraphics.drawString(font, countText, countX, entryY + 4, PANEL_COUNT_COLOR, false);
 
-			if (mouseX >= panelX + 4 && mouseX < panelX + NEARBY_PANEL_WIDTH - 4 && mouseY >= entryY && mouseY < entryY + 18) {
+			if (hovered) {
 				hoveredNearbyEntry = entry;
 			}
 		}
