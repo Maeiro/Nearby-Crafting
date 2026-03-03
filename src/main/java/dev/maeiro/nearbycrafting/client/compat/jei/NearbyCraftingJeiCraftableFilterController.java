@@ -144,9 +144,12 @@ public final class NearbyCraftingJeiCraftableFilterController {
 				disableAndRestore();
 			} else {
 				// Fresh enable path: keep queues/state clean without scheduling a reset cycle.
+				// Non-item tracking must also reset here, otherwise fast close/reopen can leave
+				// stale "already hidden" markers and liquids may show up in craftable-only mode.
 				pendingAddKeys.clear();
 				pendingRemoveKeys.clear();
 				pendingStateReset = false;
+				removedNonItemIngredientsByType.clear();
 			}
 		}
 
