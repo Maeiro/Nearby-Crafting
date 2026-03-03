@@ -464,6 +464,13 @@ public final class NearbyCraftingJeiCraftableFilterController {
 			return;
 		}
 
+		boolean nonItemMutated = hideNonItemIngredients(ingredientManager);
+		if (nonItemMutated) {
+			// Hide non-item entries (fluids, etc.) visually as early as possible
+			// so the initial craftable-only open does not show a transient flash.
+			forceIngredientListOverlayVisualRefresh();
+		}
+
 		ensureUniverseLoaded();
 		long afterUniverse = System.nanoTime();
 		
@@ -482,7 +489,6 @@ public final class NearbyCraftingJeiCraftableFilterController {
 			if (isDebugLoggingEnabled()) {
 				NearbyCrafting.LOGGER.info("[NC-JEI] Refresh SKIPPED (no changes) in {}ms", noChangeTime / 1_000_000.0);
 			}
-			boolean nonItemMutated = hideNonItemIngredients(ingredientManager);
 			if (nonItemMutated) {
 				pendingIngredientListRebuild = true;
 			}
@@ -501,7 +507,6 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		pendingRemoveKeys.addAll(toHide);
 		
 		long beforeHide = System.nanoTime();
-		boolean nonItemMutated = hideNonItemIngredients(ingredientManager);
 		long afterHide = System.nanoTime();
 		
 		long beforeRebuild = System.nanoTime();
@@ -1193,6 +1198,26 @@ public final class NearbyCraftingJeiCraftableFilterController {
 						"[NC-JEI] forceIngredientListOverlayRebuild completed in {}ms (filterRebuilt={} filterNudged={} overlayUpdated={})",
 						elapsedMs,
 						filterRebuilt,
+						filterNudged,
+						overlayUpdated
+				);
+			}
+		} catch (ReflectiveOperationException | RuntimeException ignored) {
+		}
+	}
+
+	private static void forceIngredientListOverlayVisualRefresh() {
+		Object runtime = jeiRuntime;
+		if (runtime == null) {
+			return;
+		}
+
+		try {
+			boolean filterNudged = nudgeIngredientFilterText(runtime);
+			boolean overlayUpdated = forceOverlayScreenPropertiesUpdate(runtime);
+			if (isDebugLoggingEnabled()) {
+				NearbyCrafting.LOGGER.info(
+						"[NC-JEI] forceIngredientListOverlayVisualRefresh filterNudged={} overlayUpdated={}",
 						filterNudged,
 						overlayUpdated
 				);
