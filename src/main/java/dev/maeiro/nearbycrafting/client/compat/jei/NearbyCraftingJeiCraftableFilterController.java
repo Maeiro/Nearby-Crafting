@@ -479,7 +479,10 @@ public final class NearbyCraftingJeiCraftableFilterController {
 			if (isDebugLoggingEnabled()) {
 				NearbyCrafting.LOGGER.info("[NC-JEI] Refresh SKIPPED (no changes) in {}ms", noChangeTime / 1_000_000.0);
 			}
-			hideNonItemIngredients(ingredientManager);
+			boolean nonItemMutated = hideNonItemIngredients(ingredientManager);
+			if (nonItemMutated) {
+				pendingIngredientListRebuild = true;
+			}
 			return;
 		}
 
@@ -495,7 +498,7 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		pendingRemoveKeys.addAll(toHide);
 		
 		long beforeHide = System.nanoTime();
-		hideNonItemIngredients(ingredientManager);
+		boolean nonItemMutated = hideNonItemIngredients(ingredientManager);
 		long afterHide = System.nanoTime();
 		
 		long beforeRebuild = System.nanoTime();
@@ -505,12 +508,13 @@ public final class NearbyCraftingJeiCraftableFilterController {
 
 		if (isDebugLoggingEnabled()) {
 			NearbyCrafting.LOGGER.info(
-					"[NC-JEI] Refresh QUEUED menu={} universe={} craftableItems={} queueHide={} queueRestore={} | Time: universeLoadMs={} craftableMs={} hideMs={} enqueueMs={} totalMs={}",
+					"[NC-JEI] Refresh QUEUED menu={} universe={} craftableItems={} queueHide={} queueRestore={} nonItemMutated={} | Time: universeLoadMs={} craftableMs={} hideMs={} enqueueMs={} totalMs={}",
 					menu.containerId,
 					universeStacksByKey.size(),
 					craftableOutputItemIds.size(),
 					toHide.size(),
 					toRestore.size(),
+					nonItemMutated,
 					(afterUniverse - startTime) / 1_000_000.0,
 					(afterCraftable - afterUniverse) / 1_000_000.0,
 					(afterHide - beforeHide) / 1_000_000.0,
@@ -1076,11 +1080,11 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		return null;
 	}
 
-	private static void hideNonItemIngredients(Object ingredientManager) {
+	private static boolean hideNonItemIngredients(Object ingredientManager) {
 		try {
 			Object registeredTypesObj = invokeNoArg(ingredientManager, "getRegisteredIngredientTypes");
 			if (!(registeredTypesObj instanceof Collection<?> registeredTypes) || registeredTypes.isEmpty()) {
-				return;
+				return false;
 			}
 
 			int hiddenTypesThisRefresh = 0;
@@ -1107,8 +1111,10 @@ public final class NearbyCraftingJeiCraftableFilterController {
 			if (isDebugLoggingEnabled() && hiddenTypesThisRefresh > 0) {
 				NearbyCrafting.LOGGER.info("[NC-JEI] Hid non-item ingredient types in JEI: {}", hiddenTypesThisRefresh);
 			}
+			return hiddenTypesThisRefresh > 0;
 		} catch (RuntimeException exception) {
 			NearbyCrafting.LOGGER.warn("Failed to hide non-item JEI ingredients during craftable filtering", exception);
+			return false;
 		}
 	}
 
@@ -1174,28 +1180,106 @@ public final class NearbyCraftingJeiCraftableFilterController {
 		}
 
 		try {
-			Object ingredientListOverlay = invokeNoArg(runtime, "getIngredientListOverlay");
-			if (ingredientListOverlay == null) {
-				return;
-			}
-			Object updater = invokeNoArg(ingredientListOverlay, "getScreenPropertiesUpdater");
-			if (updater == null) {
-				return;
-			}
-			Method updateScreenMethod = findMethod(updater.getClass(), "updateScreen", 1);
-			Method updateMethod = findMethod(updater.getClass(), "update", 0);
-			if (updateScreenMethod == null || updateMethod == null) {
-				return;
-			}
-			Object chainedUpdater = updateScreenMethod.invoke(updater, Minecraft.getInstance().screen);
-			updateMethod.invoke(chainedUpdater != null ? chainedUpdater : updater);
+			boolean filterRebuilt = rebuildIngredientFilter(runtime);
+			boolean filterNudged = nudgeIngredientFilterText(runtime);
+			boolean overlayUpdated = forceOverlayScreenPropertiesUpdate(runtime);
 			
 			if (isDebugLoggingEnabled()) {
 				long elapsedMs = (System.nanoTime() - startTime) / 1_000_000;
-				NearbyCrafting.LOGGER.info("[NC-JEI] forceIngredientListOverlayRebuild completed in {}ms", elapsedMs);
+				NearbyCrafting.LOGGER.info(
+						"[NC-JEI] forceIngredientListOverlayRebuild completed in {}ms (filterRebuilt={} filterNudged={} overlayUpdated={})",
+						elapsedMs,
+						filterRebuilt,
+						filterNudged,
+						overlayUpdated
+				);
 			}
 		} catch (ReflectiveOperationException | RuntimeException ignored) {
 		}
+	}
+
+	private static boolean rebuildIngredientFilter(Object runtime) throws ReflectiveOperationException {
+		Object ingredientFilter = invokeNoArg(runtime, "getIngredientFilter");
+		if (ingredientFilter == null) {
+			return false;
+		}
+
+		Method rebuildMethod = findMethod(ingredientFilter.getClass(), "rebuildItemFilter", 0);
+		if (rebuildMethod != null) {
+			rebuildMethod.invoke(ingredientFilter);
+			return true;
+		}
+
+		Object backingFilter = getFieldValue(ingredientFilter, "ingredientFilter");
+		if (backingFilter == null) {
+			return false;
+		}
+
+		Method backingRebuildMethod = findMethod(backingFilter.getClass(), "rebuildItemFilter", 0);
+		if (backingRebuildMethod == null) {
+			return false;
+		}
+		backingRebuildMethod.invoke(backingFilter);
+		return true;
+	}
+
+	private static boolean nudgeIngredientFilterText(Object runtime) throws ReflectiveOperationException {
+		Object ingredientFilter = invokeNoArg(runtime, "getIngredientFilter");
+		if (ingredientFilter == null) {
+			return false;
+		}
+
+		Method getFilterTextMethod = findMethod(ingredientFilter.getClass(), "getFilterText", 0);
+		Method setFilterTextMethod = findMethod(ingredientFilter.getClass(), "setFilterText", 1);
+		if (getFilterTextMethod == null || setFilterTextMethod == null) {
+			return false;
+		}
+
+		Object currentFilterTextObject = getFilterTextMethod.invoke(ingredientFilter);
+		String currentFilterText = currentFilterTextObject instanceof String filterText
+				? filterText
+				: String.valueOf(currentFilterTextObject);
+		String nudgedFilterText = buildNudgedFilterText(currentFilterText);
+		if (nudgedFilterText.equals(currentFilterText)) {
+			return false;
+		}
+
+		setFilterTextMethod.invoke(ingredientFilter, nudgedFilterText);
+		setFilterTextMethod.invoke(ingredientFilter, currentFilterText);
+		return true;
+	}
+
+	private static String buildNudgedFilterText(String currentFilterText) {
+		if (currentFilterText.isEmpty()) {
+			return " ";
+		}
+		if (currentFilterText.length() >= 128) {
+			return currentFilterText.substring(1);
+		}
+		return currentFilterText + " ";
+	}
+
+	private static boolean forceOverlayScreenPropertiesUpdate(Object runtime) throws ReflectiveOperationException {
+		Object ingredientListOverlay = invokeNoArg(runtime, "getIngredientListOverlay");
+		if (ingredientListOverlay == null) {
+			return false;
+		}
+		Object updater = invokeNoArg(ingredientListOverlay, "getScreenPropertiesUpdater");
+		if (updater == null) {
+			return false;
+		}
+		Method updateScreenMethod = findMethod(updater.getClass(), "updateScreen", 1);
+		Method updateMethod = findMethod(updater.getClass(), "update", 0);
+		if (updateScreenMethod == null || updateMethod == null) {
+			return false;
+		}
+
+		// Ensure JEI marks the updater as changed even when the current screen/properties are stable.
+		Object updaterAfterNull = updateScreenMethod.invoke(updater, new Object[]{null});
+		Object updateSource = updaterAfterNull != null ? updaterAfterNull : updater;
+		Object updaterAfterScreen = updateScreenMethod.invoke(updateSource, Minecraft.getInstance().screen);
+		updateMethod.invoke(updaterAfterScreen != null ? updaterAfterScreen : updateSource);
+		return true;
 	}
 
 	@Nullable
