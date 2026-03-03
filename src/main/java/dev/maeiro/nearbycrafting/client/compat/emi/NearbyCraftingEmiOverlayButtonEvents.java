@@ -2,6 +2,7 @@ package dev.maeiro.nearbycrafting.client.compat.emi;
 
 import dev.maeiro.nearbycrafting.NearbyCrafting;
 import dev.maeiro.nearbycrafting.client.screen.NearbyCraftingScreen;
+import dev.maeiro.nearbycrafting.config.NearbyCraftingConfig;
 import dev.maeiro.nearbycrafting.menu.NearbyCraftingMenu;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Rect2i;
@@ -93,6 +94,9 @@ public final class NearbyCraftingEmiOverlayButtonEvents {
 
 		boolean nextEnabled = !NearbyCraftingEmiCraftableFilterController.isEnabledFor(menu.containerId);
 		NearbyCraftingEmiCraftableFilterController.setEnabled(menu, nextEnabled);
+		if (NearbyCraftingConfig.CLIENT.rememberToggleStates.get()) {
+			NearbyCraftingConfig.CLIENT.emiCraftableOnlyEnabled.set(nextEnabled);
+		}
 		if (nextEnabled) {
 			screen.requestImmediateSourceSyncAndRefresh();
 		}
@@ -117,6 +121,7 @@ public final class NearbyCraftingEmiOverlayButtonEvents {
 			lastRenderedContainerId = -1;
 			return;
 		}
+		NearbyCraftingEmiCraftableFilterController.enforceCraftableSidebarIfEnabled(screen.getMenu());
 
 		NearbyCraftingMenu menu = screen.getMenu();
 		Rect2i buttonBounds = getButtonBounds(screen);

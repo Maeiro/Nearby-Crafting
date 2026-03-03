@@ -120,6 +120,9 @@ public final class NearbyCraftingJeiOverlayButtonEvents {
 			}
 
 			NearbyCraftingJeiCraftableFilterController.setEnabled(menu, nextEnabled);
+			if (NearbyCraftingConfig.CLIENT.rememberToggleStates.get()) {
+				NearbyCraftingConfig.CLIENT.jeiCraftableOnlyEnabled.set(nextEnabled);
+			}
 			screen.showInfoStatusMessage(Component.translatable(
 					nextEnabled ? "nearbycrafting.jei.updating.enable" : "nearbycrafting.jei.updating.disable"
 			));

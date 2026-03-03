@@ -95,6 +95,8 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		this.addWidget(this.recipeBookComponent);
 		this.setInitialFocus(this.recipeBookComponent);
 		this.titleLabelX = 29;
+
+		applyRememberedUiState();
 	}
 
 	@Override
@@ -151,6 +153,7 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
 		if (button == 0 && isMouseOverNearbyItemsToggle(mouseX, mouseY)) {
 			showNearbyItemsPanel = !showNearbyItemsPanel;
+			saveNearbyItemsPanelState(showNearbyItemsPanel);
 			Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
 			return true;
 		}
@@ -321,6 +324,29 @@ public class NearbyCraftingScreen extends AbstractContainerScreen<NearbyCrafting
 		int x = leftPos + 4;
 		int y = topPos + 4;
 		return mouseX >= x && mouseX < x + TOGGLE_SIZE && mouseY >= y && mouseY < y + TOGGLE_SIZE;
+	}
+
+	private void applyRememberedUiState() {
+		if (!NearbyCraftingConfig.CLIENT.rememberToggleStates.get()) {
+			showNearbyItemsPanel = true;
+			return;
+		}
+
+		showNearbyItemsPanel = NearbyCraftingConfig.CLIENT.nearbyItemsPanelOpen.get();
+
+		if (NearbyCraftingConfig.CLIENT.jeiCraftableOnlyEnabled.get()) {
+			NearbyCraftingJeiCraftableFilterController.setEnabled(menu, true);
+		}
+		if (NearbyCraftingConfig.CLIENT.emiCraftableOnlyEnabled.get()) {
+			NearbyCraftingEmiCraftableFilterController.setEnabled(menu, true);
+		}
+	}
+
+	private static void saveNearbyItemsPanelState(boolean isOpen) {
+		if (!NearbyCraftingConfig.CLIENT.rememberToggleStates.get()) {
+			return;
+		}
+		NearbyCraftingConfig.CLIENT.nearbyItemsPanelOpen.set(isOpen);
 	}
 
 	private List<IngredientAvailabilityEntry> collectCurrentRecipeAvailabilityEntries() {

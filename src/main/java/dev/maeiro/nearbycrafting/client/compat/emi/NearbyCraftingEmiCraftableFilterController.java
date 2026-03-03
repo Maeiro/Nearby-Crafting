@@ -102,6 +102,16 @@ public final class NearbyCraftingEmiCraftableFilterController {
 		}
 	}
 
+	public static void enforceCraftableSidebarIfEnabled(NearbyCraftingMenu menu) {
+		if (!isEnabledFor(menu.containerId) || !isRuntimeAvailable()) {
+			return;
+		}
+		Object craftablesType = resolveSidebarType("CRAFTABLES");
+		if (craftablesType != null) {
+			focusSearchSidebarType(craftablesType);
+		}
+	}
+
 	public static boolean handleIngredientClick(NearbyCraftingMenu menu, double mouseX, double mouseY, int mouseButton) {
 		if (!isEnabledFor(menu.containerId) || !isRuntimeAvailable()) {
 			return false;

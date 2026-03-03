@@ -111,6 +111,10 @@ public class NearbyCraftingConfig {
 		public final ForgeConfigSpec.BooleanValue autoRefillAfterCraft;
 		public final ForgeConfigSpec.BooleanValue includePlayerInventory;
 		public final ForgeConfigSpec.ConfigValue<String> sourcePriority;
+		public final ForgeConfigSpec.BooleanValue rememberToggleStates;
+		public final ForgeConfigSpec.BooleanValue nearbyItemsPanelOpen;
+		public final ForgeConfigSpec.BooleanValue jeiCraftableOnlyEnabled;
+		public final ForgeConfigSpec.BooleanValue emiCraftableOnlyEnabled;
 
 		Client(ForgeConfigSpec.Builder builder) {
 			builder.push("nearbyCrafting");
@@ -126,6 +130,22 @@ public class NearbyCraftingConfig {
 			sourcePriority = builder
 					.comment("Source priority for ingredient extraction. Allowed values: CONTAINERS_FIRST, PLAYER_FIRST")
 					.define("sourcePriority", SourcePriority.CONTAINERS_FIRST.name());
+
+			rememberToggleStates = builder
+					.comment("When true, remembers UI toggle states between table openings (Nearby Items panel and Craftable Only toggles).")
+					.define("rememberToggleStates", true);
+
+			nearbyItemsPanelOpen = builder
+					.comment("Last remembered state for the Nearby Items panel.")
+					.define("nearbyItemsPanelOpen", true);
+
+			jeiCraftableOnlyEnabled = builder
+					.comment("Last remembered state for JEI Craftable Only toggle.")
+					.define("jeiCraftableOnlyEnabled", false);
+
+			emiCraftableOnlyEnabled = builder
+					.comment("Last remembered state for EMI Craftable Only toggle.")
+					.define("emiCraftableOnlyEnabled", false);
 
 			builder.pop();
 		}
