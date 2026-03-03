@@ -54,6 +54,7 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	private final BlockPos tablePos;
 	private final Map<ItemSourceRef, Integer>[] craftSlotSourceLedger = createSourceLedger();
 	private boolean sourceTrackingMutationActive;
+	private boolean resultShiftCraftInProgress;
 	private boolean autoRefillAfterCraft;
 	private boolean includePlayerInventory = true;
 	private NearbyCraftingConfig.SourcePriority sourcePriority = NearbyCraftingConfig.SourcePriority.CONTAINERS_FIRST;
@@ -206,7 +207,17 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 				return ItemStack.EMPTY;
 			}
 
-			slot.onTake(player, stackInSlot);
+			boolean shiftCraftResultTake = index == RESULT_SLOT;
+			if (shiftCraftResultTake) {
+				this.resultShiftCraftInProgress = true;
+			}
+			try {
+				slot.onTake(player, stackInSlot);
+			} finally {
+				if (shiftCraftResultTake) {
+					this.resultShiftCraftInProgress = false;
+				}
+			}
 			if (index == RESULT_SLOT) {
 				player.drop(stackInSlot, false);
 			}
@@ -600,6 +611,10 @@ public class NearbyCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 
 	public boolean isAutoRefillAfterCraft() {
 		return autoRefillAfterCraft;
+	}
+
+	public boolean isResultShiftCraftInProgress() {
+		return resultShiftCraftInProgress;
 	}
 
 	public boolean isIncludePlayerInventory() {

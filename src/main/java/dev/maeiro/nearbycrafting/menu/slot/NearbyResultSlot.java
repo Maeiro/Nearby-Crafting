@@ -27,7 +27,9 @@ public class NearbyResultSlot extends ResultSlot {
 		super.onTake(player, stack);
 
 		if (player instanceof ServerPlayer serverPlayer) {
-			if (menu.isAutoRefillAfterCraft()) {
+			// Do not auto-refill during shift-click result extraction; otherwise a single loaded
+			// recipe can chain-refill and consume all available ingredients.
+			if (menu.isAutoRefillAfterCraft() && !menu.isResultShiftCraftInProgress()) {
 				FillResult refillResult = RecipeFillService.refillLastRecipe(menu);
 				if (!refillResult.success()) {
 					// Silent fail to avoid chat spam while crafting manually.
