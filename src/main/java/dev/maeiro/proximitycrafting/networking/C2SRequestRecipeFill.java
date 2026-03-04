@@ -44,17 +44,27 @@ public class C2SRequestRecipeFill {
 			long fillStartNs = System.nanoTime();
 			FillResult result = menu.fillRecipeById(recipeId, craftAll);
 			long fillEndNs = System.nanoTime();
-			long snapshotStartNs = System.nanoTime();
-			List<ProximityCraftingMenu.RecipeBookSourceEntry> snapshotEntries = RecipeBookSourceSnapshotBuilder.build(menu);
-			long snapshotEndNs = System.nanoTime();
+			boolean shouldSendSnapshot = result.success() && result.craftedAmount() > 0;
+			long snapshotStartNs = 0L;
+			long snapshotEndNs = 0L;
+			int snapshotEntryCount = 0;
 			ProximityCraftingNetwork.CHANNEL.send(
 					PacketDistributor.PLAYER.with(() -> player),
-					new S2CRecipeBookSourceSnapshot(
-							menu.containerId,
-							snapshotEntries
-					)
+					new S2CRecipeFillFeedback(result.success(), result.messageKey(), result.craftedAmount())
 			);
-			ProximityCraftingNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new S2CRecipeFillFeedback(result.success(), result.messageKey(), result.craftedAmount()));
+			if (shouldSendSnapshot) {
+				snapshotStartNs = System.nanoTime();
+				List<ProximityCraftingMenu.RecipeBookSourceEntry> snapshotEntries = RecipeBookSourceSnapshotBuilder.build(menu);
+				snapshotEndNs = System.nanoTime();
+				snapshotEntryCount = snapshotEntries.size();
+				ProximityCraftingNetwork.CHANNEL.send(
+						PacketDistributor.PLAYER.with(() -> player),
+						new S2CRecipeBookSourceSnapshot(
+								menu.containerId,
+								snapshotEntries
+						)
+				);
+			}
 
 			if (isDebugLoggingEnabled()) {
 				double totalMs = (System.nanoTime() - startNs) / 1_000_000.0D;
@@ -67,9 +77,9 @@ public class C2SRequestRecipeFill {
 						result.success(),
 						result.craftedAmount(),
 						String.format("%.3f", (fillEndNs - fillStartNs) / 1_000_000.0D),
-						String.format("%.3f", (snapshotEndNs - snapshotStartNs) / 1_000_000.0D),
+						String.format("%.3f", shouldSendSnapshot ? (snapshotEndNs - snapshotStartNs) / 1_000_000.0D : 0.0D),
 						String.format("%.3f", totalMs),
-						snapshotEntries.size()
+						snapshotEntryCount
 				);
 			}
 		});
@@ -84,5 +94,3 @@ public class C2SRequestRecipeFill {
 		}
 	}
 }
-
-

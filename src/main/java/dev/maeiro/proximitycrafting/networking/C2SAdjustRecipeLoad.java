@@ -49,9 +49,10 @@ public class C2SAdjustRecipeLoad {
 			long adjustStartNs = System.nanoTime();
 			FillResult result = menu.adjustRecipeLoad(steps);
 			long adjustEndNs = System.nanoTime();
-			long snapshotStartNs = System.nanoTime();
-			var snapshotEntries = RecipeBookSourceSnapshotBuilder.build(menu);
-			long snapshotEndNs = System.nanoTime();
+			boolean shouldSendSnapshot = result.success() && result.craftedAmount() > 0;
+			long snapshotStartNs = 0L;
+			long snapshotEndNs = 0L;
+			int snapshotEntryCount = 0;
 			if (isDebugLoggingEnabled()) {
 				ProximityCrafting.LOGGER.info(
 						"[PROXC-SCROLL] server adjust result success={} key={} amount={}",
@@ -62,15 +63,21 @@ public class C2SAdjustRecipeLoad {
 			}
 			ProximityCraftingNetwork.CHANNEL.send(
 					PacketDistributor.PLAYER.with(() -> player),
-					new S2CRecipeBookSourceSnapshot(
-							menu.containerId,
-							snapshotEntries
-					)
-			);
-			ProximityCraftingNetwork.CHANNEL.send(
-					PacketDistributor.PLAYER.with(() -> player),
 					new S2CRecipeFillFeedback(result.success(), result.messageKey(), result.craftedAmount())
 			);
+			if (shouldSendSnapshot) {
+				snapshotStartNs = System.nanoTime();
+				var snapshotEntries = RecipeBookSourceSnapshotBuilder.build(menu);
+				snapshotEndNs = System.nanoTime();
+				snapshotEntryCount = snapshotEntries.size();
+				ProximityCraftingNetwork.CHANNEL.send(
+						PacketDistributor.PLAYER.with(() -> player),
+						new S2CRecipeBookSourceSnapshot(
+								menu.containerId,
+								snapshotEntries
+						)
+				);
+			}
 			if (isDebugLoggingEnabled()) {
 				double totalMs = (System.nanoTime() - startNs) / 1_000_000.0D;
 				ProximityCrafting.LOGGER.info(
@@ -81,9 +88,9 @@ public class C2SAdjustRecipeLoad {
 						result.success(),
 						result.craftedAmount(),
 						String.format("%.3f", (adjustEndNs - adjustStartNs) / 1_000_000.0D),
-						String.format("%.3f", (snapshotEndNs - snapshotStartNs) / 1_000_000.0D),
+						String.format("%.3f", shouldSendSnapshot ? (snapshotEndNs - snapshotStartNs) / 1_000_000.0D : 0.0D),
 						String.format("%.3f", totalMs),
-						snapshotEntries.size()
+						snapshotEntryCount
 				);
 			}
 		});
@@ -98,5 +105,3 @@ public class C2SAdjustRecipeLoad {
 		}
 	}
 }
-
-

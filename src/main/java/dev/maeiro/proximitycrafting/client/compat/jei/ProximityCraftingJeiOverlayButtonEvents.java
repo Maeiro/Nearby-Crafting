@@ -123,6 +123,9 @@ public final class ProximityCraftingJeiOverlayButtonEvents {
 			if (ProximityCraftingConfig.CLIENT.rememberToggleStates.get()) {
 				ProximityCraftingConfig.CLIENT.jeiCraftableOnlyEnabled.set(nextEnabled);
 			}
+			if (nextEnabled) {
+				screen.requestImmediateSourceSyncAndRefresh();
+			}
 			screen.showInfoStatusMessage(Component.translatable(
 					nextEnabled ? "proximitycrafting.jei.updating.enable" : "proximitycrafting.jei.updating.disable"
 			));

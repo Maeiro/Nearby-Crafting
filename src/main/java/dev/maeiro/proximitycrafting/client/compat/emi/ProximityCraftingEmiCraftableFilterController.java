@@ -1,6 +1,7 @@
 package dev.maeiro.proximitycrafting.client.compat.emi;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
+import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import dev.maeiro.proximitycrafting.networking.C2SRequestRecipeFill;
@@ -226,13 +227,22 @@ public final class ProximityCraftingEmiCraftableFilterController {
 		}
 
 		boolean craftAll = Screen.hasShiftDown();
-		ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(recipeId, craftAll));
+		boolean queued = ProximityCraftingScreen.enqueueRecipeFillIfScreenOpen(
+				menu,
+				recipeId,
+				craftAll,
+				"emi_direct_alt_click"
+		);
+		if (!queued) {
+			ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(recipeId, craftAll));
+		}
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[PROXC-EMI] DirectFill menu={} recipeId={} craftAll={} mouse=({}, {})",
+					"[PROXC-EMI] DirectFill menu={} recipeId={} craftAll={} queued={} mouse=({}, {})",
 					menu.containerId,
 					recipeId,
 					craftAll,
+					queued,
 					(int) mouseX,
 					(int) mouseY
 			);

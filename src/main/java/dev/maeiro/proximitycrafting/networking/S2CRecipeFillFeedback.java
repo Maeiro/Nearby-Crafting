@@ -52,8 +52,7 @@ public class S2CRecipeFillFeedback {
 				} else {
 					proximityCraftingScreen.showFailureStatusMessage(feedback);
 				}
-				// Snapshot sync is already sent by fill/adjust packets; avoid redundant client->server sync bursts.
-				proximityCraftingScreen.scheduleDeferredRecipeBookRefresh();
+				proximityCraftingScreen.onRecipeActionFeedbackReceived(success, messageKey, craftedAmount);
 			} else {
 				minecraft.player.displayClientMessage(feedback, true);
 			}
@@ -78,5 +77,3 @@ public class S2CRecipeFillFeedback {
 		}
 	}
 }
-
-

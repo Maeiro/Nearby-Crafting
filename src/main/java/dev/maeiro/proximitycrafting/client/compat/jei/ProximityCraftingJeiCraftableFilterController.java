@@ -1,6 +1,7 @@
 package dev.maeiro.proximitycrafting.client.compat.jei;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
+import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import dev.maeiro.proximitycrafting.networking.C2SRequestRecipeFill;
@@ -65,6 +66,8 @@ public final class ProximityCraftingJeiCraftableFilterController {
 	private static boolean pendingIngredientListRebuild = false;  // Flag to defer overlay rebuild to next tick
 	private static boolean pendingFullIngredientListRebuild = false;
 	private static boolean pendingStateReset = false;
+	private static boolean pendingRefreshAfterTransition = false;
+	private static int pendingRefreshContainerId = -1;
 	private static long lastFullIngredientListRebuildAtMs = 0L;
 	private static long cachedAvailabilitySignature = EMPTY_SIGNATURE;
 	private static int cachedAvailabilityContainerId = -1;
@@ -112,11 +115,31 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			universeItemIdByKey.clear();
 			removedNonItemIngredientsByType.clear();
 		}
+
+		if (pendingRefreshAfterTransition
+				&& !isTransitionBlockingInput()
+				&& enabled
+				&& activeContainerId == pendingRefreshContainerId
+				&& Minecraft.getInstance().screen instanceof ProximityCraftingScreen screen
+				&& screen.getMenu().containerId == activeContainerId) {
+			pendingRefreshAfterTransition = false;
+			pendingRefreshContainerId = -1;
+			lastRefreshTime = 0L; // bypass debounce once after transition drains
+			refresh(screen.getMenu());
+			if (isDebugLoggingEnabled()) {
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-JEI] Applied deferred refresh after transition menu={}",
+						screen.getMenu().containerId
+				);
+			}
+		}
 	}
 
 	public static void onRuntimeAvailable(Object runtime) {
 		jeiRuntime = runtime;
 		itemStackIngredientType = resolveItemStackIngredientType();
+		pendingRefreshAfterTransition = false;
+		pendingRefreshContainerId = -1;
 		disableAndRestore();
 		invalidateCraftableCache();
 	}
@@ -125,6 +148,8 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		disableAndRestore();
 		jeiRuntime = null;
 		itemStackIngredientType = null;
+		pendingRefreshAfterTransition = false;
+		pendingRefreshContainerId = -1;
 		invalidateCraftableCache();
 	}
 
@@ -175,6 +200,8 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			invalidateCraftableCache();
 		}
 
+		pendingRefreshAfterTransition = false;
+		pendingRefreshContainerId = -1;
 		activeContainerId = menu.containerId;
 		enabled = true;
 		pendingStateReset = false;
@@ -190,6 +217,16 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			return;
 		}
 		if (isTransitionBlockingInput()) {
+			pendingRefreshAfterTransition = true;
+			pendingRefreshContainerId = menu.containerId;
+			if (isDebugLoggingEnabled()) {
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-JEI] Refresh deferred due to transition menu={} addPending={} removePending={}",
+						menu.containerId,
+						pendingAddKeys.size(),
+						pendingRemoveKeys.size()
+				);
+			}
 			return;
 		}
 		
@@ -237,13 +274,22 @@ public final class ProximityCraftingJeiCraftableFilterController {
 				ResourceLocation matchedRecipeId = resolveCraftableRecipeIdForOutput(menu, clickedItem);
 				if (matchedRecipeId != null) {
 					boolean craftAll = Screen.hasShiftDown();
-					ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(matchedRecipeId, craftAll));
+					boolean queued = ProximityCraftingScreen.enqueueRecipeFillIfScreenOpen(
+							menu,
+							matchedRecipeId,
+							craftAll,
+							"jei_direct_click"
+					);
+					if (!queued) {
+						ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(matchedRecipeId, craftAll));
+					}
 					if (isDebugLoggingEnabled()) {
 						ProximityCrafting.LOGGER.info(
-								"[PROXC-JEI] DirectFill menu={} recipeId={} craftAll={} ingredientSource={} item={}",
+								"[PROXC-JEI] DirectFill menu={} recipeId={} craftAll={} queued={} ingredientSource={} item={}",
 								menu.containerId,
 								matchedRecipeId,
 								craftAll,
+								queued,
 								hoveredTypedIngredient.source,
 								clickedItem.isEmpty() ? "empty" : clickedItem.getDescriptionId()
 						);
@@ -978,6 +1024,8 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		}
 
 		pendingStateReset = true;
+		pendingRefreshAfterTransition = false;
+		pendingRefreshContainerId = -1;
 		invalidateCraftableCache();
 		enabled = false;
 		activeContainerId = -1;
