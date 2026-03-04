@@ -155,6 +155,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		this.titleLabelX = 29;
 
 		applyRememberedUiState();
+		ProximityCraftingJeiCraftableFilterController.prewarmSnapshot(this.menu, "screen_init");
 	}
 
 	@Override
@@ -846,6 +847,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	public void requestImmediateSourceSyncAndRefresh() {
+		ProximityCraftingJeiCraftableFilterController.prewarmSnapshot(this.menu, "manual_sync_request");
 		requestRecipeBookSourceSync();
 		scheduleDeferredRecipeBookRefresh();
 	}
@@ -1562,6 +1564,9 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		if (sourceSyncQueued) {
 			sourceSyncQueued = false;
 			requestRecipeBookSourceSync();
+		}
+		if (ProximityCraftingJeiCraftableFilterController.isEnabledFor(this.menu.containerId)) {
+			ProximityCraftingJeiCraftableFilterController.prewarmSnapshot(this.menu, "source_snapshot_applied");
 		}
 		if (!isDebugLoggingEnabled()) {
 			return;
