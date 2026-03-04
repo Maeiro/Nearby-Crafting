@@ -8,9 +8,6 @@ Forge 1.20.1 mod that adds a **Proximity Crafting Table**.
 - Proximity container scanning with configurable radius, blacklist, and minimum slots
 - Optional JEI and EMI recipe-fill integration
 
-## Known Bugs
-- JEI Craftable Only: ingredient list can be unstable in some situations, occasionally showing non-craftable entries and some liquid-type entries.
-
 ## Requirements
 - Minecraft 1.20.1
 - Forge 47.x

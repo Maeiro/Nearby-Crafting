@@ -1,7 +1,7 @@
 buildscript {
     repositories {
-        maven { url = 'https://maven.parchmentmc.org' }
         maven { url = 'https://maven.minecraftforge.net' }
+        maven { url = 'https://maven.parchmentmc.org' }
     }
     dependencies {
         classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.1.+', changing: true
@@ -10,9 +10,9 @@ buildscript {
 }
 
 apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'org.parchmentmc.librarian.forgegradle'
 apply plugin: 'eclipse'
 apply plugin: 'maven-publish'
-apply plugin: 'org.parchmentmc.librarian.forgegradle'
 
 version = "${mod_version}+forge-${mc_version}"
 group = mod_group
@@ -20,18 +20,12 @@ archivesBaseName = mod_id
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-println('Java: ' + System.getProperty('java.version') +
-        ' JVM: ' + System.getProperty('java.vm.version') +
-        '(' + System.getProperty('java.vendor') + ')' +
-        ' Arch: ' + System.getProperty('os.arch'))
-
 minecraft {
     mappings channel: 'parchment', version: "${parch_mapping}-${mc_version}"
 
     runs {
         configureEach {
-            // Keep dev runs isolated from manually-copied modpacks under run/client/mods.
-            workingDirectory project.file("run_dev/${it.name}")
+            workingDirectory project.file('run')
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
 
@@ -68,16 +62,19 @@ repositories {
 dependencies {
     minecraft "net.minecraftforge:forge:${mc_version}-${forge_version}"
 
+    // Optional compile-time compat APIs
     compileOnly fg.deobf("mezz.jei:jei-${jei_mc_version}:${jei_version}")
-    runtimeOnly fg.deobf("mezz.jei:jei-${jei_mc_version}:${jei_version}")
-
     compileOnly fg.deobf("dev.emi:emi-forge:${emi_version}:api")
+    compileOnly fg.deobf("curse.maven:sophisticated-backpacks-422301:7645913")
+    compileOnly fg.deobf("curse.maven:sophisticated-core-618298:7645911")
+
+    // Optional dev runtime toggles (defaults false in gradle.properties)
+    if (project.findProperty('enable_jei_dev_runtime')?.toString()?.toBoolean()) {
+        runtimeOnly fg.deobf("mezz.jei:jei-${jei_mc_version}:${jei_version}")
+    }
     if (project.findProperty('enable_emi_dev_runtime')?.toString()?.toBoolean()) {
         runtimeOnly fg.deobf("dev.emi:emi-forge:${emi_version}")
     }
-
-    compileOnly fg.deobf("curse.maven:sophisticated-backpacks-422301:7645913")
-    compileOnly fg.deobf("curse.maven:sophisticated-core-618298:7645911")
 }
 
 tasks.withType(ProcessResources).configureEach {
@@ -93,17 +90,11 @@ tasks.withType(ProcessResources).configureEach {
             mod_authors            : mod_authors,
             mod_description        : mod_description
     ]
+
     inputs.properties replaceProperties
 
-    filesMatching(['META-INF/mods.toml', 'meta-inf/mods.toml', 'pack.mcmeta']) {
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
         expand replaceProperties + [project: project]
-    }
-
-    // Windows can preserve a lowercase source path (meta-inf); force canonical Forge path in the jar.
-    eachFile { details ->
-        if (details.path == 'meta-inf/mods.toml') {
-            details.path = 'META-INF/mods.toml'
-        }
     }
 }
 
@@ -122,16 +113,3 @@ jar {
 }
 
 jar.finalizedBy('reobfJar')
-
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            artifact jar
-        }
-    }
-    repositories {
-        maven {
-            url "file://${project.projectDir}/mcmodsrepo"
-        }
-    }
-}
