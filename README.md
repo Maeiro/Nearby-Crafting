@@ -17,6 +17,9 @@
 ### Vanilla Recipe Book Integration
 ![Vanilla Recipe Book Showcase](img/prox-vanilla-book.gif)
 
+## Recipe
+![Recipe](img/recipe.png)
+
 ## Main Features
 - Nearby container scanning with configurable:
   - scan radius,
@@ -86,3 +89,5 @@ All options are under `proximityCrafting`:
 
 ## License
 This project is licensed under **GPL-3.0-only**.
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U7U3EQ9EW)
