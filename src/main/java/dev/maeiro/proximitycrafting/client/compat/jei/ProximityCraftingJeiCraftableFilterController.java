@@ -12,6 +12,7 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.StackedContents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -698,13 +699,14 @@ public final class ProximityCraftingJeiCraftableFilterController {
 
 		List<CraftingRecipe> craftableRecipes = new ArrayList<>();
 		int candidateRecipes = 0;
+		StackedContents stackedContents = buildStackedContents(availableStacks);
 		long matchingStart = System.nanoTime();
 		for (CraftingRecipe recipe : menu.getLevel().getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING)) {
 			if (!isEligibleCraftingRecipe(recipe)) {
 				continue;
 			}
 			candidateRecipes++;
-			if (!canCraftWithAvailableStacks(recipe, availableStacks)) {
+			if (!canCraftWithStackedContents(recipe, stackedContents)) {
 				continue;
 			}
 			craftableRecipes.add(recipe);
@@ -802,17 +804,12 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		});
 	}
 
-	private static boolean canCraftWithAvailableStacks(CraftingRecipe recipe, List<AvailableIngredientStack> availableStacks) {
-		List<Ingredient> ingredients = recipe.getIngredients();
-		if (ingredients == null || ingredients.isEmpty()) {
+	private static boolean canCraftWithStackedContents(CraftingRecipe recipe, StackedContents stackedContents) {
+		try {
+			return stackedContents.canCraft(recipe, null);
+		} catch (RuntimeException exception) {
 			return false;
 		}
-
-		int[] remaining = new int[availableStacks.size()];
-		for (int i = 0; i < availableStacks.size(); i++) {
-			remaining[i] = availableStacks.get(i).count;
-		}
-		return matchIngredientRecursive(ingredients, 0, availableStacks, remaining);
 	}
 
 	private static void logMatcherPoolDebug(
@@ -857,36 +854,24 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		);
 	}
 
-	private static boolean matchIngredientRecursive(
-			List<Ingredient> ingredients,
-			int ingredientIndex,
-			List<AvailableIngredientStack> availableStacks,
-			int[] remaining
-	) {
-		if (ingredientIndex >= ingredients.size()) {
-			return true;
-		}
-
-		Ingredient ingredient = ingredients.get(ingredientIndex);
-		if (ingredient == null || ingredient.isEmpty()) {
-			return matchIngredientRecursive(ingredients, ingredientIndex + 1, availableStacks, remaining);
-		}
-
-		for (int i = 0; i < availableStacks.size(); i++) {
-			if (remaining[i] <= 0) {
+	private static StackedContents buildStackedContents(List<AvailableIngredientStack> availableStacks) {
+		StackedContents stackedContents = new StackedContents();
+		for (AvailableIngredientStack entry : availableStacks) {
+			if (entry.count <= 0 || entry.stack.isEmpty()) {
 				continue;
 			}
-			ItemStack candidate = availableStacks.get(i).stack;
-			if (!ingredient.test(candidate)) {
-				continue;
+
+			int maxStackSize = Math.max(1, entry.stack.getMaxStackSize());
+			int remaining = entry.count;
+			while (remaining > 0) {
+				int chunkSize = Math.min(remaining, maxStackSize);
+				ItemStack stackChunk = entry.stack.copy();
+				stackChunk.setCount(chunkSize);
+				stackedContents.accountStack(stackChunk);
+				remaining -= chunkSize;
 			}
-			remaining[i]--;
-			if (matchIngredientRecursive(ingredients, ingredientIndex + 1, availableStacks, remaining)) {
-				return true;
-			}
-			remaining[i]++;
 		}
-		return false;
+		return stackedContents;
 	}
 
 	private static boolean isEligibleCraftingRecipe(CraftingRecipe recipe) {
