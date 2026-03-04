@@ -54,7 +54,10 @@ public class C2SRequestRecipeFill {
 			);
 			if (shouldSendSnapshot) {
 				snapshotStartNs = System.nanoTime();
-				List<ProximityCraftingMenu.RecipeBookSourceEntry> snapshotEntries = RecipeBookSourceSnapshotBuilder.build(menu);
+				List<ProximityCraftingMenu.RecipeBookSourceEntry> snapshotEntries = menu.getServerRecipeBookSnapshot(
+						false,
+						"packet_fill_result"
+				);
 				snapshotEndNs = System.nanoTime();
 				snapshotEntryCount = snapshotEntries.size();
 				ProximityCraftingNetwork.CHANNEL.send(

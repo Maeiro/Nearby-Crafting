@@ -3,6 +3,7 @@ package dev.maeiro.proximitycrafting.menu;
 import dev.maeiro.proximitycrafting.ProximityCrafting;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.slot.ProximityResultSlot;
+import dev.maeiro.proximitycrafting.networking.RecipeBookSourceSnapshotBuilder;
 import dev.maeiro.proximitycrafting.registry.ModBlocks;
 import dev.maeiro.proximitycrafting.registry.ModMenuTypes;
 import dev.maeiro.proximitycrafting.service.crafting.FillResult;
@@ -40,6 +41,7 @@ import java.util.Optional;
 
 public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	public static final int RESULT_SLOT = 0;
+	private static final long SERVER_SNAPSHOT_CACHE_TTL_MS = 3000L;
 	private static final int CRAFT_SLOT_START = 1;
 	private static final int CRAFT_SLOT_END = 10;
 	private static final int INV_SLOT_START = 10;
@@ -59,6 +61,10 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	private boolean includePlayerInventory = true;
 	private ProximityCraftingConfig.SourcePriority sourcePriority = ProximityCraftingConfig.SourcePriority.CONTAINERS_FIRST;
 	private List<RecipeBookSourceEntry> clientRecipeBookSupplementalSources = List.of();
+	private List<RecipeBookSourceEntry> serverRecipeBookSnapshotCache = List.of();
+	private long serverRecipeBookSnapshotCacheBuiltAtMs = 0L;
+	private boolean serverRecipeBookSnapshotCacheValid = false;
+	private boolean serverRecipeBookSnapshotPrewarmPending = true;
 
 	private CraftingRecipe lastPlacedRecipe;
 
@@ -262,11 +268,19 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	}
 
 	@Override
+	public void broadcastChanges() {
+		super.broadcastChanges();
+		prewarmServerRecipeBookSnapshotIfNeeded();
+	}
+
+	@Override
 	public void handlePlacement(boolean placeAll, Recipe<?> recipe, ServerPlayer player) {
 		if (recipe instanceof CraftingRecipe craftingRecipe) {
 			FillResult fillResult = RecipeFillService.fillFromRecipe(this, craftingRecipe, placeAll);
 			if (!fillResult.success()) {
 				player.displayClientMessage(net.minecraft.network.chat.Component.translatable(fillResult.messageKey()), true);
+			} else if (fillResult.craftedAmount() > 0) {
+				invalidateServerRecipeBookSnapshotCache();
 			}
 			return;
 		}
@@ -284,7 +298,11 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 			return FillResult.failure("proximitycrafting.feedback.invalid_recipe_type");
 		}
 
-		return RecipeFillService.fillFromRecipe(this, craftingRecipe, craftAll);
+		FillResult fillResult = RecipeFillService.fillFromRecipe(this, craftingRecipe, craftAll);
+		if (fillResult.success() && fillResult.craftedAmount() > 0) {
+			invalidateServerRecipeBookSnapshotCache();
+		}
+		return fillResult;
 	}
 
 	public FillResult adjustRecipeLoad(int steps) {
@@ -334,6 +352,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		}
 
 		if (appliedSteps > 0) {
+			invalidateServerRecipeBookSnapshotCache();
 			String messageKey = direction > 0
 					? "proximitycrafting.feedback.scroll_increase"
 					: "proximitycrafting.feedback.scroll_decrease";
@@ -654,11 +673,18 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	}
 
 	public void setClientPreferences(boolean autoRefillAfterCraft, boolean includePlayerInventory, ProximityCraftingConfig.SourcePriority sourcePriority) {
+		boolean includeChanged = this.includePlayerInventory != includePlayerInventory;
+		boolean priorityChanged = this.sourcePriority != (sourcePriority == null
+				? ProximityCraftingConfig.SourcePriority.CONTAINERS_FIRST
+				: sourcePriority);
 		this.autoRefillAfterCraft = autoRefillAfterCraft;
 		this.includePlayerInventory = includePlayerInventory;
 		this.sourcePriority = sourcePriority == null
 				? ProximityCraftingConfig.SourcePriority.CONTAINERS_FIRST
 				: sourcePriority;
+		if (includeChanged || priorityChanged) {
+			invalidateServerRecipeBookSnapshotCache();
+		}
 	}
 
 	public boolean setClientRecipeBookSupplementalSources(List<RecipeBookSourceEntry> sourceEntries) {
@@ -685,6 +711,56 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 
 	public List<RecipeBookSourceEntry> getClientRecipeBookSupplementalSources() {
 		return clientRecipeBookSupplementalSources;
+	}
+
+	public List<RecipeBookSourceEntry> getServerRecipeBookSnapshot(boolean preferCache, String reason) {
+		if (player.level().isClientSide) {
+			return List.of();
+		}
+
+		long nowMs = System.currentTimeMillis();
+		if (preferCache
+				&& serverRecipeBookSnapshotCacheValid
+				&& (nowMs - serverRecipeBookSnapshotCacheBuiltAtMs) <= SERVER_SNAPSHOT_CACHE_TTL_MS) {
+			if (isDebugLoggingEnabled()) {
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-PERF] snapshot.cache.hit menu={} ageMs={} reason={} entries={}",
+						this.containerId,
+						nowMs - serverRecipeBookSnapshotCacheBuiltAtMs,
+						reason,
+						serverRecipeBookSnapshotCache.size()
+				);
+			}
+			return serverRecipeBookSnapshotCache;
+		}
+
+		List<RecipeBookSourceEntry> rebuilt = RecipeBookSourceSnapshotBuilder.build(this);
+		serverRecipeBookSnapshotCache = List.copyOf(rebuilt);
+		serverRecipeBookSnapshotCacheBuiltAtMs = nowMs;
+		serverRecipeBookSnapshotCacheValid = true;
+		serverRecipeBookSnapshotPrewarmPending = false;
+		if (isDebugLoggingEnabled()) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-PERF] snapshot.cache.rebuild menu={} reason={} entries={} ttlMs={}",
+					this.containerId,
+					reason,
+					serverRecipeBookSnapshotCache.size(),
+					SERVER_SNAPSHOT_CACHE_TTL_MS
+			);
+		}
+		return serverRecipeBookSnapshotCache;
+	}
+
+	public void invalidateServerRecipeBookSnapshotCache() {
+		serverRecipeBookSnapshotCacheValid = false;
+	}
+
+	private void prewarmServerRecipeBookSnapshotIfNeeded() {
+		if (!serverRecipeBookSnapshotPrewarmPending || player.level().isClientSide) {
+			return;
+		}
+		serverRecipeBookSnapshotPrewarmPending = false;
+		getServerRecipeBookSnapshot(false, "menu_open_prewarm");
 	}
 
 	private static boolean areRecipeBookSourceListsEqual(List<RecipeBookSourceEntry> left, List<RecipeBookSourceEntry> right) {

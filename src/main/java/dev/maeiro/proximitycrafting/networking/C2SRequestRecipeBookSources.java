@@ -38,7 +38,10 @@ public class C2SRequestRecipeBookSources {
 				return;
 			}
 
-			List<ProximityCraftingMenu.RecipeBookSourceEntry> entries = RecipeBookSourceSnapshotBuilder.build(menu);
+			List<ProximityCraftingMenu.RecipeBookSourceEntry> entries = menu.getServerRecipeBookSnapshot(
+					true,
+					"packet_request_sources"
+			);
 			ProximityCraftingNetwork.CHANNEL.send(
 					PacketDistributor.PLAYER.with(() -> player),
 					new S2CRecipeBookSourceSnapshot(containerId, entries)
@@ -66,5 +69,4 @@ public class C2SRequestRecipeBookSources {
 		}
 	}
 }
-
 

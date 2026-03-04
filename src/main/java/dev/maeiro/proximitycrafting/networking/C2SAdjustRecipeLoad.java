@@ -67,7 +67,10 @@ public class C2SAdjustRecipeLoad {
 			);
 			if (shouldSendSnapshot) {
 				snapshotStartNs = System.nanoTime();
-				var snapshotEntries = RecipeBookSourceSnapshotBuilder.build(menu);
+				var snapshotEntries = menu.getServerRecipeBookSnapshot(
+						false,
+						"packet_adjust_result"
+				);
 				snapshotEndNs = System.nanoTime();
 				snapshotEntryCount = snapshotEntries.size();
 				ProximityCraftingNetwork.CHANNEL.send(
