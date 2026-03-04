@@ -49,7 +49,9 @@ public class C2SAdjustRecipeLoad {
 			long adjustStartNs = System.nanoTime();
 			FillResult result = menu.adjustRecipeLoad(steps);
 			long adjustEndNs = System.nanoTime();
-			boolean shouldSendSnapshot = result.success() && result.craftedAmount() > 0;
+			boolean shouldSendSnapshot = result.success()
+					&& result.craftedAmount() > 0
+					&& menu.shouldSendSnapshotForAdjust();
 			long snapshotStartNs = 0L;
 			long snapshotEndNs = 0L;
 			int snapshotEntryCount = 0;

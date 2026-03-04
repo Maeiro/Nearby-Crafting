@@ -42,6 +42,7 @@ import java.util.Optional;
 public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	public static final int RESULT_SLOT = 0;
 	private static final long SERVER_SNAPSHOT_CACHE_TTL_MS = 3000L;
+	private static final long ADJUST_SNAPSHOT_MIN_INTERVAL_MS = 90L;
 	private static final int CRAFT_SLOT_START = 1;
 	private static final int CRAFT_SLOT_END = 10;
 	private static final int INV_SLOT_START = 10;
@@ -65,6 +66,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	private long serverRecipeBookSnapshotCacheBuiltAtMs = 0L;
 	private boolean serverRecipeBookSnapshotCacheValid = false;
 	private boolean serverRecipeBookSnapshotPrewarmPending = true;
+	private long lastAdjustSnapshotSentAtMs = 0L;
 
 	private CraftingRecipe lastPlacedRecipe;
 
@@ -753,6 +755,23 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 
 	public void invalidateServerRecipeBookSnapshotCache() {
 		serverRecipeBookSnapshotCacheValid = false;
+	}
+
+	public boolean shouldSendSnapshotForAdjust() {
+		long nowMs = System.currentTimeMillis();
+		if (lastAdjustSnapshotSentAtMs != 0L && (nowMs - lastAdjustSnapshotSentAtMs) < ADJUST_SNAPSHOT_MIN_INTERVAL_MS) {
+			if (isDebugLoggingEnabled()) {
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-PERF] snapshot.adjust.skip menu={} elapsedMs={} minIntervalMs={}",
+						this.containerId,
+						nowMs - lastAdjustSnapshotSentAtMs,
+						ADJUST_SNAPSHOT_MIN_INTERVAL_MS
+				);
+			}
+			return false;
+		}
+		lastAdjustSnapshotSentAtMs = nowMs;
+		return true;
 	}
 
 	private void prewarmServerRecipeBookSnapshotIfNeeded() {
