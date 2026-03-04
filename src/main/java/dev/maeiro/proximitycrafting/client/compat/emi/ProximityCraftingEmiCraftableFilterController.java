@@ -229,7 +229,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 		ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(recipeId, craftAll));
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[NC-EMI] DirectFill menu={} recipeId={} craftAll={} mouse=({}, {})",
+					"[PROXC-EMI] DirectFill menu={} recipeId={} craftAll={} mouse=({}, {})",
 					menu.containerId,
 					recipeId,
 					craftAll,
@@ -336,7 +336,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 				updateSearchSidebarOnly();
 				if (isDebugLoggingEnabled()) {
 					ProximityCrafting.LOGGER.info(
-							"[NC-EMI] refresh lightweight (unchanged index-filter set) menu={} craftableOutputs={} filteredIngredients={}",
+							"[PROXC-EMI] refresh lightweight (unchanged index-filter set) menu={} craftableOutputs={} filteredIngredients={}",
 							menu.containerId,
 							craftableOutputIds.size(),
 							filteredIndexStacks.size()
@@ -352,7 +352,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 
 			if (isDebugLoggingEnabled()) {
 				ProximityCrafting.LOGGER.info(
-						"[NC-EMI] refresh menu={} indexCandidates={} craftableOutputs={} filteredIndex={}",
+						"[PROXC-EMI] refresh menu={} indexCandidates={} craftableOutputs={} filteredIndex={}",
 						menu.containerId,
 						indexIngredients.size(),
 						craftableOutputIds.size(),
@@ -378,7 +378,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 			requestIndexRefresh(indexType);
 
 			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[NC-EMI] disableAndRestore restoredIndexFiltered={}", previousIndexFilteredStacks == null ? 0 : previousIndexFilteredStacks.size());
+				ProximityCrafting.LOGGER.info("[PROXC-EMI] disableAndRestore restoredIndexFiltered={}", previousIndexFilteredStacks == null ? 0 : previousIndexFilteredStacks.size());
 			}
 		} finally {
 			enabled = false;
@@ -430,7 +430,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 		Object currentType = getCurrentSearchSidebarType();
 		String currentTypeName = currentType instanceof Enum<?> e ? e.name() : String.valueOf(currentType);
 		ProximityCrafting.LOGGER.info(
-				"[NC-EMI-RUNTIME] stage={} menu={} enabled={} transition={} currentSidebar={} pinned={} applied={} refreshDebounceMs={}",
+				"[PROXC-EMI-RUNTIME] stage={} menu={} enabled={} transition={} currentSidebar={} pinned={} applied={} refreshDebounceMs={}",
 				stage,
 				menu.containerId,
 				enabled,

@@ -291,7 +291,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		long startNs = System.nanoTime();
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[NC-SCROLL] menu adjustRecipeLoad steps={} menu={} hasLastRecipe={}",
+					"[PROXC-SCROLL] menu adjustRecipeLoad steps={} menu={} hasLastRecipe={}",
 					steps,
 					this.containerId,
 					this.lastPlacedRecipe != null
@@ -305,7 +305,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		CraftingRecipe activeRecipe = currentRecipeOptional.orElse(lastPlacedRecipe);
 		if (activeRecipe == null) {
 			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[NC-SCROLL] menu no active recipe to adjust");
+				ProximityCrafting.LOGGER.info("[PROXC-SCROLL] menu no active recipe to adjust");
 			}
 			return FillResult.failure("proximitycrafting.feedback.no_recipe_selected");
 		}
@@ -322,7 +322,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 			if (!stepResult.success()) {
 				if (isDebugLoggingEnabled()) {
 					ProximityCrafting.LOGGER.info(
-							"[NC-SCROLL] menu stopped at iteration={} reason={}",
+							"[PROXC-SCROLL] menu stopped at iteration={} reason={}",
 							i,
 							stepResult.messageKey()
 					);
@@ -339,7 +339,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 					: "proximitycrafting.feedback.scroll_decrease";
 			if (isDebugLoggingEnabled()) {
 				ProximityCrafting.LOGGER.info(
-						"[PC-PERF] menu.adjustRecipeLoad.success menu={} steps={} applied={} recipe={} took={}ms",
+						"[PROXC-PERF] menu.adjustRecipeLoad.success menu={} steps={} applied={} recipe={} took={}ms",
 						this.containerId,
 						steps,
 						appliedSteps,
@@ -351,7 +351,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		}
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[PC-PERF] menu.adjustRecipeLoad.fail menu={} steps={} applied={} recipe={} reason={} took={}ms",
+					"[PROXC-PERF] menu.adjustRecipeLoad.fail menu={} steps={} applied={} recipe={} reason={} took={}ms",
 					this.containerId,
 					steps,
 					appliedSteps,

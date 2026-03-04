@@ -66,7 +66,7 @@ public class S2CRecipeBookSourceSnapshot {
 			}
 			if (isDebugLoggingEnabled()) {
 				ProximityCrafting.LOGGER.info(
-						"[PC-PERF] packet.S2CRecipeBookSourceSnapshot menu={} entries={} applyMs={}",
+						"[PROXC-PERF] packet.S2CRecipeBookSourceSnapshot menu={} entries={} applyMs={}",
 						containerId,
 						sourceEntries.size(),
 						String.format("%.3f", (System.nanoTime() - startNs) / 1_000_000.0D)

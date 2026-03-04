@@ -1,5 +1,7 @@
 package dev.maeiro.proximitycrafting.networking;
 
+import dev.maeiro.proximitycrafting.ProximityCrafting;
+import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -27,6 +29,7 @@ public class C2SRequestRecipeBookSources {
 	public void handle(Supplier<NetworkEvent.Context> ctxSupplier) {
 		NetworkEvent.Context ctx = ctxSupplier.get();
 		ctx.enqueueWork(() -> {
+			long startNs = System.nanoTime();
 			ServerPlayer player = ctx.getSender();
 			if (player == null || !(player.containerMenu instanceof ProximityCraftingMenu menu)) {
 				return;
@@ -40,8 +43,27 @@ public class C2SRequestRecipeBookSources {
 					PacketDistributor.PLAYER.with(() -> player),
 					new S2CRecipeBookSourceSnapshot(containerId, entries)
 			);
+
+			if (isDebugLoggingEnabled()) {
+				double totalMs = (System.nanoTime() - startNs) / 1_000_000.0D;
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-PERF] packet.C2SRequestRecipeBookSources player={} menu={} snapshotEntries={} took={}ms",
+						player.getGameProfile().getName(),
+						menu.containerId,
+						entries.size(),
+						String.format("%.3f", totalMs)
+				);
+			}
 		});
 		ctx.setPacketHandled(true);
+	}
+
+	private static boolean isDebugLoggingEnabled() {
+		try {
+			return ProximityCraftingConfig.SERVER.debugLogging.get();
+		} catch (RuntimeException exception) {
+			return false;
+		}
 	}
 }
 

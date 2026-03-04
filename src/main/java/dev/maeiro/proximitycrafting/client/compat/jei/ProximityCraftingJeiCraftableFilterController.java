@@ -55,6 +55,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 	private static final Map<Object, List<Object>> removedNonItemIngredientsByType = new IdentityHashMap<>();
 	private static final long CLICK_PROBE_TIMEOUT_MS = 4000L;
 	private static final long REFRESH_DEBOUNCE_MS = 50L;  // Debounce threshold for rapid refresh calls
+	private static final long FULL_REBUILD_MIN_INTERVAL_MS = 2500L;
 	private static final int REMOVE_MUTATION_CHUNK_SIZE = 180;
 	private static final int ADD_MUTATION_CHUNK_SIZE = 64;
 	private static final long EMPTY_SIGNATURE = Long.MIN_VALUE;
@@ -62,7 +63,9 @@ public final class ProximityCraftingJeiCraftableFilterController {
 	private static ClickProbe lastClickProbe;
 	private static long lastRefreshTime = 0L;
 	private static boolean pendingIngredientListRebuild = false;  // Flag to defer overlay rebuild to next tick
+	private static boolean pendingFullIngredientListRebuild = false;
 	private static boolean pendingStateReset = false;
+	private static long lastFullIngredientListRebuildAtMs = 0L;
 	private static long cachedAvailabilitySignature = EMPTY_SIGNATURE;
 	private static int cachedAvailabilityContainerId = -1;
 	private static List<CraftingRecipe> cachedCraftableRecipes = List.of();
@@ -82,7 +85,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 
 		if (mutated && isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[NC-JEI] Deferred mutation progress addPending={} removePending={}",
+					"[PROXC-JEI] Deferred mutation progress addPending={} removePending={}",
 					pendingAddKeys.size(),
 					pendingRemoveKeys.size()
 			);
@@ -90,11 +93,20 @@ public final class ProximityCraftingJeiCraftableFilterController {
 
 		if (pendingIngredientListRebuild && pendingAddKeys.isEmpty() && pendingRemoveKeys.isEmpty()) {
 			pendingIngredientListRebuild = false;
-			forceIngredientListOverlayRebuild();
+			boolean visualRefreshApplied = forceIngredientListOverlayVisualRefresh();
+			long nowMs = System.currentTimeMillis();
+			boolean allowFullRebuild = pendingFullIngredientListRebuild
+					&& (nowMs - lastFullIngredientListRebuildAtMs) >= FULL_REBUILD_MIN_INTERVAL_MS;
+			if (allowFullRebuild && !visualRefreshApplied) {
+				forceIngredientListOverlayRebuild();
+				lastFullIngredientListRebuildAtMs = nowMs;
+			}
+			pendingFullIngredientListRebuild = false;
 		}
 
 		if (pendingStateReset && pendingAddKeys.isEmpty() && pendingRemoveKeys.isEmpty()) {
 			pendingStateReset = false;
+			pendingFullIngredientListRebuild = false;
 			removedKeys.clear();
 			universeStacksByKey.clear();
 			universeItemIdByKey.clear();
@@ -134,14 +146,14 @@ public final class ProximityCraftingJeiCraftableFilterController {
 	public static void setEnabled(ProximityCraftingMenu menu, boolean shouldEnable) {
 		if (!isRuntimeAvailable()) {
 			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[NC-JEI] Ignoring setEnabled(menu={}, shouldEnable={}) because runtime is unavailable", menu.containerId, shouldEnable);
+				ProximityCrafting.LOGGER.info("[PROXC-JEI] Ignoring setEnabled(menu={}, shouldEnable={}) because runtime is unavailable", menu.containerId, shouldEnable);
 			}
 			return;
 		}
 
 		if (!shouldEnable) {
 			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[NC-JEI] Disabling craftable toggle for menu={}", menu.containerId);
+				ProximityCrafting.LOGGER.info("[PROXC-JEI] Disabling craftable toggle for menu={}", menu.containerId);
 			}
 			disableAndRestore();
 			return;
@@ -169,7 +181,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		ensureUniverseLoaded();
 		refresh(menu);
 		if (isDebugLoggingEnabled()) {
-			ProximityCrafting.LOGGER.info("[NC-JEI] Enabled craftable toggle for menu={}", menu.containerId);
+			ProximityCrafting.LOGGER.info("[PROXC-JEI] Enabled craftable toggle for menu={}", menu.containerId);
 		}
 	}
 
@@ -185,7 +197,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		long now = System.currentTimeMillis();
 		if (now - lastRefreshTime < REFRESH_DEBOUNCE_MS) {
 			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[NC-JEI] Refresh debounced ({}ms since last)", now - lastRefreshTime);
+				ProximityCrafting.LOGGER.info("[PROXC-JEI] Refresh debounced ({}ms since last)", now - lastRefreshTime);
 			}
 			return;
 		}
@@ -228,7 +240,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 					ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(matchedRecipeId, craftAll));
 					if (isDebugLoggingEnabled()) {
 						ProximityCrafting.LOGGER.info(
-								"[NC-JEI] DirectFill menu={} recipeId={} craftAll={} ingredientSource={} item={}",
+								"[PROXC-JEI] DirectFill menu={} recipeId={} craftAll={} ingredientSource={} item={}",
 								menu.containerId,
 								matchedRecipeId,
 								craftAll,
@@ -240,7 +252,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 				}
 				if (isDebugLoggingEnabled()) {
 					ProximityCrafting.LOGGER.info(
-							"[NC-JEI] DirectFill skipped menu={} reason=no_matching_craftable_recipe ingredientSource={} ingredient={}",
+							"[PROXC-JEI] DirectFill skipped menu={} reason=no_matching_craftable_recipe ingredientSource={} ingredient={}",
 							menu.containerId,
 							hoveredTypedIngredient.source,
 							readIngredientInfoForLog(typedIngredient)
@@ -325,7 +337,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		if (isDebugLoggingEnabled()) {
 			String ingredientInfo = readIngredientInfoForLog(typedIngredient);
 			ProximityCrafting.LOGGER.info(
-					"[NC-JEI] FallbackOpen menu={} mouseButton={} ingredientSource={} ingredient={} currentScreenAfterCall={} opened={}",
+					"[PROXC-JEI] FallbackOpen menu={} mouseButton={} ingredientSource={} ingredient={} currentScreenAfterCall={} opened={}",
 					menu.containerId,
 					mouseButton,
 					hoveredTypedIngredient.source,
@@ -365,7 +377,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		);
 
 		ProximityCrafting.LOGGER.info(
-				"[NC-JEI] ClickProbe phase={} menu={} enabled={} runtimeAvailable={} mouseButton={} mouse=({}, {}) ingredientSource={} ingredient={}",
+				"[PROXC-JEI] ClickProbe phase={} menu={} enabled={} runtimeAvailable={} mouseButton={} mouse=({}, {}) ingredientSource={} ingredient={}",
 				phase,
 				menu.containerId,
 				isEnabledFor(menu.containerId),
@@ -397,12 +409,12 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		}
 
 		if (clickProbe == null) {
-			ProximityCrafting.LOGGER.info("[NC-JEI] ScreenInit newScreen={} without recent click probe", screenClassName);
+			ProximityCrafting.LOGGER.info("[PROXC-JEI] ScreenInit newScreen={} without recent click probe", screenClassName);
 			return;
 		}
 
 		ProximityCrafting.LOGGER.info(
-				"[NC-JEI] ScreenInit newScreen={} afterClick={}ms probePhase={} probeMenu={} probeEnabled={} probeRuntime={} probeMouseButton={} probeIngredientSource={} probeIngredient={}",
+				"[PROXC-JEI] ScreenInit newScreen={} afterClick={}ms probePhase={} probeMenu={} probeEnabled={} probeRuntime={} probeMouseButton={} probeIngredientSource={} probeIngredient={}",
 				screenClassName,
 				now - clickProbe.timestampMs,
 				clickProbe.phase,
@@ -500,10 +512,11 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		if (desiredRemovedKeys.equals(removedKeys) && pendingAddKeys.isEmpty() && pendingRemoveKeys.isEmpty()) {
 			long noChangeTime = System.nanoTime() - startTime;
 			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[NC-JEI] Refresh SKIPPED (no changes) in {}ms", noChangeTime / 1_000_000.0);
+				ProximityCrafting.LOGGER.info("[PROXC-JEI] Refresh SKIPPED (no changes) in {}ms", noChangeTime / 1_000_000.0);
 			}
 			if (nonItemMutated) {
 				pendingIngredientListRebuild = true;
+				pendingFullIngredientListRebuild = true;
 			}
 			return;
 		}
@@ -525,11 +538,12 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		long beforeRebuild = System.nanoTime();
 		// Rebuild after queued mutations are applied in chunks.
 		pendingIngredientListRebuild = true;
+		pendingFullIngredientListRebuild |= nonItemMutated;
 		long afterRebuild = System.nanoTime();
 
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[NC-JEI] Refresh QUEUED menu={} universe={} craftableItems={} queueHide={} queueRestore={} nonItemMutated={} | Time: universeLoadMs={} craftableMs={} hideMs={} enqueueMs={} totalMs={}",
+					"[PROXC-JEI] Refresh QUEUED menu={} universe={} craftableItems={} queueHide={} queueRestore={} nonItemMutated={} | Time: universeLoadMs={} craftableMs={} hideMs={} enqueueMs={} totalMs={}",
 					menu.containerId,
 					universeStacksByKey.size(),
 					craftableOutputItemIds.size(),
@@ -576,7 +590,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			}
 
 			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[NC-JEI] Loaded JEI item universe with {} stacks", universeStacksByKey.size());
+				ProximityCrafting.LOGGER.info("[PROXC-JEI] Loaded JEI item universe with {} stacks", universeStacksByKey.size());
 			}
 		} catch (RuntimeException exception) {
 			ProximityCrafting.LOGGER.warn("Failed to read JEI ingredient universe for craftable filtering", exception);
@@ -605,7 +619,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[NC-JEI] Craftable snapshot menu={} includePlayer={} recipeCandidates={} craftableRecipes={} craftableItems={} sample={}",
+					"[PROXC-JEI] Craftable snapshot menu={} includePlayer={} recipeCandidates={} craftableRecipes={} craftableItems={} sample={}",
 					menu.containerId,
 					menu.isIncludePlayerInventory(),
 					menu.getLevel().getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING).size(),
@@ -679,7 +693,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			if (isDebugLoggingEnabled()) {
 				long totalTime = System.nanoTime() - startTime;
 				ProximityCrafting.LOGGER.info(
-						"[NC-JEI] computeCraftableRecipes cache-hit in {}ms (pool: {}ms, results: {})",
+						"[PROXC-JEI] computeCraftableRecipes cache-hit in {}ms (pool: {}ms, results: {})",
 						totalTime / 1_000_000.0,
 						poolTime / 1_000_000.0,
 						cachedCraftableRecipes.size()
@@ -734,7 +748,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		
 		if (isDebugLoggingEnabled()) {
 			long totalTime = System.nanoTime() - startTime;
-			ProximityCrafting.LOGGER.info("[NC-JEI] computeCraftableRecipes in {}ms (pool: {}ms, matching: {}ms, results: {})",
+			ProximityCrafting.LOGGER.info("[PROXC-JEI] computeCraftableRecipes in {}ms (pool: {}ms, matching: {}ms, results: {})",
 					totalTime / 1_000_000.0, poolTime / 1_000_000.0, matchingTime / 1_000_000.0, craftableRecipes.size());
 		}
 
@@ -842,7 +856,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		}
 
 		ProximityCrafting.LOGGER.info(
-				"[NC-JEI] MatcherPool menu={} entries={} totalItems={} diamonds={} sticks={} recipeCandidates={} craftableRecipes={} sample={}",
+				"[PROXC-JEI] MatcherPool menu={} entries={} totalItems={} diamonds={} sticks={} recipeCandidates={} craftableRecipes={} sample={}",
 				menu.containerId,
 				availableStacks.size(),
 				totalItems,
@@ -950,11 +964,12 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			restoreNonItemIngredients(ingredientManager);
 			// Let JEI refresh naturally while items are restored in chunks; avoid a full forced rebuild spike.
 			pendingIngredientListRebuild = false;
+			pendingFullIngredientListRebuild = false;
 		}
 
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[NC-JEI] disableAndRestore restoredItems={} restoredNonItemTypes={} universe={} activeMenu={}",
+					"[PROXC-JEI] disableAndRestore restoredItems={} restoredNonItemTypes={} universe={} activeMenu={}",
 					removedKeys.size(),
 					removedNonItemIngredientsByType.size(),
 					universeStacksByKey.size(),
@@ -1181,7 +1196,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			}
 
 			if (isDebugLoggingEnabled() && hiddenTypesThisRefresh > 0) {
-				ProximityCrafting.LOGGER.info("[NC-JEI] Hid non-item ingredient types in JEI: {}", hiddenTypesThisRefresh);
+				ProximityCrafting.LOGGER.info("[PROXC-JEI] Hid non-item ingredient types in JEI: {}", hiddenTypesThisRefresh);
 			}
 			return hiddenTypesThisRefresh > 0;
 		} catch (RuntimeException exception) {
@@ -1207,7 +1222,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		}
 
 		if (isDebugLoggingEnabled() && restoredTypes > 0) {
-			ProximityCrafting.LOGGER.info("[NC-JEI] Restored non-item ingredient types in JEI: {}", restoredTypes);
+			ProximityCrafting.LOGGER.info("[PROXC-JEI] Restored non-item ingredient types in JEI: {}", restoredTypes);
 		}
 	}
 
@@ -1259,7 +1274,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			if (isDebugLoggingEnabled()) {
 				long elapsedMs = (System.nanoTime() - startTime) / 1_000_000;
 				ProximityCrafting.LOGGER.info(
-						"[NC-JEI] forceIngredientListOverlayRebuild completed in {}ms (filterRebuilt={} filterNudged={} overlayUpdated={})",
+						"[PROXC-JEI] forceIngredientListOverlayRebuild completed in {}ms (filterRebuilt={} filterNudged={} overlayUpdated={})",
 						elapsedMs,
 						filterRebuilt,
 						filterNudged,
@@ -1270,10 +1285,10 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		}
 	}
 
-	private static void forceIngredientListOverlayVisualRefresh() {
+	private static boolean forceIngredientListOverlayVisualRefresh() {
 		Object runtime = jeiRuntime;
 		if (runtime == null) {
-			return;
+			return false;
 		}
 
 		try {
@@ -1281,12 +1296,14 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			boolean overlayUpdated = forceOverlayScreenPropertiesUpdate(runtime);
 			if (isDebugLoggingEnabled()) {
 				ProximityCrafting.LOGGER.info(
-						"[NC-JEI] forceIngredientListOverlayVisualRefresh filterNudged={} overlayUpdated={}",
+						"[PROXC-JEI] forceIngredientListOverlayVisualRefresh filterNudged={} overlayUpdated={}",
 						filterNudged,
 						overlayUpdated
 				);
 			}
+			return filterNudged || overlayUpdated;
 		} catch (ReflectiveOperationException | RuntimeException ignored) {
+			return false;
 		}
 	}
 

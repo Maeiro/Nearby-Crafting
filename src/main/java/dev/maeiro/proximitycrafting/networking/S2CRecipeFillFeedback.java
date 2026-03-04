@@ -1,5 +1,7 @@
 package dev.maeiro.proximitycrafting.networking;
 
+import dev.maeiro.proximitycrafting.ProximityCrafting;
+import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
@@ -34,6 +36,7 @@ public class S2CRecipeFillFeedback {
 	public void handle(Supplier<NetworkEvent.Context> ctxSupplier) {
 		NetworkEvent.Context ctx = ctxSupplier.get();
 		ctx.enqueueWork(() -> {
+			long startNs = System.nanoTime();
 			Minecraft minecraft = Minecraft.getInstance();
 			if (minecraft.player == null) {
 				return;
@@ -49,12 +52,30 @@ public class S2CRecipeFillFeedback {
 				} else {
 					proximityCraftingScreen.showFailureStatusMessage(feedback);
 				}
-				proximityCraftingScreen.requestImmediateSourceSyncAndRefresh();
+				// Snapshot sync is already sent by fill/adjust packets; avoid redundant client->server sync bursts.
+				proximityCraftingScreen.scheduleDeferredRecipeBookRefresh();
 			} else {
 				minecraft.player.displayClientMessage(feedback, true);
 			}
+			if (isDebugLoggingEnabled()) {
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-PERF] packet.S2CRecipeFillFeedback success={} key={} amount={} applyMs={}",
+						success,
+						messageKey,
+						craftedAmount,
+						String.format("%.3f", (System.nanoTime() - startNs) / 1_000_000.0D)
+				);
+			}
 		});
 		ctx.setPacketHandled(true);
+	}
+
+	private static boolean isDebugLoggingEnabled() {
+		try {
+			return ProximityCraftingConfig.SERVER.debugLogging.get();
+		} catch (RuntimeException exception) {
+			return false;
+		}
 	}
 }
 
