@@ -1,15 +1,15 @@
 # Proximity Crafting
 
-![Proximity Crafting Icon](img/icon256.png)
+![Proximity Crafting Icon](img/icon400.png)
 
 **Proximity Crafting** is a Forge 1.20.1 mod that adds a custom crafting table which can use ingredients from nearby inventories, so you do not need to manually move everything into your player inventory first.
 
-## What The Mod Does
+## What This Mod Does
 - Adds the **Proximity Crafting Table** (3x3 crafting).
 - Builds a shared ingredient pool from:
-- nearby containers (chests and compatible inventories),
-- player inventory (configurable),
-- compatible backpack sources.
+  - nearby containers (chests and compatible inventories),
+  - player inventory (configurable),
+  - compatible backpack sources.
 - Fills crafting recipes directly from that pool.
 - Keeps a live ingredient-availability panel for the currently selected recipe.
 
@@ -19,9 +19,9 @@
 
 ## Main Features
 - Nearby container scanning with configurable:
-- scan radius,
-- minimum inventory size,
-- block entity blacklist.
+  - scan radius,
+  - minimum inventory size,
+  - block entity blacklist.
 - Source priority control (`CONTAINERS_FIRST` or `PLAYER_FIRST`).
 - Recipe Book support with nearby-aware source snapshots.
 - Shift and scroll recipe loading workflow for faster batch prep.
@@ -35,7 +35,7 @@
 
 ### EMI (optional)
 - Recipe transfer support to the Proximity Crafting Table.
-- Custom craftable-only toggle flow designed to avoid conflicts with EMI’s own craftable sidebar behavior.
+- Custom craftable-only toggle flow designed to avoid conflicts with EMI's own craftable sidebar behavior.
 - Alt-click and scroll-assisted loading behaviors integrated with Nearby/Proximity sources.
 
 ### Sophisticated Backpacks (optional)
@@ -48,8 +48,8 @@ When using Proximity Crafting recipe interactions (including overlay integration
 - `Alt + Left Click`: loads ingredients for **1 recipe unit** directly into the crafting grid.
 - `Shift + Left Click`: loads the **maximum possible amount** (up to configured limits and grid capacity).
 - `Mouse Wheel` (incremental load):
-- scroll up increases loaded recipe amount step-by-step,
-- scroll down decreases loaded amount and returns ingredients through the tracked source flow.
+  - scroll up increases loaded recipe amount step-by-step,
+  - scroll down decreases loaded amount and returns ingredients through the tracked source flow.
 
 ## Requirements
 - Minecraft `1.20.1`
@@ -64,7 +64,7 @@ When using Proximity Crafting recipe interactions (including overlay integration
 ## Configuration
 The mod generates Forge TOML configs for both server and client.
 
-### Server config (`nearbycrafting-server.toml`)
+### Server config (`proximitycrafting-server.toml`)
 All options are under `proximityCrafting`:
 - `scanRadius` (default: `6`): scan radius in blocks around the Proximity Crafting Table.
 - `minSlotCount` (default: `6`): minimum slot count for an inventory to be considered a valid source.
@@ -72,7 +72,7 @@ All options are under `proximityCrafting`:
 - `maxShiftCraftIterations` (default: `64`): max recipe units loaded into the grid during max-transfer operations (shift-style load).
 - `debugLogging` (default: `false`): enables debug logs for scanning and recipe fill flow.
 
-### Client config (`nearbycrafting-client.toml`)
+### Client config (`proximitycrafting-client.toml`)
 All options are under `proximityCrafting`:
 - `autoRefillAfterCraft` (default: `true`): automatically refills the grid after taking the crafted output.
 - `includePlayerInventory` (default: `true`): includes player inventory as ingredient source.
