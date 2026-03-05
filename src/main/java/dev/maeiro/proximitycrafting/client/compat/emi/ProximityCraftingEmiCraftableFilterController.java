@@ -193,6 +193,26 @@ public final class ProximityCraftingEmiCraftableFilterController {
 		logRuntimeState(menu, "setEnabled:pending_refresh");
 	}
 
+	public static void applyStartupPendingViewIfEnabled(ProximityCraftingMenu menu) {
+		if (!isEnabledFor(menu.containerId) || !isRuntimeAvailable()) {
+			return;
+		}
+
+		Object indexType = resolveSidebarType("INDEX");
+		if (indexType == null) {
+			return;
+		}
+
+		// On remembered startup enable, avoid flashing EMI's default full list before
+		// craftable computation/snapshot refresh converges.
+		applySearchSidebarConfig(indexType);
+		setIndexFilteredStacks(List.of());
+		pinnedIndexStacks = List.of();
+		focusSearchSidebarType(indexType);
+		requestSearchRefreshOnly();
+		logRuntimeState(menu, "startup_pending_view_applied");
+	}
+
 	public static void refreshIfEnabled(ProximityCraftingMenu menu) {
 		if (!isEnabledFor(menu.containerId) || !isRuntimeAvailable()) {
 			return;

@@ -1193,6 +1193,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 		if (ProximityCraftingConfig.CLIENT.emiCraftableOnlyEnabled.get()) {
 			ProximityCraftingEmiCraftableFilterController.setEnabled(menu, true);
+			ProximityCraftingEmiCraftableFilterController.applyStartupPendingViewIfEnabled(menu);
 		}
 	}
 
