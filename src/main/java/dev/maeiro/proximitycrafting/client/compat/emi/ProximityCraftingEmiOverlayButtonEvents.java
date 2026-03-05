@@ -118,6 +118,7 @@ public final class ProximityCraftingEmiOverlayButtonEvents {
 			return;
 		}
 
+		ProximityCraftingEmiCraftableFilterController.processDeferred();
 		ProximityCraftingEmiCraftableFilterController.enforceIndexOnlyMode();
 		ProximityCraftingEmiCraftableFilterController.enforceCraftableSidebarIfEnabled(screen.getMenu());
 	}

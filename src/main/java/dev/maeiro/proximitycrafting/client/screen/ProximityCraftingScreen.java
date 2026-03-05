@@ -835,6 +835,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 
 		sourceSyncInFlight = true;
 		sourceSyncQueued = false;
+		ProximityCraftingEmiCraftableFilterController.onSourceSyncStateUpdated(this.menu, true, false);
 		lastSourceSyncSentAtMs = System.currentTimeMillis();
 		ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeBookSources(this.menu.containerId));
 		if (isDebugLoggingEnabled()) {
@@ -1559,8 +1560,12 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 	}
 
-	public void onSourceSnapshotAppliedClient(int entryCount) {
+	public void onSourceSnapshotAppliedClient(int entryCount, boolean sourcesChanged) {
 		sourceSyncInFlight = false;
+		ProximityCraftingEmiCraftableFilterController.onSourceSyncStateUpdated(this.menu, false, sourcesChanged);
+		if (sourcesChanged && ProximityCraftingEmiCraftableFilterController.isEnabledFor(this.menu.containerId)) {
+			scheduleDeferredRecipeBookRefresh();
+		}
 		if (sourceSyncQueued) {
 			sourceSyncQueued = false;
 			requestRecipeBookSourceSync();

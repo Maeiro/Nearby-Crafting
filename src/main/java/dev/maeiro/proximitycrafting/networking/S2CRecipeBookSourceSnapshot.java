@@ -59,10 +59,7 @@ public class S2CRecipeBookSourceSnapshot {
 
 			boolean sourcesChanged = menu.setClientRecipeBookSupplementalSources(sourceEntries);
 			if (minecraft.screen instanceof ProximityCraftingScreen proximityCraftingScreen) {
-				proximityCraftingScreen.onSourceSnapshotAppliedClient(sourceEntries.size());
-				if (sourcesChanged) {
-					proximityCraftingScreen.scheduleDeferredRecipeBookRefresh();
-				}
+				proximityCraftingScreen.onSourceSnapshotAppliedClient(sourceEntries.size(), sourcesChanged);
 			}
 			if (isDebugLoggingEnabled()) {
 				ProximityCrafting.LOGGER.info(
