@@ -25,6 +25,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -84,6 +85,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private static final int RESULT_SLOT_Y = 35;
 	private static final int RESULT_SLOT_SIZE = 18;
 	private static final long PANEL_PERF_LOG_INTERVAL_MS = 2000L;
+	private static final long PANEL_SLOW_FRAME_LOG_INTERVAL_MS = 500L;
 	private static final double PANEL_PERF_SLOW_FRAME_MS = 6.0D;
 	private static final int AUTO_REFILL_TOGGLE_SIZE = 9;
 	private static final int AUTO_REFILL_TOGGLE_OFFSET_BASE_X = 1;
@@ -109,6 +111,14 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private double panelPerfMaxFrameMs = 0.0D;
 	private int panelPerfLastEntryCount = 0;
 	private int panelPerfLastSourceEntryCount = 0;
+	private long lastPanelSlowFrameLogAtMs = 0L;
+	@Nullable
+	private ResourceLocation proximityPanelCachedRecipeId;
+	private long proximityPanelCachedGridSignature = Long.MIN_VALUE;
+	private long proximityPanelCachedBuiltAtMs = 0L;
+	private boolean proximityPanelCacheDirty = true;
+	private List<ProximityCraftingMenu.RecipeBookSourceEntry> proximityPanelCachedSourcesRef = List.of();
+	private List<IngredientAvailabilityEntry> proximityPanelCachedEntries = List.of();
 	private long lastStaleHoveredSlotLogAtMs = 0L;
 	private long lastSourceSyncSentAtMs = 0L;
 	private boolean sourceSyncInFlight = false;
@@ -964,7 +974,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 
 		long frameStartNs = System.nanoTime();
 		long collectStartNs = System.nanoTime();
-		List<IngredientAvailabilityEntry> availabilityEntries = collectCurrentRecipeAvailabilityEntries();
+		List<IngredientAvailabilityEntry> availabilityEntries = getCurrentRecipeAvailabilityEntries();
 		long collectEndNs = System.nanoTime();
 		Rect2i panelBounds = getProximityPanelBounds();
 		int panelX = panelBounds.getX();
@@ -1289,22 +1299,86 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 	}
 
-	private List<IngredientAvailabilityEntry> collectCurrentRecipeAvailabilityEntries() {
-		long startNs = System.nanoTime();
+	private List<IngredientAvailabilityEntry> getCurrentRecipeAvailabilityEntries() {
+		List<ProximityCraftingMenu.RecipeBookSourceEntry> currentSources = menu.getClientRecipeBookSupplementalSources();
+		long gridSignature = computeCraftGridSignature();
+		long nowMs = System.currentTimeMillis();
+		boolean dirtyBefore = proximityPanelCacheDirty;
+		long previousBuiltAtMs = proximityPanelCachedBuiltAtMs;
+		boolean gridChanged = gridSignature != proximityPanelCachedGridSignature;
+		boolean sourcesChanged = currentSources != proximityPanelCachedSourcesRef;
+
+		// Hot path: avoid expensive recipe-manager lookup when nothing relevant changed.
+		if (!dirtyBefore && !gridChanged && !sourcesChanged) {
+			return proximityPanelCachedEntries;
+		}
+
 		if (menu.getLevel() == null) {
-			return List.of();
+			proximityPanelCachedEntries = List.of();
+			proximityPanelCachedRecipeId = null;
+			proximityPanelCachedGridSignature = gridSignature;
+			proximityPanelCachedBuiltAtMs = nowMs;
+			proximityPanelCachedSourcesRef = currentSources;
+			proximityPanelCacheDirty = false;
+			return proximityPanelCachedEntries;
 		}
 
 		long recipeLookupStartNs = System.nanoTime();
-		Optional<CraftingRecipe> recipeOptional = menu.getLevel().getRecipeManager().getRecipeFor(RecipeType.CRAFTING, menu.getCraftSlots(), menu.getLevel());
+		Optional<CraftingRecipe> recipeOptional = menu.getLevel().getRecipeManager().getRecipeFor(
+				RecipeType.CRAFTING,
+				menu.getCraftSlots(),
+				menu.getLevel()
+		);
 		long recipeLookupEndNs = System.nanoTime();
 		if (recipeOptional.isEmpty()) {
-			return List.of();
+			proximityPanelCachedEntries = List.of();
+			proximityPanelCachedRecipeId = null;
+			proximityPanelCachedGridSignature = gridSignature;
+			proximityPanelCachedBuiltAtMs = nowMs;
+			proximityPanelCachedSourcesRef = currentSources;
+			proximityPanelCacheDirty = false;
+			return proximityPanelCachedEntries;
 		}
+
+		CraftingRecipe recipe = recipeOptional.get();
+		ResourceLocation recipeId = recipe.getId();
+		boolean recipeChanged = !recipeId.equals(proximityPanelCachedRecipeId);
+
+		proximityPanelCachedEntries = collectCurrentRecipeAvailabilityEntries(
+				recipe,
+				recipeLookupEndNs - recipeLookupStartNs
+		);
+		proximityPanelCachedRecipeId = recipeId;
+		proximityPanelCachedGridSignature = gridSignature;
+		proximityPanelCachedBuiltAtMs = nowMs;
+		proximityPanelCachedSourcesRef = currentSources;
+		proximityPanelCacheDirty = false;
+
+		if (isDebugLoggingEnabled()) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-PERF] panel.cache.rebuild menu={} recipe={} reason=dirty:{} recipeChanged:{} gridChanged:{} sourcesChanged:{} entries={} ageMs={}",
+					this.menu.containerId,
+					recipeId,
+					dirtyBefore,
+					recipeChanged,
+					gridChanged,
+					sourcesChanged,
+					proximityPanelCachedEntries.size(),
+					previousBuiltAtMs == 0L ? -1L : (nowMs - previousBuiltAtMs)
+			);
+		}
+		return proximityPanelCachedEntries;
+	}
+
+	private List<IngredientAvailabilityEntry> collectCurrentRecipeAvailabilityEntries(
+			CraftingRecipe recipe,
+			long recipeLookupDurationNs
+	) {
+		long startNs = System.nanoTime();
 
 		Map<String, IngredientTracker> ingredientTrackers = new LinkedHashMap<>();
 		long trackerBuildStartNs = System.nanoTime();
-		for (Ingredient ingredient : recipeOptional.get().getIngredients()) {
+		for (Ingredient ingredient : recipe.getIngredients()) {
 			if (ingredient == null || ingredient.isEmpty()) {
 				continue;
 			}
@@ -1356,11 +1430,11 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 				ProximityCrafting.LOGGER.info(
 						"[PROXC-PERF] panel.collect menu={} recipe={} ingredients={} sourceEntries={} outEntries={} lookupMs={} trackerBuildMs={} aggregateMs={} totalMs={}",
 						this.menu.containerId,
-						recipeOptional.get().getId(),
-						recipeOptional.get().getIngredients().size(),
+						recipe.getId(),
+						recipe.getIngredients().size(),
 						sourceEntriesProcessed,
 						entries.size(),
-						String.format("%.3f", (recipeLookupEndNs - recipeLookupStartNs) / 1_000_000.0D),
+						String.format("%.3f", recipeLookupDurationNs / 1_000_000.0D),
 						String.format("%.3f", (trackerBuildEndNs - trackerBuildStartNs) / 1_000_000.0D),
 						String.format("%.3f", (aggregateEndNs - aggregateStartNs) / 1_000_000.0D),
 						String.format("%.3f", totalMs)
@@ -1368,6 +1442,26 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			}
 		}
 		return entries;
+	}
+
+	private long computeCraftGridSignature() {
+		long signature = 1469598103934665603L;
+		for (int slot = 0; slot < 9; slot++) {
+			ItemStack stack = this.menu.getCraftSlots().getItem(slot);
+			if (stack.isEmpty()) {
+				signature = mixPanelSignature(signature, 0L);
+				continue;
+			}
+			signature = mixPanelSignature(signature, Item.getId(stack.getItem()));
+			signature = mixPanelSignature(signature, stack.getCount());
+			signature = mixPanelSignature(signature, stack.hasTag() ? stack.getTag().hashCode() : 0);
+		}
+		return signature;
+	}
+
+	private static long mixPanelSignature(long current, long value) {
+		current ^= value;
+		return current * 1099511628211L;
 	}
 
 	private static ItemStack resolveDisplayStack(Ingredient ingredient) {
@@ -1598,15 +1692,18 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 
 		if (frameMs >= PANEL_PERF_SLOW_FRAME_MS) {
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-PERF] panel.frame.slow menu={} frameMs={} collectMs={} renderMs={} entries={} sourceEntries={}",
-					this.menu.containerId,
-					String.format("%.3f", frameMs),
-					String.format("%.3f", collectNs / 1_000_000.0D),
-					String.format("%.3f", renderNs / 1_000_000.0D),
-					entryCount,
-					sourceEntryCount
-			);
+			if ((now - lastPanelSlowFrameLogAtMs) >= PANEL_SLOW_FRAME_LOG_INTERVAL_MS) {
+				lastPanelSlowFrameLogAtMs = now;
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-PERF] panel.frame.slow menu={} frameMs={} collectMs={} renderMs={} entries={} sourceEntries={}",
+						this.menu.containerId,
+						String.format("%.3f", frameMs),
+						String.format("%.3f", collectNs / 1_000_000.0D),
+						String.format("%.3f", renderNs / 1_000_000.0D),
+						entryCount,
+						sourceEntryCount
+				);
+			}
 		}
 
 		if (now - panelPerfWindowStartMs >= PANEL_PERF_LOG_INTERVAL_MS) {
@@ -1634,6 +1731,9 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	public void onSourceSnapshotAppliedClient(int entryCount, boolean sourcesChanged) {
 		sourceSyncInFlight = false;
 		ProximityCraftingEmiCraftableFilterController.onSourceSyncStateUpdated(this.menu, false, sourcesChanged);
+		if (sourcesChanged) {
+			handleProximityPanelSourceChange();
+		}
 		if (sourcesChanged && ProximityCraftingEmiCraftableFilterController.isEnabledFor(this.menu.containerId)) {
 			if (recipeActionInFlight || pendingFillRequest != null || pendingAdjustSteps != 0) {
 				deferredRecipeBookRefreshAfterAction = true;
@@ -1687,6 +1787,23 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		clearRecipeActionInFlight();
 		processQueuedRecipeActions("feedback");
 		flushDeferredRecipeBookRefreshAfterAction("feedback");
+	}
+
+	private void handleProximityPanelSourceChange() {
+		List<ProximityCraftingMenu.RecipeBookSourceEntry> currentSources = this.menu.getClientRecipeBookSupplementalSources();
+		// If panel is in "no recipe" state, source updates do not change rendered values.
+		if (proximityPanelCachedRecipeId == null
+				&& proximityPanelCachedEntries.isEmpty()
+				&& !proximityPanelCacheDirty) {
+			proximityPanelCachedSourcesRef = currentSources;
+			return;
+		}
+		proximityPanelCachedSourcesRef = currentSources;
+		markProximityPanelCacheDirty();
+	}
+
+	private void markProximityPanelCacheDirty() {
+		proximityPanelCacheDirty = true;
 	}
 
 	public static boolean enqueueRecipeFillIfScreenOpen(
