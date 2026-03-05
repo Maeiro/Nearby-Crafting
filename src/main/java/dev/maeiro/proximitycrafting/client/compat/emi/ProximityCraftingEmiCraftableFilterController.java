@@ -1021,22 +1021,6 @@ public final class ProximityCraftingEmiCraftableFilterController {
 		return stackedContents;
 	}
 
-	private static Set<String> computeCraftableOutputItemIds(ProximityCraftingMenu menu) {
-		Set<String> itemIds = new LinkedHashSet<>();
-		for (CraftingRecipe recipe : computeCraftableRecipes(menu)) {
-			ItemStack result = recipe.getResultItem(menu.getLevel().registryAccess());
-			if (result.isEmpty() || !result.isItemEnabled(menu.getLevel().enabledFeatures())) {
-				continue;
-			}
-
-			ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(result.getItem());
-			if (itemId != null) {
-				itemIds.add(itemId.toString());
-			}
-		}
-		return itemIds;
-	}
-
 	@Nullable
 	private static ResourceLocation resolveCraftableRecipeIdForOutput(ProximityCraftingMenu menu, ItemStack outputStack) {
 		if (outputStack.isEmpty() || menu.getLevel() == null) {
