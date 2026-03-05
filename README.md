@@ -2,6 +2,9 @@
 
 ![Proximity Crafting Icon](img/icon256.png)
 
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U7U3EQ9EW)
+
 **Proximity Crafting** is a Forge 1.20.1 mod that adds a custom crafting table which can use ingredients from nearby inventories, so you do not need to manually move everything into your player inventory first.
 
 ## What This Mod Does
@@ -89,5 +92,3 @@ All options are under `proximityCrafting`:
 
 ## License
 This project is licensed under **GPL-3.0-only**.
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U7U3EQ9EW)
