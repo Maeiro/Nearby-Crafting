@@ -22,6 +22,7 @@ public class RecipeFillService {
 
 	public static FillResult fillFromRecipe(ProximityCraftingMenu menu, CraftingRecipe recipe, boolean craftAll) {
 		long totalStartNs = System.nanoTime();
+		menu.beginCraftGridBulkMutation();
 		// Keep selected recipe context even if fill fails, so scroll scaling can start from selection.
 		menu.setLastPlacedRecipe(recipe);
 		List<Ingredient> targetGrid = buildTargetGrid(recipe);
@@ -47,7 +48,36 @@ public class RecipeFillService {
 		long planEndNs = System.nanoTime();
 
 		if (firstPlanOptional.isEmpty()) {
-			logPerf("fillFromRecipe.fail.no_plan", menu, recipe, craftAll, sources.size(), clearStartNs, clearEndNs, scanStartNs, scanEndNs, planStartNs, planEndNs, 0L, 0L, totalStartNs);
+			long slotsChangedStartNs = System.nanoTime();
+			menu.endCraftGridBulkMutation();
+			long slotsChangedEndNs = System.nanoTime();
+			long broadcastStartNs = System.nanoTime();
+			menu.broadcastChanges();
+			long broadcastEndNs = System.nanoTime();
+			logPerf(
+					"fillFromRecipe.fail.no_plan",
+					menu,
+					recipe,
+					craftAll,
+					sources.size(),
+					clearStartNs,
+					clearEndNs,
+					scanStartNs,
+					scanEndNs,
+					planStartNs,
+					planEndNs,
+					0L,
+					0L,
+					0L,
+					0L,
+					0L,
+					0L,
+					slotsChangedStartNs,
+					slotsChangedEndNs,
+					broadcastStartNs,
+					broadcastEndNs,
+					totalStartNs
+			);
 			return FillResult.failure("proximitycrafting.feedback.not_enough_ingredients");
 		}
 
@@ -55,29 +85,121 @@ public class RecipeFillService {
 		ExtractionCommitResult firstCommit = firstPlanOptional.get().commit();
 		long commitEndNs = System.nanoTime();
 		if (firstCommit == null) {
-			logPerf("fillFromRecipe.fail.commit_null", menu, recipe, craftAll, sources.size(), clearStartNs, clearEndNs, scanStartNs, scanEndNs, planStartNs, planEndNs, commitStartNs, commitEndNs, totalStartNs);
+			long slotsChangedStartNs = System.nanoTime();
+			menu.endCraftGridBulkMutation();
+			long slotsChangedEndNs = System.nanoTime();
+			long broadcastStartNs = System.nanoTime();
+			menu.broadcastChanges();
+			long broadcastEndNs = System.nanoTime();
+			logPerf(
+					"fillFromRecipe.fail.commit_null",
+					menu,
+					recipe,
+					craftAll,
+					sources.size(),
+					clearStartNs,
+					clearEndNs,
+					scanStartNs,
+					scanEndNs,
+					planStartNs,
+					planEndNs,
+					commitStartNs,
+					commitEndNs,
+					0L,
+					0L,
+					0L,
+					0L,
+					slotsChangedStartNs,
+					slotsChangedEndNs,
+					broadcastStartNs,
+					broadcastEndNs,
+					totalStartNs
+			);
 			return FillResult.failure("proximitycrafting.feedback.fill_failed");
 		}
 
+		long applyStartNs = System.nanoTime();
 		if (!applyCommitAsSet(menu, firstCommit)) {
+			long applyEndNs = System.nanoTime();
 			rollbackCommit(firstCommit);
-			logPerf("fillFromRecipe.fail.apply_set", menu, recipe, craftAll, sources.size(), clearStartNs, clearEndNs, scanStartNs, scanEndNs, planStartNs, planEndNs, commitStartNs, commitEndNs, totalStartNs);
+			long slotsChangedStartNs = System.nanoTime();
+			menu.endCraftGridBulkMutation();
+			long slotsChangedEndNs = System.nanoTime();
+			long broadcastStartNs = System.nanoTime();
+			menu.broadcastChanges();
+			long broadcastEndNs = System.nanoTime();
+			logPerf(
+					"fillFromRecipe.fail.apply_set",
+					menu,
+					recipe,
+					craftAll,
+					sources.size(),
+					clearStartNs,
+					clearEndNs,
+					scanStartNs,
+					scanEndNs,
+					planStartNs,
+					planEndNs,
+					commitStartNs,
+					commitEndNs,
+					applyStartNs,
+					applyEndNs,
+					0L,
+					0L,
+					slotsChangedStartNs,
+					slotsChangedEndNs,
+					broadcastStartNs,
+					broadcastEndNs,
+					totalStartNs
+			);
 			return FillResult.failure("proximitycrafting.feedback.fill_failed");
 		}
+		long applyEndNs = System.nanoTime();
 
 		int loadedCrafts = 1;
+		long additionalStartNs = 0L;
+		long additionalEndNs = 0L;
 		if (craftAll) {
+			additionalStartNs = System.nanoTime();
 			loadedCrafts += fillAdditionalCrafts(menu, pool, targetGrid);
+			additionalEndNs = System.nanoTime();
 		}
 
-		menu.slotsChanged(menu.getCraftSlots());
+		long slotsChangedStartNs = System.nanoTime();
+		menu.endCraftGridBulkMutation();
+		long slotsChangedEndNs = System.nanoTime();
+		long broadcastStartNs = System.nanoTime();
 		menu.broadcastChanges();
+		long broadcastEndNs = System.nanoTime();
 
 		if (ProximityCrafting.LOGGER.isDebugEnabled()) {
 			ProximityCrafting.LOGGER.debug("Filled proximity crafting grid for recipe {}", recipe.getClass().getSimpleName());
 		}
 
-		logPerf("fillFromRecipe.success", menu, recipe, craftAll, sources.size(), clearStartNs, clearEndNs, scanStartNs, scanEndNs, planStartNs, planEndNs, commitStartNs, commitEndNs, totalStartNs);
+		logPerf(
+				"fillFromRecipe.success",
+				menu,
+				recipe,
+				craftAll,
+				sources.size(),
+				clearStartNs,
+				clearEndNs,
+				scanStartNs,
+				scanEndNs,
+				planStartNs,
+				planEndNs,
+				commitStartNs,
+				commitEndNs,
+				applyStartNs,
+				applyEndNs,
+				additionalStartNs,
+				additionalEndNs,
+				slotsChangedStartNs,
+				slotsChangedEndNs,
+				broadcastStartNs,
+				broadcastEndNs,
+				totalStartNs
+		);
 
 		if (craftAll) {
 			return FillResult.success("proximitycrafting.feedback.filled_max", loadedCrafts);
@@ -210,8 +332,10 @@ public class RecipeFillService {
 
 	public static FillResult refillLastRecipe(ProximityCraftingMenu menu) {
 		long startNs = System.nanoTime();
+		menu.beginCraftGridBulkMutation();
 		CraftingRecipe lastRecipe = menu.getLastPlacedRecipe();
 		if (lastRecipe == null) {
+			menu.endCraftGridBulkMutation();
 			return FillResult.failure("proximitycrafting.feedback.no_recipe_selected");
 		}
 
@@ -226,20 +350,23 @@ public class RecipeFillService {
 		IngredientSourcePool pool = new IngredientSourcePool(sources);
 		Optional<ExtractionPlan> refillPlanOptional = pool.plan(targetGrid);
 		if (refillPlanOptional.isEmpty()) {
+			menu.endCraftGridBulkMutation();
 			return FillResult.failure("proximitycrafting.feedback.not_enough_ingredients");
 		}
 
 		ExtractionCommitResult refillCommit = refillPlanOptional.get().commit();
 		if (refillCommit == null) {
+			menu.endCraftGridBulkMutation();
 			return FillResult.failure("proximitycrafting.feedback.fill_failed");
 		}
 
 		if (!applyCommitAsAdd(menu, refillCommit)) {
 			rollbackCommit(refillCommit);
+			menu.endCraftGridBulkMutation();
 			return FillResult.failure("proximitycrafting.feedback.fill_failed");
 		}
 
-		menu.slotsChanged(menu.getCraftSlots());
+		menu.endCraftGridBulkMutation();
 		menu.broadcastChanges();
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
@@ -263,12 +390,15 @@ public class RecipeFillService {
 
 	public static FillResult addCrafts(ProximityCraftingMenu menu, CraftingRecipe recipe, int requestedCrafts) {
 		long startNs = System.nanoTime();
+		menu.beginCraftGridBulkMutation();
 		if (requestedCrafts <= 0) {
+			menu.endCraftGridBulkMutation();
 			return FillResult.success("proximitycrafting.feedback.filled", 0);
 		}
 
 		List<Ingredient> targetGrid = buildTargetGrid(recipe);
 		if (!hasRoomForSingleCraftAdd(menu, targetGrid)) {
+			menu.endCraftGridBulkMutation();
 			return FillResult.failure("proximitycrafting.feedback.not_enough_space");
 		}
 
@@ -310,7 +440,7 @@ public class RecipeFillService {
 		}
 
 		if (appliedCrafts > 0) {
-			menu.slotsChanged(menu.getCraftSlots());
+			menu.endCraftGridBulkMutation();
 			menu.broadcastChanges();
 			if (isDebugLoggingEnabled()) {
 				ProximityCrafting.LOGGER.info(
@@ -325,6 +455,7 @@ public class RecipeFillService {
 			}
 			return FillResult.success("proximitycrafting.feedback.filled", appliedCrafts);
 		}
+		menu.endCraftGridBulkMutation();
 
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
@@ -374,7 +505,9 @@ public class RecipeFillService {
 
 	public static FillResult removeCrafts(ProximityCraftingMenu menu, CraftingRecipe recipe, int requestedCrafts) {
 		long startNs = System.nanoTime();
+		menu.beginCraftGridBulkMutation();
 		if (requestedCrafts <= 0) {
+			menu.endCraftGridBulkMutation();
 			return FillResult.success("proximitycrafting.feedback.filled", 0);
 		}
 
@@ -386,11 +519,13 @@ public class RecipeFillService {
 			}
 			ItemStack current = menu.getCraftSlots().getItem(slot);
 			if (current.isEmpty() || !targetGrid.get(slot).test(current)) {
+				menu.endCraftGridBulkMutation();
 				return FillResult.failure("proximitycrafting.feedback.cannot_reduce_loaded_recipe");
 			}
 			maxRemovableCrafts = Math.min(maxRemovableCrafts, current.getCount());
 		}
 		if (maxRemovableCrafts <= 0 || maxRemovableCrafts == Integer.MAX_VALUE) {
+			menu.endCraftGridBulkMutation();
 			return FillResult.failure("proximitycrafting.feedback.cannot_reduce_loaded_recipe");
 		}
 
@@ -400,11 +535,12 @@ public class RecipeFillService {
 				continue;
 			}
 			if (!menu.removeFromCraftSlotToSources(slot, craftsToRemove)) {
+				menu.endCraftGridBulkMutation();
 				return FillResult.failure("proximitycrafting.feedback.fill_failed");
 			}
 		}
 
-		menu.slotsChanged(menu.getCraftSlots());
+		menu.endCraftGridBulkMutation();
 		menu.broadcastChanges();
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
@@ -473,6 +609,14 @@ public class RecipeFillService {
 			long planEndNs,
 			long commitStartNs,
 			long commitEndNs,
+			long applyStartNs,
+			long applyEndNs,
+			long additionalStartNs,
+			long additionalEndNs,
+			long slotsChangedStartNs,
+			long slotsChangedEndNs,
+			long broadcastStartNs,
+			long broadcastEndNs,
 			long totalStartNs
 	) {
 		if (!isDebugLoggingEnabled()) {
@@ -480,7 +624,7 @@ public class RecipeFillService {
 		}
 		long totalEndNs = System.nanoTime();
 		ProximityCrafting.LOGGER.info(
-				"[PROXC-PERF] {} menu={} recipe={} craftAll={} sourceSlots={} clearMs={} scanMs={} planMs={} commitMs={} totalMs={}",
+				"[PROXC-PERF] {} menu={} recipe={} craftAll={} sourceSlots={} clearMs={} scanMs={} planMs={} commitMs={} applyMs={} additionalMs={} slotsChangedMs={} broadcastMs={} totalMs={}",
 				stage,
 				menu.containerId,
 				recipe.getId(),
@@ -490,6 +634,10 @@ public class RecipeFillService {
 				formatMs(scanEndNs - scanStartNs),
 				formatMs(planEndNs - planStartNs),
 				commitStartNs == 0L ? "0.000" : formatMs(commitEndNs - commitStartNs),
+				applyStartNs == 0L ? "0.000" : formatMs(applyEndNs - applyStartNs),
+				additionalStartNs == 0L ? "0.000" : formatMs(additionalEndNs - additionalStartNs),
+				slotsChangedStartNs == 0L ? "0.000" : formatMs(slotsChangedEndNs - slotsChangedStartNs),
+				broadcastStartNs == 0L ? "0.000" : formatMs(broadcastEndNs - broadcastStartNs),
 				formatMs(totalEndNs - totalStartNs)
 		);
 	}

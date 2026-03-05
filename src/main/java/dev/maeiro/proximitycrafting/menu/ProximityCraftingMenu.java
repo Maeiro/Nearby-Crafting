@@ -57,6 +57,8 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	private final BlockPos tablePos;
 	private final Map<ItemSourceRef, Integer>[] craftSlotSourceLedger = createSourceLedger();
 	private boolean sourceTrackingMutationActive;
+	private int suppressCraftSlotChangedDepth;
+	private boolean craftSlotChangesPending;
 	private boolean resultShiftCraftInProgress;
 	private boolean autoRefillAfterCraft;
 	private boolean includePlayerInventory = true;
@@ -125,6 +127,10 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 
 	@Override
 	public void slotsChanged(Container inventory) {
+		if (suppressCraftSlotChangedDepth > 0) {
+			craftSlotChangesPending = true;
+			return;
+		}
 		this.access.execute((level, pos) -> slotChangedCraftingGrid(this, level, this.player, this.craftSlots, this.resultSlots));
 	}
 
@@ -391,55 +397,61 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		if (this.player.level().isClientSide) {
 			return;
 		}
+		long startNs = System.nanoTime();
+		int clearedSlots = 0;
+		int returnedToSources = 0;
+		int returnedToInventory = 0;
+		int droppedItems = 0;
+		boolean anySlotChanged = false;
 
-		for (int slot = 0; slot < this.craftSlots.getContainerSize(); slot++) {
-			ItemStack stack = this.craftSlots.getItem(slot);
-			if (stack.isEmpty()) {
-				clearCraftSlotSource(slot);
-				continue;
-			}
-
-			ItemStack remaining = stack.copy();
-			Map<ItemSourceRef, Integer> sourceAllocations = craftSlotSourceLedger[slot];
-			for (Map.Entry<ItemSourceRef, Integer> allocation : sourceAllocations.entrySet()) {
-				if (remaining.isEmpty()) {
-					break;
-				}
-
-				ItemSourceRef sourceRef = allocation.getKey();
-				int targetAmount = Math.min(allocation.getValue(), remaining.getCount());
-				if (targetAmount <= 0) {
+		beginCraftGridBulkMutation();
+		try {
+			for (int slot = 0; slot < this.craftSlots.getContainerSize(); slot++) {
+				ItemStack stack = this.craftSlots.getItem(slot);
+				Map<ItemSourceRef, Integer> sourceAllocations = craftSlotSourceLedger[slot];
+				if (stack.isEmpty()) {
+					if (!sourceAllocations.isEmpty()) {
+						clearCraftSlotSource(slot);
+					}
 					continue;
 				}
+				clearedSlots++;
 
-				try {
-					ItemStack toReturn = remaining.copy();
-					toReturn.setCount(targetAmount);
-					ItemStack notInserted = sourceRef.handler().insertItem(sourceRef.slot(), toReturn, false);
-					int inserted = targetAmount - notInserted.getCount();
-					if (inserted > 0) {
-						remaining.shrink(inserted);
-					}
-				} catch (RuntimeException exception) {
-					ProximityCrafting.LOGGER.warn(
-							"Failed to return crafting item to source {}:{}; fallback to player inventory",
-							sourceRef.sourceType(),
-							sourceRef.slot(),
-							exception
-					);
+				ItemStack remaining = stack.copy();
+				if (!sourceAllocations.isEmpty()) {
+					returnedToSources += returnStackToTrackedSources(sourceAllocations, remaining);
 				}
-			}
 
-			boolean inserted = this.player.getInventory().add(remaining);
-			if (!inserted && !remaining.isEmpty()) {
-				this.player.drop(remaining, false);
-			}
+				int remainingBeforeInventory = remaining.getCount();
+				this.player.getInventory().add(remaining);
+				returnedToInventory += Math.max(0, remainingBeforeInventory - remaining.getCount());
+				if (!remaining.isEmpty()) {
+					droppedItems += remaining.getCount();
+					this.player.drop(remaining, false);
+				}
 
-			int slotIndex = slot;
-			runWithSourceTrackingMutation(() -> this.craftSlots.setItem(slotIndex, ItemStack.EMPTY));
-			clearCraftSlotSource(slotIndex);
+				int slotIndex = slot;
+				runWithSourceTrackingMutation(() -> this.craftSlots.setItem(slotIndex, ItemStack.EMPTY));
+				clearCraftSlotSource(slotIndex);
+				anySlotChanged = true;
+			}
+		} finally {
+			endCraftGridBulkMutation();
 		}
-		this.craftSlots.setChanged();
+		if (anySlotChanged) {
+			this.craftSlots.setChanged();
+		}
+		if (isDebugLoggingEnabled() && clearedSlots > 0) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-PERF] menu.clearCraftGrid menu={} slots={} returnedToSources={} returnedToInventory={} dropped={} took={}ms",
+					this.containerId,
+					clearedSlots,
+					returnedToSources,
+					returnedToInventory,
+					droppedItems,
+					String.format("%.3f", (System.nanoTime() - startNs) / 1_000_000.0D)
+			);
+		}
 	}
 
 	public void setCraftSlotFromSource(int slot, ItemStack stack, @Nullable ItemSourceRef sourceRef) {
@@ -456,6 +468,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		if (slot < 0 || slot >= craftSlots.getContainerSize() || count <= 0) {
 			return false;
 		}
+		long startNs = System.nanoTime();
 
 		ItemStack current = craftSlots.getItem(slot);
 		if (current.isEmpty()) {
@@ -469,14 +482,35 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 
 		ItemStack removed = current.copy();
 		removed.setCount(amountToRemove);
-		returnStackToSourcesOrPlayer(slot, removed);
+		Map<ItemSourceRef, Integer> sourceAllocations = craftSlotSourceLedger[slot];
+		boolean hadTrackedSources = !sourceAllocations.isEmpty();
+		if (hadTrackedSources) {
+			returnStackToSourcesOrPlayer(slot, removed);
+		} else {
+			this.player.getInventory().add(removed);
+			if (!removed.isEmpty()) {
+				this.player.drop(removed, false);
+			}
+		}
 
 		ItemStack updated = current.copy();
 		updated.shrink(amountToRemove);
 		int slotIndex = slot;
 		runWithSourceTrackingMutation(() -> craftSlots.setItem(slotIndex, updated.isEmpty() ? ItemStack.EMPTY : updated));
-		consumeCraftSlotSource(slotIndex, amountToRemove);
+		if (hadTrackedSources) {
+			consumeCraftSlotSource(slotIndex, amountToRemove);
+		}
 		craftSlots.setChanged();
+		if (isDebugLoggingEnabled()) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-PERF] menu.removeFromCraftSlotToSources menu={} slot={} removeCount={} hadTrackedSources={} took={}ms",
+					this.containerId,
+					slot,
+					amountToRemove,
+					hadTrackedSources,
+					String.format("%.3f", (System.nanoTime() - startNs) / 1_000_000.0D)
+			);
+		}
 		return true;
 	}
 
@@ -487,6 +521,48 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 
 		ItemStack remaining = stack.copy();
 		Map<ItemSourceRef, Integer> sourceAllocations = craftSlotSourceLedger[slot];
+		if (!sourceAllocations.isEmpty()) {
+			returnStackToTrackedSources(sourceAllocations, remaining);
+		}
+
+		boolean inserted = this.player.getInventory().add(remaining);
+		if (!inserted && !remaining.isEmpty()) {
+			this.player.drop(remaining, false);
+		}
+	}
+
+	private int returnStackToTrackedSources(Map<ItemSourceRef, Integer> sourceAllocations, ItemStack remaining) {
+		if (remaining.isEmpty() || sourceAllocations.isEmpty()) {
+			return 0;
+		}
+
+		int returnedAmount = 0;
+		if (sourceAllocations.size() == 1) {
+			Map.Entry<ItemSourceRef, Integer> allocation = sourceAllocations.entrySet().iterator().next();
+			ItemSourceRef sourceRef = allocation.getKey();
+			int targetAmount = Math.min(allocation.getValue(), remaining.getCount());
+			if (targetAmount > 0) {
+				try {
+					ItemStack toReturn = remaining.copy();
+					toReturn.setCount(targetAmount);
+					ItemStack notInserted = sourceRef.handler().insertItem(sourceRef.slot(), toReturn, false);
+					int inserted = targetAmount - notInserted.getCount();
+					if (inserted > 0) {
+						remaining.shrink(inserted);
+						returnedAmount += inserted;
+					}
+				} catch (RuntimeException exception) {
+					ProximityCrafting.LOGGER.warn(
+							"Failed to return crafting item to source {}:{}; fallback to player inventory",
+							sourceRef.sourceType(),
+							sourceRef.slot(),
+							exception
+					);
+				}
+			}
+			return returnedAmount;
+		}
+
 		for (Map.Entry<ItemSourceRef, Integer> allocation : sourceAllocations.entrySet()) {
 			if (remaining.isEmpty()) {
 				break;
@@ -505,6 +581,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 				int inserted = targetAmount - notInserted.getCount();
 				if (inserted > 0) {
 					remaining.shrink(inserted);
+					returnedAmount += inserted;
 				}
 			} catch (RuntimeException exception) {
 				ProximityCrafting.LOGGER.warn(
@@ -515,11 +592,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 				);
 			}
 		}
-
-		boolean inserted = this.player.getInventory().add(remaining);
-		if (!inserted && !remaining.isEmpty()) {
-			this.player.drop(remaining, false);
-		}
+		return returnedAmount;
 	}
 
 	public boolean canAcceptCraftSlotStack(int slot, ItemStack stack) {
@@ -625,6 +698,29 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		} finally {
 			sourceTrackingMutationActive = false;
 		}
+	}
+
+	public void beginCraftGridBulkMutation() {
+		suppressCraftSlotChangedDepth++;
+	}
+
+	public void endCraftGridBulkMutation() {
+		endCraftGridBulkMutation(true);
+	}
+
+	public void endCraftGridBulkMutation(boolean flushIfPending) {
+		if (suppressCraftSlotChangedDepth <= 0) {
+			return;
+		}
+		suppressCraftSlotChangedDepth--;
+		if (flushIfPending && suppressCraftSlotChangedDepth == 0 && craftSlotChangesPending) {
+			craftSlotChangesPending = false;
+			this.access.execute((level, pos) -> slotChangedCraftingGrid(this, level, this.player, this.craftSlots, this.resultSlots));
+		}
+	}
+
+	public void clearPendingCraftSlotChanges() {
+		craftSlotChangesPending = false;
 	}
 
 	public CraftingContainer getCraftSlots() {

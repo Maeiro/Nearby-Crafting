@@ -886,7 +886,11 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	public void requestImmediateSourceSyncAndRefresh() {
 		ProximityCraftingJeiCraftableFilterController.prewarmSnapshot(this.menu, "manual_sync_request");
 		requestRecipeBookSourceSync();
-		scheduleDeferredRecipeBookRefresh();
+		// EMI craftable-only uses its own idle refresh gate to avoid refresh thrash
+		// while actions are still being processed.
+		if (!ProximityCraftingEmiCraftableFilterController.isEnabledFor(this.menu.containerId)) {
+			scheduleDeferredRecipeBookRefresh();
+		}
 	}
 
 	public void showInfoStatusMessage(Component message) {
@@ -1514,6 +1518,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			return;
 		}
 		lastRecipeActionQueuedAtMs = System.currentTimeMillis();
+		ProximityCraftingEmiCraftableFilterController.onRecipeActionQueued(this.menu);
 
 		if (inFlightFillRequest != null && inFlightFillRequest.matches(recipeId, craftAll)) {
 			if (isDebugLoggingEnabled()) {
@@ -1549,6 +1554,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			return;
 		}
 		lastRecipeActionQueuedAtMs = System.currentTimeMillis();
+		ProximityCraftingEmiCraftableFilterController.onRecipeActionQueued(this.menu);
 		int before = this.pendingAdjustSteps;
 		long combined = (long) before + steps;
 		if (combined > RECIPE_ACTION_MAX_ABS_STEPS) {
@@ -1734,26 +1740,18 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	public void onSourceSnapshotAppliedClient(int entryCount, boolean sourcesChanged) {
+		boolean hadSourceSyncInFlight = sourceSyncInFlight;
+		long now = System.currentTimeMillis();
 		sourceSyncInFlight = false;
 		ProximityCraftingEmiCraftableFilterController.onSourceSyncStateUpdated(this.menu, false, sourcesChanged);
 		if (sourcesChanged) {
 			handleProximityPanelSourceChange();
 		}
 		if (sourcesChanged && ProximityCraftingEmiCraftableFilterController.isEnabledFor(this.menu.containerId)) {
-			if (recipeActionInFlight || pendingFillRequest != null || pendingAdjustSteps != 0) {
-				deferredRecipeBookRefreshAfterAction = true;
-				if (isDebugLoggingEnabled()) {
-					ProximityCrafting.LOGGER.info(
-							"[PROXC-PERF] client.deferRecipeBookRefresh menu={} reason=recipe_action_busy inFlight={} pendingFill={} pendingAdjust={}",
-							this.menu.containerId,
-							recipeActionInFlight,
-							pendingFillRequest == null ? "null" : pendingFillRequest.recipeId(),
-							pendingAdjustSteps
-					);
-				}
-			} else {
-				scheduleDeferredRecipeBookRefresh();
-			}
+			// EMI refresh is intentionally idle-first and controlled by the EMI controller;
+			// avoid bouncing full refresh requests on every action snapshot.
+			deferredRecipeBookRefreshAfterAction = false;
+			deferredRefreshTicks = 0;
 		}
 		if (sourceSyncQueued) {
 			sourceSyncQueued = false;
@@ -1765,13 +1763,21 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		if (!isDebugLoggingEnabled()) {
 			return;
 		}
-		long now = System.currentTimeMillis();
-		long elapsed = lastSourceSyncSentAtMs == 0L ? -1L : (now - lastSourceSyncSentAtMs);
+		long sourceSyncRttMs = (hadSourceSyncInFlight && lastSourceSyncSentAtMs != 0L)
+				? (now - lastSourceSyncSentAtMs)
+				: -1L;
+		long actionSnapshotApplyDelayMs = (!hadSourceSyncInFlight && lastRecipeActionSentAtMs != 0L)
+				? (now - lastRecipeActionSentAtMs)
+				: -1L;
+		boolean actionBusy = recipeActionInFlight || pendingFillRequest != null || pendingAdjustSteps != 0;
 		ProximityCrafting.LOGGER.info(
-				"[PROXC-PERF] client.sourceSnapshotApplied menu={} entries={} requestToApplyMs={}",
+				"[PROXC-PERF] client.sourceSnapshotApplied menu={} entries={} source_sync_rtt_ms={} action_snapshot_apply_delay_ms={} hadSourceSyncInFlight={} actionBusy={}",
 				this.menu.containerId,
 				entryCount,
-				elapsed
+				sourceSyncRttMs,
+				actionSnapshotApplyDelayMs,
+				hadSourceSyncInFlight,
+				actionBusy
 		);
 	}
 
