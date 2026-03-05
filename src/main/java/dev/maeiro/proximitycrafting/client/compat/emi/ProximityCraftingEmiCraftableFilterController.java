@@ -70,6 +70,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 	@Nullable
 	private static CraftableComputationState craftableComputation;
 	private static final Set<String> lastAppliedCraftableOutputIds = new LinkedHashSet<>();
+	private static final Set<String> stickyCraftableOutputItemIds = new LinkedHashSet<>();
 	private static List<?> pinnedIndexStacks = List.of();
 	private static long lastRuntimeLogAtMs = 0L;
 	private static long lastComputeSliceWarnLogAtMs = 0L;
@@ -185,6 +186,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 
 		enabled = true;
 		activeContainerId = menu.containerId;
+		applyStartupCraftableView(menu);
 		lastRefreshAtMs = 0L;
 		nextRefreshAllowedAtMs = System.currentTimeMillis() + ENABLE_REFRESH_DELAY_MS;
 		pendingRefresh = true;
@@ -497,6 +499,8 @@ public final class ProximityCraftingEmiCraftableFilterController {
 			hasAppliedCraftables = true;
 			lastAppliedCraftableOutputIds.clear();
 			lastAppliedCraftableOutputIds.addAll(craftableOutputIds);
+			stickyCraftableOutputItemIds.clear();
+			stickyCraftableOutputItemIds.addAll(craftableOutputIds);
 			lastInputSignature = inputSignature;
 			sourceSnapshotDirty = false;
 			pendingRefresh = false;
@@ -999,6 +1003,8 @@ public final class ProximityCraftingEmiCraftableFilterController {
 		cachedAvailabilitySignature = state.availabilitySignature;
 		cachedAvailabilityContainerId = state.containerId;
 		cachedCraftableOutputItemIds = Set.copyOf(craftableOutputIds);
+		stickyCraftableOutputItemIds.clear();
+		stickyCraftableOutputItemIds.addAll(craftableOutputIds);
 		cachedCraftableRecipeIdsByOutputKey.clear();
 		cachedCraftableRecipeIdsByOutputKey.putAll(recipeIdsByOutputKey);
 		craftableComputation = null;
@@ -1015,6 +1021,37 @@ public final class ProximityCraftingEmiCraftableFilterController {
 					state.availabilitySignature,
 					state.craftableRecipes.size(),
 					craftableOutputIds.size()
+			);
+		}
+	}
+
+	private static void applyStartupCraftableView(ProximityCraftingMenu menu) {
+		Object indexType = resolveSidebarType("INDEX");
+		if (indexType == null) {
+			return;
+		}
+
+		applySearchSidebarConfig(indexType);
+		List<?> indexIngredients = getAllIndexStacks();
+		if (indexIngredients.isEmpty()) {
+			indexIngredients = getSidebarStacks(indexType);
+		}
+
+		List<Object> filteredIndexStacks = stickyCraftableOutputItemIds.isEmpty()
+				? List.of()
+				: filterIngredientsByItemId(indexIngredients, stickyCraftableOutputItemIds);
+		setIndexFilteredStacks(filteredIndexStacks);
+		pinnedIndexStacks = List.copyOf(filteredIndexStacks);
+		focusSearchSidebarType(indexType);
+		requestSearchRefreshOnly();
+
+		if (isDebugLoggingEnabled()) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-EMI] startupView menu={} stickyOutputs={} filteredIndex={} indexCandidates={}",
+					menu.containerId,
+					stickyCraftableOutputItemIds.size(),
+					filteredIndexStacks.size(),
+					indexIngredients.size()
 			);
 		}
 	}
