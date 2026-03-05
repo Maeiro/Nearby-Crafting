@@ -57,6 +57,26 @@ public final class ProximityCraftingEmiOverlayButtonEvents {
 	}
 
 	@SubscribeEvent(priority = EventPriority.HIGHEST)
+	public static void onMouseScrolled(ScreenEvent.MouseScrolled.Pre event) {
+		if (!(event.getScreen() instanceof ProximityCraftingScreen screen)) {
+			return;
+		}
+		if (!ProximityCraftingEmiCraftableFilterController.isRuntimeAvailable()) {
+			return;
+		}
+
+		ProximityCraftingMenu menu = screen.getMenu();
+		if (!ProximityCraftingEmiCraftableFilterController.isEnabledFor(menu.containerId)) {
+			return;
+		}
+
+		// Route scroll to Proximity Crafting incremental logic first.
+		screen.tryHandleRecipeScaleScroll(event.getMouseX(), event.getMouseY(), event.getScrollDelta(), "emi_pre");
+		// Always cancel while craftable-only is active to prevent EMI page scrolling conflicts.
+		event.setCanceled(true);
+	}
+
+	@SubscribeEvent(priority = EventPriority.HIGHEST)
 	public static void onMouseReleased(ScreenEvent.MouseButtonReleased.Pre event) {
 		if (event.getButton() != 0) {
 			return;
@@ -153,7 +173,6 @@ public final class ProximityCraftingEmiOverlayButtonEvents {
 		int mouseY = (int) event.getMouseY();
 		boolean hovered = buttonBounds.contains(mouseX, mouseY);
 		boolean enabled = ProximityCraftingEmiCraftableFilterController.isEnabledFor(menu.containerId);
-		boolean transition = ProximityCraftingEmiCraftableFilterController.isTransitionBlockingInput();
 
 		int u = BUTTON_U + (enabled ? BUTTON_STATE_X_DIFF : 0);
 		int v = BUTTON_V + (hovered ? BUTTON_HOVER_Y_DIFF : 0);
@@ -166,16 +185,6 @@ public final class ProximityCraftingEmiOverlayButtonEvents {
 				buttonBounds.getWidth(),
 				buttonBounds.getHeight()
 		);
-
-		if (transition) {
-			event.getGuiGraphics().fill(
-					buttonBounds.getX(),
-					buttonBounds.getY(),
-					buttonBounds.getX() + buttonBounds.getWidth(),
-					buttonBounds.getY() + buttonBounds.getHeight(),
-					0x88000000
-			);
-		}
 
 		if (hovered) {
 			Component tooltip = enabled
