@@ -42,7 +42,7 @@ import java.util.Optional;
 public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	public static final int RESULT_SLOT = 0;
 	private static final long SERVER_SNAPSHOT_CACHE_TTL_MS = 3000L;
-	private static final long ADJUST_SNAPSHOT_MIN_INTERVAL_MS = 90L;
+	private static final long ADJUST_SNAPSHOT_MIN_INTERVAL_MS = 250L;
 	private static final int CRAFT_SLOT_START = 1;
 	private static final int CRAFT_SLOT_END = 10;
 	private static final int INV_SLOT_START = 10;
@@ -331,27 +331,12 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		}
 
 		setLastPlacedRecipe(activeRecipe);
-		int appliedSteps = 0;
-		FillResult lastResult = FillResult.failure("proximitycrafting.feedback.fill_failed");
 		int direction = steps > 0 ? 1 : -1;
-
-		for (int i = 0; i < Math.abs(steps); i++) {
-			FillResult stepResult = direction > 0
-					? RecipeFillService.addSingleCraft(this, activeRecipe)
-					: RecipeFillService.removeSingleCraft(this, activeRecipe);
-			if (!stepResult.success()) {
-				if (isDebugLoggingEnabled()) {
-					ProximityCrafting.LOGGER.info(
-							"[PROXC-SCROLL] menu stopped at iteration={} reason={}",
-							i,
-							stepResult.messageKey()
-					);
-				}
-				lastResult = stepResult;
-				break;
-			}
-			appliedSteps++;
-		}
+		int requestedSteps = Math.abs(steps);
+		FillResult batchResult = direction > 0
+				? RecipeFillService.addCrafts(this, activeRecipe, requestedSteps)
+				: RecipeFillService.removeCrafts(this, activeRecipe, requestedSteps);
+		int appliedSteps = batchResult.success() ? batchResult.craftedAmount() : 0;
 
 		if (appliedSteps > 0) {
 			invalidateServerRecipeBookSnapshotCache();
@@ -370,6 +355,14 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 			}
 			return FillResult.success(messageKey, appliedSteps);
 		}
+
+		if (isDebugLoggingEnabled() && batchResult.success()) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-SCROLL] menu adjust had no effect requested={} recipe={} reason=no_applied_steps",
+					requestedSteps,
+					activeRecipe.getId()
+			);
+		}
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
 					"[PROXC-PERF] menu.adjustRecipeLoad.fail menu={} steps={} applied={} recipe={} reason={} took={}ms",
@@ -377,12 +370,12 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 					steps,
 					appliedSteps,
 					activeRecipe.getId(),
-					lastResult.messageKey(),
+					batchResult.messageKey(),
 					String.format("%.3f", (System.nanoTime() - startNs) / 1_000_000.0D)
 			);
 		}
 
-		return lastResult;
+		return batchResult;
 	}
 
 	private Optional<CraftingRecipe> getCurrentCraftingRecipe() {

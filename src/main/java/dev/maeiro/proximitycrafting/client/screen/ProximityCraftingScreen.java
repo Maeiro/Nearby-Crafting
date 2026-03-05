@@ -50,10 +50,14 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private static final ResourceLocation PROXIMITY_ITEMS_TOGGLE_ON_ICON = new ResourceLocation("proximitycrafting", "icon/toggle_on.png");
 	private static final ResourceLocation PROXIMITY_ITEMS_TOGGLE_OFF_ICON = new ResourceLocation("proximitycrafting", "icon/toggle_off.png");
 	private static final int RECIPE_BOOK_SOURCE_SYNC_INTERVAL_TICKS = 20;
+	private static final int RECIPE_BOOK_SOURCE_SYNC_INTERVAL_TICKS_EMI_CRAFTABLE = 80;
 	private static final long RECIPE_BOOK_SOURCE_SYNC_MIN_INTERVAL_MS = 90L;
-	private static final long RECIPE_ACTION_SEND_INTERVAL_MS = 30L;
-	private static final long RECIPE_ACTION_IN_FLIGHT_TIMEOUT_MS = 2000L;
+	private static final long RECIPE_ACTION_SEND_INTERVAL_MS = 0L;
+	private static final long RECIPE_ACTION_IN_FLIGHT_TIMEOUT_MS = 12000L;
 	private static final long RECIPE_BOOK_SOURCE_SYNC_ACTION_COOLDOWN_MS = 400L;
+	private static final long STALE_HOVERED_SLOT_LOG_INTERVAL_MS = 250L;
+	private static final int MAX_SCROLL_STEPS_PER_EVENT = 3;
+	private static final int MAX_ABS_ADJUST_STEPS_PER_PACKET = 2;
 	private static final int RECIPE_ACTION_MAX_ABS_STEPS = 256;
 	private static final int STATUS_COLOR_SUCCESS = 0x55FF55;
 	private static final int STATUS_COLOR_FAILURE = 0xFF5555;
@@ -105,6 +109,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private double panelPerfMaxFrameMs = 0.0D;
 	private int panelPerfLastEntryCount = 0;
 	private int panelPerfLastSourceEntryCount = 0;
+	private long lastStaleHoveredSlotLogAtMs = 0L;
 	private long lastSourceSyncSentAtMs = 0L;
 	private boolean sourceSyncInFlight = false;
 	private boolean sourceSyncQueued = false;
@@ -112,6 +117,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private long lastRecipeActionSentAtMs = 0L;
 	private boolean recipeActionInFlight = false;
 	private long recipeActionInFlightStartedAtMs = 0L;
+	private boolean deferredRecipeBookRefreshAfterAction = false;
 	@Nullable
 	private PendingFillRequest inFlightFillRequest;
 	private int inFlightAdjustSteps = 0;
@@ -162,6 +168,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	public void containerTick() {
 		super.containerTick();
 		processQueuedRecipeActions("tick");
+		flushDeferredRecipeBookRefreshAfterAction("tick");
 		if (!this.vanillaRecipeBookSuppressedByEmi) {
 			this.recipeBookComponent.tick();
 		} else {
@@ -176,7 +183,8 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		long nowMs = System.currentTimeMillis();
 		if (!shouldDeferPeriodicSourceSync(nowMs)) {
 			recipeBookSourceSyncTicker++;
-			if (recipeBookSourceSyncTicker >= RECIPE_BOOK_SOURCE_SYNC_INTERVAL_TICKS) {
+			int syncIntervalTicks = getCurrentSourceSyncIntervalTicks();
+			if (recipeBookSourceSyncTicker >= syncIntervalTicks) {
 				recipeBookSourceSyncTicker = 0;
 				requestRecipeBookSourceSync();
 			}
@@ -291,7 +299,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			);
 		}
 		if (scrollDelta > 0.0D && hoveredRecipeId != null && !activeRecipeLoaded) {
-			int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
+			int steps = normalizeScrollSteps(scrollDelta, source);
 			if (isDebugLoggingEnabled()) {
 				ProximityCrafting.LOGGER.info(
 						"[PROXC-SCROLL] client source={} priming empty grid with hovered recipe={} steps={}",
@@ -310,7 +318,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		if (hoveredRecipeId != null
 				&& !hoveredRecipeId.equals(activeRecipeId)
 				&& !isSameRecipeOutput(hoveredRecipeId, activeRecipeId)) {
-			int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
+			int steps = normalizeScrollSteps(scrollDelta, source);
 			if (scrollDelta > 0.0D) {
 				if (isDebugLoggingEnabled()) {
 					ProximityCrafting.LOGGER.info(
@@ -357,10 +365,10 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 
 		if (!shouldHandle) {
-			return tryHandleOverlayHoverRecipeScroll(mouseX, mouseY, scrollDelta, activeRecipeLoaded, activeRecipeId);
+			return tryHandleOverlayHoverRecipeScroll(hoveredRecipeId, scrollDelta, activeRecipeLoaded, activeRecipeId);
 		}
 
-		int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
+		int steps = normalizeScrollSteps(scrollDelta, source);
 		int signedSteps = scrollDelta > 0.0D ? steps : -steps;
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info("[PROXC-SCROLL] client sending adjust packet steps={} menu={}", signedSteps, this.menu.containerId);
@@ -370,18 +378,16 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	private boolean tryHandleOverlayHoverRecipeScroll(
-			double mouseX,
-			double mouseY,
+			@Nullable ResourceLocation hoveredRecipeId,
 			double scrollDelta,
 			boolean activeRecipeLoaded,
 			@Nullable ResourceLocation activeRecipeId
 	) {
-		ResourceLocation hoveredRecipeId = resolveHoveredOverlayRecipeId(mouseX, mouseY);
 		if (hoveredRecipeId == null) {
 			return false;
 		}
 
-		int steps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
+		int steps = normalizeScrollSteps(scrollDelta, "overlay_hover");
 		if (!activeRecipeLoaded) {
 			if (scrollDelta <= 0.0D) {
 				return false;
@@ -419,6 +425,21 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 		sendAdjustPacket(signedSteps, "overlay_hover_adjust");
 		return true;
+	}
+
+	private int normalizeScrollSteps(double scrollDelta, String source) {
+		int rawSteps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
+		int normalizedSteps = Math.min(rawSteps, MAX_SCROLL_STEPS_PER_EVENT);
+		if (rawSteps != normalizedSteps && isDebugLoggingEnabled()) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-SCROLL] client source={} clamped scroll steps raw={} clamped={} delta={}",
+					source,
+					rawSteps,
+					normalizedSteps,
+					scrollDelta
+			);
+		}
+		return normalizedSteps;
 	}
 
 	@Nullable
@@ -1047,6 +1068,23 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private boolean isMouseOverRecipeScaleArea(double mouseX, double mouseY) {
 		int hoveredMenuSlot = getHoveredMenuSlotIndex();
 		if (hoveredMenuSlot >= RESULT_SLOT_MENU_INDEX && hoveredMenuSlot < CRAFT_SLOT_MENU_END_EXCLUSIVE) {
+			if (!isMouseWithinHoveredSlot(mouseX, mouseY) && isDebugLoggingEnabled()) {
+				long nowMs = System.currentTimeMillis();
+				if ((nowMs - lastStaleHoveredSlotLogAtMs) >= STALE_HOVERED_SLOT_LOG_INTERVAL_MS) {
+					lastStaleHoveredSlotLogAtMs = nowMs;
+					int slotX = this.hoveredSlot == null ? -1 : (this.leftPos + this.hoveredSlot.x);
+					int slotY = this.hoveredSlot == null ? -1 : (this.topPos + this.hoveredSlot.y);
+					ProximityCrafting.LOGGER.info(
+							"[PROXC-SCROLL] staleHoveredSlot menu={} slotIndex={} slotAbs=({}, {}) mouse=({}, {})",
+							this.menu.containerId,
+							hoveredMenuSlot,
+							slotX,
+							slotY,
+							(int) mouseX,
+							(int) mouseY
+					);
+				}
+			}
 			return true;
 		}
 
@@ -1060,6 +1098,18 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		boolean overGrid = mouseX >= gridLeft && mouseX < gridLeft + CRAFT_GRID_SIZE && mouseY >= gridTop && mouseY < gridTop + CRAFT_GRID_SIZE;
 		boolean overResult = mouseX >= resultLeft && mouseX < resultLeft + RESULT_SLOT_SIZE && mouseY >= resultTop && mouseY < resultTop + RESULT_SLOT_SIZE;
 		return overGrid || overResult;
+	}
+
+	private boolean isMouseWithinHoveredSlot(double mouseX, double mouseY) {
+		if (this.hoveredSlot == null) {
+			return false;
+		}
+		int slotLeft = this.leftPos + this.hoveredSlot.x;
+		int slotTop = this.topPos + this.hoveredSlot.y;
+		return mouseX >= slotLeft
+				&& mouseX < slotLeft + 16
+				&& mouseY >= slotTop
+				&& mouseY < slotTop + 16;
 	}
 
 	private int getHoveredMenuSlotIndex() {
@@ -1467,18 +1517,32 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			return;
 		}
 
-		int stepsToSend = pendingAdjustSteps;
-		pendingAdjustSteps = 0;
+		int stepsToSend = dequeueAdjustStepsForSend();
+		if (stepsToSend == 0) {
+			return;
+		}
 		ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SAdjustRecipeLoad(stepsToSend));
 		markRecipeActionInFlight(null, stepsToSend, nowMs);
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[PROXC-PERF] client.sendAdjust menu={} steps={} reason={}",
+					"[PROXC-PERF] client.sendAdjust menu={} steps={} reason={} pendingRemaining={}",
 					this.menu.containerId,
 					stepsToSend,
-					reason
+					reason,
+					pendingAdjustSteps
 			);
 		}
+	}
+
+	private int dequeueAdjustStepsForSend() {
+		if (pendingAdjustSteps == 0) {
+			return 0;
+		}
+		int direction = pendingAdjustSteps > 0 ? 1 : -1;
+		int chunk = Math.min(Math.abs(pendingAdjustSteps), MAX_ABS_ADJUST_STEPS_PER_PACKET);
+		int stepsToSend = chunk * direction;
+		pendingAdjustSteps -= stepsToSend;
+		return stepsToSend;
 	}
 
 	private boolean shouldDeferPeriodicSourceSync(long nowMs) {
@@ -1489,6 +1553,13 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			return false;
 		}
 		return (nowMs - lastRecipeActionQueuedAtMs) < RECIPE_BOOK_SOURCE_SYNC_ACTION_COOLDOWN_MS;
+	}
+
+	private int getCurrentSourceSyncIntervalTicks() {
+		if (ProximityCraftingEmiCraftableFilterController.isEnabledFor(this.menu.containerId)) {
+			return RECIPE_BOOK_SOURCE_SYNC_INTERVAL_TICKS_EMI_CRAFTABLE;
+		}
+		return RECIPE_BOOK_SOURCE_SYNC_INTERVAL_TICKS;
 	}
 
 	private void markRecipeActionInFlight(@Nullable PendingFillRequest fillRequest, int adjustSteps, long nowMs) {
@@ -1564,7 +1635,20 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		sourceSyncInFlight = false;
 		ProximityCraftingEmiCraftableFilterController.onSourceSyncStateUpdated(this.menu, false, sourcesChanged);
 		if (sourcesChanged && ProximityCraftingEmiCraftableFilterController.isEnabledFor(this.menu.containerId)) {
-			scheduleDeferredRecipeBookRefresh();
+			if (recipeActionInFlight || pendingFillRequest != null || pendingAdjustSteps != 0) {
+				deferredRecipeBookRefreshAfterAction = true;
+				if (isDebugLoggingEnabled()) {
+					ProximityCrafting.LOGGER.info(
+							"[PROXC-PERF] client.deferRecipeBookRefresh menu={} reason=recipe_action_busy inFlight={} pendingFill={} pendingAdjust={}",
+							this.menu.containerId,
+							recipeActionInFlight,
+							pendingFillRequest == null ? "null" : pendingFillRequest.recipeId(),
+							pendingAdjustSteps
+					);
+				}
+			} else {
+				scheduleDeferredRecipeBookRefresh();
+			}
 		}
 		if (sourceSyncQueued) {
 			sourceSyncQueued = false;
@@ -1602,6 +1686,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 		clearRecipeActionInFlight();
 		processQueuedRecipeActions("feedback");
+		flushDeferredRecipeBookRefreshAfterAction("feedback");
 	}
 
 	public static boolean enqueueRecipeFillIfScreenOpen(
@@ -1623,6 +1708,24 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 
 	public void scheduleDeferredRecipeBookRefresh() {
 		deferredRefreshTicks = Math.max(deferredRefreshTicks, 2);
+	}
+
+	private void flushDeferredRecipeBookRefreshAfterAction(String reason) {
+		if (!deferredRecipeBookRefreshAfterAction) {
+			return;
+		}
+		if (recipeActionInFlight || pendingFillRequest != null || pendingAdjustSteps != 0) {
+			return;
+		}
+		deferredRecipeBookRefreshAfterAction = false;
+		scheduleDeferredRecipeBookRefresh();
+		if (isDebugLoggingEnabled()) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-PERF] client.flushDeferredRecipeBookRefresh menu={} reason={}",
+					this.menu.containerId,
+					reason
+			);
+		}
 	}
 
 	private void sendClientPreferencesUpdate() {

@@ -12,6 +12,7 @@ import net.minecraftforge.network.PacketDistributor;
 import java.util.function.Supplier;
 
 public class C2SAdjustRecipeLoad {
+	private static final int MAX_ABS_STEPS_PER_PACKET = 2;
 	private final int steps;
 
 	public C2SAdjustRecipeLoad(int steps) {
@@ -46,8 +47,31 @@ public class C2SAdjustRecipeLoad {
 						player.getGameProfile().getName()
 				);
 			}
+
+			int effectiveSteps = Math.max(-MAX_ABS_STEPS_PER_PACKET, Math.min(MAX_ABS_STEPS_PER_PACKET, steps));
+			if (effectiveSteps == 0) {
+				if (isDebugLoggingEnabled()) {
+					ProximityCrafting.LOGGER.info(
+							"[PROXC-SCROLL] server ignored adjust packet after clamp steps={} menu={} player={}",
+							steps,
+							menu.containerId,
+							player.getGameProfile().getName()
+					);
+				}
+				return;
+			}
+			if (effectiveSteps != steps && isDebugLoggingEnabled()) {
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-SCROLL] server clamped adjust steps requested={} effective={} menu={} player={}",
+						steps,
+						effectiveSteps,
+						menu.containerId,
+						player.getGameProfile().getName()
+				);
+			}
+
 			long adjustStartNs = System.nanoTime();
-			FillResult result = menu.adjustRecipeLoad(steps);
+			FillResult result = menu.adjustRecipeLoad(effectiveSteps);
 			long adjustEndNs = System.nanoTime();
 			boolean shouldSendSnapshot = result.success()
 					&& result.craftedAmount() > 0
@@ -86,10 +110,11 @@ public class C2SAdjustRecipeLoad {
 			if (isDebugLoggingEnabled()) {
 				double totalMs = (System.nanoTime() - startNs) / 1_000_000.0D;
 				ProximityCrafting.LOGGER.info(
-						"[PROXC-PERF] packet.C2SAdjustRecipeLoad player={} menu={} steps={} success={} amount={} adjustMs={} snapshotMs={} totalMs={} snapshotEntries={}",
+						"[PROXC-PERF] packet.C2SAdjustRecipeLoad player={} menu={} requestedSteps={} effectiveSteps={} success={} amount={} adjustMs={} snapshotMs={} totalMs={} snapshotEntries={}",
 						player.getGameProfile().getName(),
 						menu.containerId,
 						steps,
+						effectiveSteps,
 						result.success(),
 						result.craftedAmount(),
 						String.format("%.3f", (adjustEndNs - adjustStartNs) / 1_000_000.0D),

@@ -45,6 +45,9 @@ public final class ProximityCraftingEmiCraftableFilterController {
 	private static final long REFRESH_DEBOUNCE_MS = 150L;
 	private static final long ENABLE_REFRESH_DELAY_MS = 120L;
 	private static final long CRAFTABLE_COMPUTE_BUDGET_NS = 2_000_000L;
+	private static final long CRAFTABLE_COMPUTE_SLICE_WARN_NS = 8_000_000L;
+	private static final long CRAFTABLE_COMPUTE_SLICE_WARN_LOG_INTERVAL_MS = 250L;
+	private static final long CRAFTABLE_COMPUTE_RESTART_LOG_INTERVAL_MS = 250L;
 	private static final int CRAFTABLE_COMPUTE_MIN_RECIPES_PER_SLICE = 32;
 	private static final String SEARCH_SIDEBAR_FOCUS_FIELD = "searchSidebarFocus";
 	private static final String EMPTY_SEARCH_SIDEBAR_FOCUS_FIELD = "emptySearchSidebarFocus";
@@ -62,11 +65,14 @@ public final class ProximityCraftingEmiCraftableFilterController {
 	private static long cachedAvailabilitySignature = Long.MIN_VALUE;
 	private static int cachedAvailabilityContainerId = -1;
 	private static Set<String> cachedCraftableOutputItemIds = Set.of();
+	private static final Map<String, ResourceLocation> cachedCraftableRecipeIdsByOutputKey = new LinkedHashMap<>();
 	@Nullable
 	private static CraftableComputationState craftableComputation;
 	private static final Set<String> lastAppliedCraftableOutputIds = new LinkedHashSet<>();
 	private static List<?> pinnedIndexStacks = List.of();
 	private static long lastRuntimeLogAtMs = 0L;
+	private static long lastComputeSliceWarnLogAtMs = 0L;
+	private static long lastComputeRestartLogAtMs = 0L;
 	private static boolean nativeCraftablesSuppressed = false;
 
 	@Nullable
@@ -91,7 +97,10 @@ public final class ProximityCraftingEmiCraftableFilterController {
 	}
 
 	public static boolean isTransitionBlockingInput() {
-		return transitionActive;
+		return transitionActive
+				|| sourceSyncInFlight
+				|| pendingRefresh
+				|| craftableComputation != null;
 	}
 
 	public static boolean isNativeCraftablesSuppressed() {
@@ -168,6 +177,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 			cachedAvailabilitySignature = Long.MIN_VALUE;
 			cachedAvailabilityContainerId = -1;
 			cachedCraftableOutputItemIds = Set.of();
+			cachedCraftableRecipeIdsByOutputKey.clear();
 			craftableComputation = null;
 			nextRefreshAllowedAtMs = 0L;
 		}
@@ -526,6 +536,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 			cachedAvailabilitySignature = Long.MIN_VALUE;
 			cachedAvailabilityContainerId = -1;
 			cachedCraftableOutputItemIds = Set.of();
+			cachedCraftableRecipeIdsByOutputKey.clear();
 			craftableComputation = null;
 			nextRefreshAllowedAtMs = 0L;
 			transitionActive = false;
@@ -566,8 +577,11 @@ public final class ProximityCraftingEmiCraftableFilterController {
 		if (!isDebugLoggingEnabled()) {
 			return;
 		}
+		if ("enforce:focus_ok_index".equals(stage)) {
+			return;
+		}
 		long now = System.currentTimeMillis();
-		if (now - lastRuntimeLogAtMs < 300L) {
+		if (now - lastRuntimeLogAtMs < 1500L) {
 			return;
 		}
 		lastRuntimeLogAtMs = now;
@@ -828,6 +842,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 			cachedAvailabilitySignature = availabilitySignature;
 			cachedAvailabilityContainerId = menu.containerId;
 			cachedCraftableOutputItemIds = Set.of();
+			cachedCraftableRecipeIdsByOutputKey.clear();
 			return cachedCraftableOutputItemIds;
 		}
 
@@ -846,6 +861,26 @@ public final class ProximityCraftingEmiCraftableFilterController {
 				&& existing.containerId == menu.containerId
 				&& existing.availabilitySignature == availabilitySignature) {
 			return;
+		}
+		if (existing != null && existing.containerId == menu.containerId && isDebugLoggingEnabled()) {
+			long nowMs = System.currentTimeMillis();
+			if ((nowMs - lastComputeRestartLogAtMs) >= CRAFTABLE_COMPUTE_RESTART_LOG_INTERVAL_MS) {
+				lastComputeRestartLogAtMs = nowMs;
+				int total = existing.recipeCandidates.isEmpty() ? 1 : existing.recipeCandidates.size();
+				int processed = Math.min(existing.nextRecipeIndex, total);
+				int progressPercent = Math.min(100, (processed * 100) / total);
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-EMI] compute.restart menu={} reason={} oldSignature={} newSignature={} progress={}/{} ({}%) ageMs={}",
+						menu.containerId,
+						reason,
+						existing.availabilitySignature,
+						availabilitySignature,
+						processed,
+						total,
+						progressPercent,
+						nowMs - existing.startedAtMs
+				);
+			}
 		}
 		Level level = menu.getLevel();
 		if (level == null) {
@@ -893,12 +928,33 @@ public final class ProximityCraftingEmiCraftableFilterController {
 				break;
 			}
 		}
+		long sliceElapsedNs = System.nanoTime() - sliceStartNs;
+		if (isDebugLoggingEnabled() && sliceElapsedNs >= CRAFTABLE_COMPUTE_SLICE_WARN_NS) {
+			long nowMs = System.currentTimeMillis();
+			if ((nowMs - lastComputeSliceWarnLogAtMs) >= CRAFTABLE_COMPUTE_SLICE_WARN_LOG_INTERVAL_MS) {
+				lastComputeSliceWarnLogAtMs = nowMs;
+				int total = state.recipeCandidates.isEmpty() ? 1 : state.recipeCandidates.size();
+				int progressPercent = Math.min(100, (state.nextRecipeIndex * 100) / total);
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-EMI] compute.slice.slow menu={} elapsedMs={} processed={} nextIndex={}/{} ({}%) craftableSoFar={} signature={}",
+						state.containerId,
+						String.format("%.3f", sliceElapsedNs / 1_000_000.0D),
+						processed,
+						state.nextRecipeIndex,
+						total,
+						progressPercent,
+						state.craftableRecipes.size(),
+						state.availabilitySignature
+				);
+			}
+		}
 
 		if (state.nextRecipeIndex < state.recipeCandidates.size()) {
 			return;
 		}
 
 		Set<String> craftableOutputIds = new LinkedHashSet<>();
+		Map<String, ResourceLocation> recipeIdsByOutputKey = new LinkedHashMap<>();
 		for (CraftingRecipe recipe : state.craftableRecipes) {
 			ItemStack result = recipe.getResultItem(state.level.registryAccess());
 			if (result.isEmpty() || !result.isItemEnabled(state.level.enabledFeatures())) {
@@ -908,11 +964,18 @@ public final class ProximityCraftingEmiCraftableFilterController {
 			if (itemId != null) {
 				craftableOutputIds.add(itemId.toString());
 			}
+			ResourceLocation recipeId = recipe.getId();
+			if (recipeId != null) {
+				String outputKey = getStackKey(normalizeForMatching(result));
+				recipeIdsByOutputKey.putIfAbsent(outputKey, recipeId);
+			}
 		}
 
 		cachedAvailabilitySignature = state.availabilitySignature;
 		cachedAvailabilityContainerId = state.containerId;
 		cachedCraftableOutputItemIds = Set.copyOf(craftableOutputIds);
+		cachedCraftableRecipeIdsByOutputKey.clear();
+		cachedCraftableRecipeIdsByOutputKey.putAll(recipeIdsByOutputKey);
 		craftableComputation = null;
 		if (enabled && activeContainerId == state.containerId) {
 			pendingRefresh = true;
@@ -978,6 +1041,11 @@ public final class ProximityCraftingEmiCraftableFilterController {
 	private static ResourceLocation resolveCraftableRecipeIdForOutput(ProximityCraftingMenu menu, ItemStack outputStack) {
 		if (outputStack.isEmpty() || menu.getLevel() == null) {
 			return null;
+		}
+
+		if (isEnabledFor(menu.containerId)) {
+			String outputKey = getStackKey(normalizeForMatching(outputStack));
+			return cachedCraftableRecipeIdsByOutputKey.get(outputKey);
 		}
 
 		for (CraftingRecipe recipe : computeCraftableRecipes(menu)) {
@@ -1388,6 +1456,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 	private static final class CraftableComputationState {
 		private final int containerId;
 		private final long availabilitySignature;
+		private final long startedAtMs;
 		private final Level level;
 		private final StackedContents stackedContents;
 		private final List<CraftingRecipe> recipeCandidates;
@@ -1403,6 +1472,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 		) {
 			this.containerId = containerId;
 			this.availabilitySignature = availabilitySignature;
+			this.startedAtMs = System.currentTimeMillis();
 			this.level = level;
 			this.stackedContents = stackedContents;
 			this.recipeCandidates = recipeCandidates;
