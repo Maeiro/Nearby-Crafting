@@ -454,19 +454,24 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 
 	@Nullable
 	private ResourceLocation resolveHoveredOverlayRecipeId(double mouseX, double mouseY) {
-		ResourceLocation hoveredRecipeId = ProximityCraftingEmiCraftableFilterController.resolveHoveredRecipeId(this.menu, mouseX, mouseY);
-		if (hoveredRecipeId != null) {
-			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[PROXC-SCROLL] hover recipe resolved from EMI: {}", hoveredRecipeId);
+		ResourceLocation hoveredRecipeId = null;
+		if (ProximityCraftingEmiCraftableFilterController.isEnabledFor(this.menu.containerId)) {
+			hoveredRecipeId = ProximityCraftingEmiCraftableFilterController.resolveHoveredRecipeId(this.menu, mouseX, mouseY);
+			if (hoveredRecipeId != null) {
+				if (isDebugLoggingEnabled()) {
+					ProximityCrafting.LOGGER.info("[PROXC-SCROLL] hover recipe resolved from EMI: {}", hoveredRecipeId);
+				}
+				return hoveredRecipeId;
 			}
-			return hoveredRecipeId;
 		}
-		hoveredRecipeId = ProximityCraftingJeiCraftableFilterController.resolveHoveredRecipeId(this.menu);
-		if (hoveredRecipeId != null) {
-			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[PROXC-SCROLL] hover recipe resolved from JEI: {}", hoveredRecipeId);
+		if (ProximityCraftingJeiCraftableFilterController.isEnabledFor(this.menu.containerId)) {
+			hoveredRecipeId = ProximityCraftingJeiCraftableFilterController.resolveHoveredRecipeId(this.menu);
+			if (hoveredRecipeId != null) {
+				if (isDebugLoggingEnabled()) {
+					ProximityCrafting.LOGGER.info("[PROXC-SCROLL] hover recipe resolved from JEI: {}", hoveredRecipeId);
+				}
+				return hoveredRecipeId;
 			}
-			return hoveredRecipeId;
 		}
 		hoveredRecipeId = resolveHoveredVanillaRecipeBookRecipeId();
 		if (isDebugLoggingEnabled()) {
