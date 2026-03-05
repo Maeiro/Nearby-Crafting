@@ -1,6 +1,7 @@
 package dev.maeiro.proximitycrafting.client.compat.jei;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
+import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import dev.maeiro.proximitycrafting.networking.C2SRequestRecipeFill;
@@ -12,10 +13,12 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.StackedContents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
@@ -24,6 +27,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -53,13 +57,27 @@ public final class ProximityCraftingJeiCraftableFilterController {
 	private static final Map<Object, List<Object>> removedNonItemIngredientsByType = new IdentityHashMap<>();
 	private static final long CLICK_PROBE_TIMEOUT_MS = 4000L;
 	private static final long REFRESH_DEBOUNCE_MS = 50L;  // Debounce threshold for rapid refresh calls
+	private static final long FULL_REBUILD_MIN_INTERVAL_MS = 2500L;
+	private static final long CRAFTABLE_COMPUTE_BUDGET_NS = 2_000_000L;
+	private static final int CRAFTABLE_COMPUTE_MIN_RECIPES_PER_SLICE = 32;
 	private static final int REMOVE_MUTATION_CHUNK_SIZE = 180;
 	private static final int ADD_MUTATION_CHUNK_SIZE = 64;
+	private static final long EMPTY_SIGNATURE = Long.MIN_VALUE;
 	@Nullable
 	private static ClickProbe lastClickProbe;
 	private static long lastRefreshTime = 0L;
 	private static boolean pendingIngredientListRebuild = false;  // Flag to defer overlay rebuild to next tick
+	private static boolean pendingFullIngredientListRebuild = false;
 	private static boolean pendingStateReset = false;
+	private static boolean pendingRefreshAfterTransition = false;
+	private static int pendingRefreshContainerId = -1;
+	private static long lastFullIngredientListRebuildAtMs = 0L;
+	private static long cachedAvailabilitySignature = EMPTY_SIGNATURE;
+	private static int cachedAvailabilityContainerId = -1;
+	private static List<CraftingRecipe> cachedCraftableRecipes = List.of();
+	private static Set<String> cachedCraftableOutputItemIds = Set.of();
+	@Nullable
+	private static CraftableComputationState craftableComputation;
 
 	private static boolean enabled;
 	private static int activeContainerId = -1;
@@ -69,13 +87,14 @@ public final class ProximityCraftingJeiCraftableFilterController {
 
 	/** Called every frame to process deferred operations */
 	public static void processDeferred() {
+		processCraftableComputationSlice();
 		boolean mutated = false;
 		mutated |= processMutationChunk("addIngredientsAtRuntime", pendingAddKeys, true, ADD_MUTATION_CHUNK_SIZE);
 		mutated |= processMutationChunk("removeIngredientsAtRuntime", pendingRemoveKeys, false, REMOVE_MUTATION_CHUNK_SIZE);
 
 		if (mutated && isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[NC-JEI] Deferred mutation progress addPending={} removePending={}",
+					"[PROXC-JEI] Deferred mutation progress addPending={} removePending={}",
 					pendingAddKeys.size(),
 					pendingRemoveKeys.size()
 			);
@@ -83,28 +102,63 @@ public final class ProximityCraftingJeiCraftableFilterController {
 
 		if (pendingIngredientListRebuild && pendingAddKeys.isEmpty() && pendingRemoveKeys.isEmpty()) {
 			pendingIngredientListRebuild = false;
-			forceIngredientListOverlayRebuild();
+			boolean visualRefreshApplied = forceIngredientListOverlayVisualRefresh();
+			long nowMs = System.currentTimeMillis();
+			boolean allowFullRebuild = pendingFullIngredientListRebuild
+					&& (nowMs - lastFullIngredientListRebuildAtMs) >= FULL_REBUILD_MIN_INTERVAL_MS;
+			if (allowFullRebuild && !visualRefreshApplied) {
+				forceIngredientListOverlayRebuild();
+				lastFullIngredientListRebuildAtMs = nowMs;
+			}
+			pendingFullIngredientListRebuild = false;
 		}
 
 		if (pendingStateReset && pendingAddKeys.isEmpty() && pendingRemoveKeys.isEmpty()) {
 			pendingStateReset = false;
+			pendingFullIngredientListRebuild = false;
 			removedKeys.clear();
 			universeStacksByKey.clear();
 			universeItemIdByKey.clear();
 			removedNonItemIngredientsByType.clear();
+		}
+
+		if (pendingRefreshAfterTransition
+				&& !isTransitionBlockingInput()
+				&& enabled
+				&& activeContainerId == pendingRefreshContainerId
+				&& Minecraft.getInstance().screen instanceof ProximityCraftingScreen screen
+				&& screen.getMenu().containerId == activeContainerId) {
+			pendingRefreshAfterTransition = false;
+			pendingRefreshContainerId = -1;
+			lastRefreshTime = 0L; // bypass debounce once after transition drains
+			refresh(screen.getMenu());
+			if (isDebugLoggingEnabled()) {
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-JEI] Applied deferred refresh after transition menu={}",
+						screen.getMenu().containerId
+				);
+			}
 		}
 	}
 
 	public static void onRuntimeAvailable(Object runtime) {
 		jeiRuntime = runtime;
 		itemStackIngredientType = resolveItemStackIngredientType();
+		craftableComputation = null;
+		pendingRefreshAfterTransition = false;
+		pendingRefreshContainerId = -1;
 		disableAndRestore();
+		invalidateCraftableCache();
 	}
 
 	public static void onRuntimeUnavailable() {
 		disableAndRestore();
 		jeiRuntime = null;
 		itemStackIngredientType = null;
+		craftableComputation = null;
+		pendingRefreshAfterTransition = false;
+		pendingRefreshContainerId = -1;
+		invalidateCraftableCache();
 	}
 
 	public static boolean isRuntimeAvailable() {
@@ -119,20 +173,29 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		return !pendingAddKeys.isEmpty()
 				|| !pendingRemoveKeys.isEmpty()
 				|| pendingIngredientListRebuild
-				|| pendingStateReset;
+				|| pendingStateReset
+				|| craftableComputation != null;
+	}
+
+	public static void prewarmSnapshot(ProximityCraftingMenu menu, String reason) {
+		if (!isRuntimeAvailable()) {
+			return;
+		}
+		ensureUniverseLoaded();
+		getCraftableSnapshotIfReady(menu, reason, true);
 	}
 
 	public static void setEnabled(ProximityCraftingMenu menu, boolean shouldEnable) {
 		if (!isRuntimeAvailable()) {
 			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[NC-JEI] Ignoring setEnabled(menu={}, shouldEnable={}) because runtime is unavailable", menu.containerId, shouldEnable);
+				ProximityCrafting.LOGGER.info("[PROXC-JEI] Ignoring setEnabled(menu={}, shouldEnable={}) because runtime is unavailable", menu.containerId, shouldEnable);
 			}
 			return;
 		}
 
 		if (!shouldEnable) {
 			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[NC-JEI] Disabling craftable toggle for menu={}", menu.containerId);
+				ProximityCrafting.LOGGER.info("[PROXC-JEI] Disabling craftable toggle for menu={}", menu.containerId);
 			}
 			disableAndRestore();
 			return;
@@ -151,15 +214,19 @@ public final class ProximityCraftingJeiCraftableFilterController {
 				pendingStateReset = false;
 				removedNonItemIngredientsByType.clear();
 			}
+			invalidateCraftableCache();
 		}
 
+		pendingRefreshAfterTransition = false;
+		pendingRefreshContainerId = -1;
 		activeContainerId = menu.containerId;
 		enabled = true;
 		pendingStateReset = false;
 		ensureUniverseLoaded();
+		getCraftableSnapshotIfReady(menu, "toggle_enable", true);
 		refresh(menu);
 		if (isDebugLoggingEnabled()) {
-			ProximityCrafting.LOGGER.info("[NC-JEI] Enabled craftable toggle for menu={}", menu.containerId);
+			ProximityCrafting.LOGGER.info("[PROXC-JEI] Enabled craftable toggle for menu={}", menu.containerId);
 		}
 	}
 
@@ -167,12 +234,25 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		if (!isEnabledFor(menu.containerId)) {
 			return;
 		}
+		if (isTransitionBlockingInput()) {
+			pendingRefreshAfterTransition = true;
+			pendingRefreshContainerId = menu.containerId;
+			if (isDebugLoggingEnabled()) {
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-JEI] Refresh deferred due to transition menu={} addPending={} removePending={}",
+						menu.containerId,
+						pendingAddKeys.size(),
+						pendingRemoveKeys.size()
+				);
+			}
+			return;
+		}
 		
 		// Debounce: skip rapid consecutive refresh calls
 		long now = System.currentTimeMillis();
 		if (now - lastRefreshTime < REFRESH_DEBOUNCE_MS) {
 			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[NC-JEI] Refresh debounced ({}ms since last)", now - lastRefreshTime);
+				ProximityCrafting.LOGGER.info("[PROXC-JEI] Refresh debounced ({}ms since last)", now - lastRefreshTime);
 			}
 			return;
 		}
@@ -212,13 +292,22 @@ public final class ProximityCraftingJeiCraftableFilterController {
 				ResourceLocation matchedRecipeId = resolveCraftableRecipeIdForOutput(menu, clickedItem);
 				if (matchedRecipeId != null) {
 					boolean craftAll = Screen.hasShiftDown();
-					ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(matchedRecipeId, craftAll));
+					boolean queued = ProximityCraftingScreen.enqueueRecipeFillIfScreenOpen(
+							menu,
+							matchedRecipeId,
+							craftAll,
+							"jei_direct_click"
+					);
+					if (!queued) {
+						ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(matchedRecipeId, craftAll));
+					}
 					if (isDebugLoggingEnabled()) {
 						ProximityCrafting.LOGGER.info(
-								"[NC-JEI] DirectFill menu={} recipeId={} craftAll={} ingredientSource={} item={}",
+								"[PROXC-JEI] DirectFill menu={} recipeId={} craftAll={} queued={} ingredientSource={} item={}",
 								menu.containerId,
 								matchedRecipeId,
 								craftAll,
+								queued,
 								hoveredTypedIngredient.source,
 								clickedItem.isEmpty() ? "empty" : clickedItem.getDescriptionId()
 						);
@@ -227,7 +316,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 				}
 				if (isDebugLoggingEnabled()) {
 					ProximityCrafting.LOGGER.info(
-							"[NC-JEI] DirectFill skipped menu={} reason=no_matching_craftable_recipe ingredientSource={} ingredient={}",
+							"[PROXC-JEI] DirectFill skipped menu={} reason=no_matching_craftable_recipe ingredientSource={} ingredient={}",
 							menu.containerId,
 							hoveredTypedIngredient.source,
 							readIngredientInfoForLog(typedIngredient)
@@ -312,7 +401,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		if (isDebugLoggingEnabled()) {
 			String ingredientInfo = readIngredientInfoForLog(typedIngredient);
 			ProximityCrafting.LOGGER.info(
-					"[NC-JEI] FallbackOpen menu={} mouseButton={} ingredientSource={} ingredient={} currentScreenAfterCall={} opened={}",
+					"[PROXC-JEI] FallbackOpen menu={} mouseButton={} ingredientSource={} ingredient={} currentScreenAfterCall={} opened={}",
 					menu.containerId,
 					mouseButton,
 					hoveredTypedIngredient.source,
@@ -352,7 +441,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		);
 
 		ProximityCrafting.LOGGER.info(
-				"[NC-JEI] ClickProbe phase={} menu={} enabled={} runtimeAvailable={} mouseButton={} mouse=({}, {}) ingredientSource={} ingredient={}",
+				"[PROXC-JEI] ClickProbe phase={} menu={} enabled={} runtimeAvailable={} mouseButton={} mouse=({}, {}) ingredientSource={} ingredient={}",
 				phase,
 				menu.containerId,
 				isEnabledFor(menu.containerId),
@@ -384,12 +473,12 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		}
 
 		if (clickProbe == null) {
-			ProximityCrafting.LOGGER.info("[NC-JEI] ScreenInit newScreen={} without recent click probe", screenClassName);
+			ProximityCrafting.LOGGER.info("[PROXC-JEI] ScreenInit newScreen={} without recent click probe", screenClassName);
 			return;
 		}
 
 		ProximityCrafting.LOGGER.info(
-				"[NC-JEI] ScreenInit newScreen={} afterClick={}ms probePhase={} probeMenu={} probeEnabled={} probeRuntime={} probeMouseButton={} probeIngredientSource={} probeIngredient={}",
+				"[PROXC-JEI] ScreenInit newScreen={} afterClick={}ms probePhase={} probeMenu={} probeEnabled={} probeRuntime={} probeMouseButton={} probeIngredientSource={} probeIngredient={}",
 				screenClassName,
 				now - clickProbe.timestampMs,
 				clickProbe.phase,
@@ -473,8 +562,21 @@ public final class ProximityCraftingJeiCraftableFilterController {
 
 		ensureUniverseLoaded();
 		long afterUniverse = System.nanoTime();
-		
-		Set<String> craftableOutputItemIds = computeCraftableOutputItemIds(menu);
+
+		CraftableSnapshot craftableSnapshot = getCraftableSnapshotIfReady(menu, "refresh", true);
+		if (craftableSnapshot == null) {
+			pendingRefreshAfterTransition = true;
+			pendingRefreshContainerId = menu.containerId;
+			if (isDebugLoggingEnabled()) {
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-JEI] Refresh deferred (craftable snapshot pending) menu={} universe={}",
+						menu.containerId,
+						universeStacksByKey.size()
+				);
+			}
+			return;
+		}
+		Set<String> craftableOutputItemIds = computeCraftableOutputItemIds(menu, craftableSnapshot);
 		long afterCraftable = System.nanoTime();
 
 		Set<String> desiredRemovedKeys = new LinkedHashSet<>();
@@ -487,10 +589,11 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		if (desiredRemovedKeys.equals(removedKeys) && pendingAddKeys.isEmpty() && pendingRemoveKeys.isEmpty()) {
 			long noChangeTime = System.nanoTime() - startTime;
 			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[NC-JEI] Refresh SKIPPED (no changes) in {}ms", noChangeTime / 1_000_000.0);
+				ProximityCrafting.LOGGER.info("[PROXC-JEI] Refresh SKIPPED (no changes) in {}ms", noChangeTime / 1_000_000.0);
 			}
 			if (nonItemMutated) {
 				pendingIngredientListRebuild = true;
+				pendingFullIngredientListRebuild = true;
 			}
 			return;
 		}
@@ -512,11 +615,12 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		long beforeRebuild = System.nanoTime();
 		// Rebuild after queued mutations are applied in chunks.
 		pendingIngredientListRebuild = true;
+		pendingFullIngredientListRebuild |= nonItemMutated;
 		long afterRebuild = System.nanoTime();
 
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[NC-JEI] Refresh QUEUED menu={} universe={} craftableItems={} queueHide={} queueRestore={} nonItemMutated={} | Time: universeLoadMs={} craftableMs={} hideMs={} enqueueMs={} totalMs={}",
+					"[PROXC-JEI] Refresh QUEUED menu={} universe={} craftableItems={} queueHide={} queueRestore={} nonItemMutated={} | Time: universeLoadMs={} craftableMs={} hideMs={} enqueueMs={} totalMs={}",
 					menu.containerId,
 					universeStacksByKey.size(),
 					craftableOutputItemIds.size(),
@@ -563,37 +667,35 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			}
 
 			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[NC-JEI] Loaded JEI item universe with {} stacks", universeStacksByKey.size());
+				ProximityCrafting.LOGGER.info("[PROXC-JEI] Loaded JEI item universe with {} stacks", universeStacksByKey.size());
 			}
 		} catch (RuntimeException exception) {
 			ProximityCrafting.LOGGER.warn("Failed to read JEI ingredient universe for craftable filtering", exception);
 		}
 	}
 
-	private static Set<String> computeCraftableOutputItemIds(ProximityCraftingMenu menu) {
-		Set<String> itemIds = new LinkedHashSet<>();
-		List<CraftingRecipe> craftableRecipes = computeCraftableRecipes(menu);
+	private static Set<String> computeCraftableOutputItemIds(ProximityCraftingMenu menu, CraftableSnapshot craftableSnapshot) {
+		Set<String> itemIds = new LinkedHashSet<>(craftableSnapshot.outputItemIds());
+		List<CraftingRecipe> craftableRecipes = craftableSnapshot.recipes();
 		List<String> sample = new ArrayList<>();
 		for (CraftingRecipe craftingRecipe : craftableRecipes) {
+			if (sample.size() >= 12) {
+				break;
+			}
 			ItemStack result = craftingRecipe.getResultItem(menu.getLevel().registryAccess());
 			if (result.isEmpty() || !result.isItemEnabled(menu.getLevel().enabledFeatures())) {
 				continue;
 			}
 
 			ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(result.getItem());
-			if (itemId == null) {
-				continue;
-			}
-
-			String itemIdString = itemId.toString();
-			if (itemIds.add(itemIdString) && sample.size() < 12) {
-				sample.add(craftingRecipe.getId() + " -> " + itemIdString);
+			if (itemId != null) {
+				sample.add(craftingRecipe.getId() + " -> " + itemId);
 			}
 		}
 
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[NC-JEI] Craftable snapshot menu={} includePlayer={} recipeCandidates={} craftableRecipes={} craftableItems={} sample={}",
+					"[PROXC-JEI] Craftable snapshot menu={} includePlayer={} recipeCandidates={} craftableRecipes={} craftableItems={} sample={}",
 					menu.containerId,
 					menu.isIncludePlayerInventory(),
 					menu.getLevel().getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING).size(),
@@ -610,8 +712,16 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		if (outputStack.isEmpty() || menu.getLevel() == null) {
 			return null;
 		}
+		if (!isEnabledFor(menu.containerId)) {
+			return resolveAnyRecipeIdForOutput(menu, outputStack);
+		}
 
-		for (CraftingRecipe craftingRecipe : computeCraftableRecipes(menu)) {
+		CraftableSnapshot craftableSnapshot = getCraftableSnapshotIfReady(menu, "resolve_output_click", true);
+		if (craftableSnapshot == null) {
+			return resolveAnyRecipeIdForOutput(menu, outputStack);
+		}
+
+		for (CraftingRecipe craftingRecipe : craftableSnapshot.recipes()) {
 			ItemStack result = craftingRecipe.getResultItem(menu.getLevel().registryAccess());
 			if (result.isEmpty() || !result.isItemEnabled(menu.getLevel().enabledFeatures())) {
 				continue;
@@ -627,6 +737,11 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		}
 
 		// Fallback: allow recipe switching from current grid-loaded ingredients.
+		return resolveAnyRecipeIdForOutput(menu, outputStack);
+	}
+
+	@Nullable
+	private static ResourceLocation resolveAnyRecipeIdForOutput(ProximityCraftingMenu menu, ItemStack outputStack) {
 		for (CraftingRecipe craftingRecipe : menu.getLevel().getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING)) {
 			if (!isEligibleCraftingRecipe(craftingRecipe)) {
 				continue;
@@ -647,42 +762,190 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		return null;
 	}
 
-	private static List<CraftingRecipe> computeCraftableRecipes(ProximityCraftingMenu menu) {
+	@Nullable
+	private static CraftableSnapshot getCraftableSnapshotIfReady(
+			ProximityCraftingMenu menu,
+			String reason,
+			boolean startComputationIfStale
+	) {
 		long startTime = System.nanoTime();
-		
+
 		long poolStart = System.nanoTime();
 		List<AvailableIngredientStack> availableStacks = buildJeiAvailableItemPool(menu);
 		long poolTime = System.nanoTime() - poolStart;
-		
-		if (availableStacks.isEmpty()) {
-			logMatcherPoolDebug(menu, availableStacks, 0, 0);
-			return List.of();
+		long availabilitySignature = computeAvailabilitySignature(menu.containerId, availableStacks);
+
+		if (availabilitySignature == cachedAvailabilitySignature && cachedAvailabilityContainerId == menu.containerId) {
+			if (isDebugLoggingEnabled()) {
+				long totalTime = System.nanoTime() - startTime;
+				ProximityCrafting.LOGGER.info(
+						"[PROXC-JEI] computeCraftableRecipes cache-hit reason={} in {}ms (pool: {}ms, results: {})",
+						reason,
+						totalTime / 1_000_000.0,
+						poolTime / 1_000_000.0,
+						cachedCraftableRecipes.size()
+				);
+			}
+			return new CraftableSnapshot(cachedCraftableRecipes, cachedCraftableOutputItemIds);
 		}
 
-		List<CraftingRecipe> craftableRecipes = new ArrayList<>();
-		int candidateRecipes = 0;
-		long matchingStart = System.nanoTime();
-		for (CraftingRecipe recipe : menu.getLevel().getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING)) {
+		if (availableStacks.isEmpty()) {
+			logMatcherPoolDebug(menu, availableStacks, 0, 0);
+			cachedAvailabilitySignature = availabilitySignature;
+			cachedAvailabilityContainerId = menu.containerId;
+			cachedCraftableRecipes = List.of();
+			cachedCraftableOutputItemIds = Set.of();
+			return new CraftableSnapshot(cachedCraftableRecipes, cachedCraftableOutputItemIds);
+		}
+
+		if (!startComputationIfStale) {
+			return null;
+		}
+
+		startCraftableComputation(menu, availableStacks, availabilitySignature, reason, poolTime);
+		return null;
+	}
+
+	private static void startCraftableComputation(
+			ProximityCraftingMenu menu,
+			List<AvailableIngredientStack> availableStacks,
+			long availabilitySignature,
+			String reason,
+			long poolTimeNs
+	) {
+		if (menu.getLevel() == null) {
+			return;
+		}
+
+		CraftableComputationState existing = craftableComputation;
+		if (existing != null
+				&& existing.containerId == menu.containerId
+				&& existing.availabilitySignature == availabilitySignature) {
+			return;
+		}
+
+		List<CraftingRecipe> recipeCandidates = menu.getLevel()
+				.getRecipeManager()
+				.getAllRecipesFor(RecipeType.CRAFTING);
+		craftableComputation = new CraftableComputationState(
+				menu.containerId,
+				availabilitySignature,
+				menu.getLevel(),
+				buildStackedContents(availableStacks),
+				recipeCandidates,
+				availableStacks.size(),
+				poolTimeNs,
+				System.nanoTime()
+		);
+		if (isDebugLoggingEnabled()) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-PERF] jei.compute.start menu={} reason={} signature={} poolEntries={} recipeCandidates={} poolMs={}",
+					menu.containerId,
+					reason,
+					availabilitySignature,
+					availableStacks.size(),
+					recipeCandidates.size(),
+					String.format("%.3f", poolTimeNs / 1_000_000.0D)
+			);
+		}
+	}
+
+	private static void processCraftableComputationSlice() {
+		CraftableComputationState state = craftableComputation;
+		if (state == null) {
+			return;
+		}
+
+		long sliceStartNs = System.nanoTime();
+		int processed = 0;
+		while (state.nextRecipeIndex < state.recipeCandidates.size()) {
+			CraftingRecipe recipe = state.recipeCandidates.get(state.nextRecipeIndex++);
 			if (!isEligibleCraftingRecipe(recipe)) {
 				continue;
 			}
-			candidateRecipes++;
-			if (!canCraftWithAvailableStacks(recipe, availableStacks)) {
+
+			state.eligibleRecipeCount++;
+			if (canCraftWithStackedContents(recipe, state.stackedContents)) {
+				state.craftableRecipes.add(recipe);
+			}
+			processed++;
+			if (processed >= CRAFTABLE_COMPUTE_MIN_RECIPES_PER_SLICE
+					&& (System.nanoTime() - sliceStartNs) >= CRAFTABLE_COMPUTE_BUDGET_NS) {
+				break;
+			}
+		}
+
+		if (state.nextRecipeIndex < state.recipeCandidates.size()) {
+			return;
+		}
+
+		Set<String> craftableOutputIds = new LinkedHashSet<>();
+		for (CraftingRecipe recipe : state.craftableRecipes) {
+			ItemStack result = recipe.getResultItem(state.level.registryAccess());
+			if (result.isEmpty() || !result.isItemEnabled(state.level.enabledFeatures())) {
 				continue;
 			}
-			craftableRecipes.add(recipe);
+			ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(result.getItem());
+			if (itemId != null) {
+				craftableOutputIds.add(itemId.toString());
+			}
 		}
-		long matchingTime = System.nanoTime() - matchingStart;
-		
-		logMatcherPoolDebug(menu, availableStacks, candidateRecipes, craftableRecipes.size());
-		
+
+		cachedAvailabilitySignature = state.availabilitySignature;
+		cachedAvailabilityContainerId = state.containerId;
+		cachedCraftableRecipes = List.copyOf(state.craftableRecipes);
+		cachedCraftableOutputItemIds = Set.copyOf(craftableOutputIds);
+		craftableComputation = null;
+
+		if (enabled && activeContainerId == state.containerId) {
+			pendingRefreshAfterTransition = true;
+			pendingRefreshContainerId = state.containerId;
+		}
+
 		if (isDebugLoggingEnabled()) {
-			long totalTime = System.nanoTime() - startTime;
-			ProximityCrafting.LOGGER.info("[NC-JEI] computeCraftableRecipes in {}ms (pool: {}ms, matching: {}ms, results: {})",
-					totalTime / 1_000_000.0, poolTime / 1_000_000.0, matchingTime / 1_000_000.0, craftableRecipes.size());
+			logMatcherPoolDebug(
+					state.containerId,
+					state.availablePoolEntryCount,
+					state.eligibleRecipeCount,
+					state.craftableRecipes.size()
+			);
+			long totalNs = System.nanoTime() - state.startedAtNs;
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-PERF] jei.compute.done menu={} signature={} eligibleRecipes={} craftableRecipes={} craftableItems={} totalMs={} poolMs={}",
+					state.containerId,
+					state.availabilitySignature,
+					state.eligibleRecipeCount,
+					state.craftableRecipes.size(),
+					craftableOutputIds.size(),
+					String.format("%.3f", totalNs / 1_000_000.0D),
+					String.format("%.3f", state.poolTimeNs / 1_000_000.0D)
+			);
 		}
-		
-		return craftableRecipes;
+	}
+
+	private static long computeAvailabilitySignature(int containerId, List<AvailableIngredientStack> availableStacks) {
+		if (availableStacks.isEmpty()) {
+			return EMPTY_SIGNATURE + containerId;
+		}
+		List<String> tokens = new ArrayList<>(availableStacks.size());
+		for (AvailableIngredientStack entry : availableStacks) {
+			tokens.add(getStackKey(entry.stack) + "#" + entry.count);
+		}
+		Collections.sort(tokens);
+		long hash = 1125899906842597L;
+		hash = (31L * hash) + containerId;
+		for (String token : tokens) {
+			hash = (31L * hash) + token.hashCode();
+		}
+		return hash;
+	}
+
+	private static void invalidateCraftableCache() {
+		cachedAvailabilitySignature = EMPTY_SIGNATURE;
+		cachedAvailabilityContainerId = -1;
+		cachedCraftableRecipes = List.of();
+		cachedCraftableOutputItemIds = Set.of();
+		craftableComputation = null;
 	}
 
 	private static List<AvailableIngredientStack> buildJeiAvailableItemPool(ProximityCraftingMenu menu) {
@@ -724,17 +987,12 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		});
 	}
 
-	private static boolean canCraftWithAvailableStacks(CraftingRecipe recipe, List<AvailableIngredientStack> availableStacks) {
-		List<Ingredient> ingredients = recipe.getIngredients();
-		if (ingredients == null || ingredients.isEmpty()) {
+	private static boolean canCraftWithStackedContents(CraftingRecipe recipe, StackedContents stackedContents) {
+		try {
+			return stackedContents.canCraft(recipe, null);
+		} catch (RuntimeException exception) {
 			return false;
 		}
-
-		int[] remaining = new int[availableStacks.size()];
-		for (int i = 0; i < availableStacks.size(); i++) {
-			remaining[i] = availableStacks.get(i).count;
-		}
-		return matchIngredientRecursive(ingredients, 0, availableStacks, remaining);
 	}
 
 	private static void logMatcherPoolDebug(
@@ -767,7 +1025,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		}
 
 		ProximityCrafting.LOGGER.info(
-				"[NC-JEI] MatcherPool menu={} entries={} totalItems={} diamonds={} sticks={} recipeCandidates={} craftableRecipes={} sample={}",
+				"[PROXC-JEI] MatcherPool menu={} entries={} totalItems={} diamonds={} sticks={} recipeCandidates={} craftableRecipes={} sample={}",
 				menu.containerId,
 				availableStacks.size(),
 				totalItems,
@@ -779,36 +1037,39 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		);
 	}
 
-	private static boolean matchIngredientRecursive(
-			List<Ingredient> ingredients,
-			int ingredientIndex,
-			List<AvailableIngredientStack> availableStacks,
-			int[] remaining
+	private static void logMatcherPoolDebug(
+			int menuId,
+			int poolEntries,
+			int candidateRecipes,
+			int craftableRecipes
 	) {
-		if (ingredientIndex >= ingredients.size()) {
-			return true;
-		}
+		ProximityCrafting.LOGGER.info(
+				"[PROXC-JEI] MatcherPool menu={} entries={} recipeCandidates={} craftableRecipes={}",
+				menuId,
+				poolEntries,
+				candidateRecipes,
+				craftableRecipes
+		);
+	}
 
-		Ingredient ingredient = ingredients.get(ingredientIndex);
-		if (ingredient == null || ingredient.isEmpty()) {
-			return matchIngredientRecursive(ingredients, ingredientIndex + 1, availableStacks, remaining);
-		}
-
-		for (int i = 0; i < availableStacks.size(); i++) {
-			if (remaining[i] <= 0) {
+	private static StackedContents buildStackedContents(List<AvailableIngredientStack> availableStacks) {
+		StackedContents stackedContents = new StackedContents();
+		for (AvailableIngredientStack entry : availableStacks) {
+			if (entry.count <= 0 || entry.stack.isEmpty()) {
 				continue;
 			}
-			ItemStack candidate = availableStacks.get(i).stack;
-			if (!ingredient.test(candidate)) {
-				continue;
+
+			int maxStackSize = Math.max(1, entry.stack.getMaxStackSize());
+			int remaining = entry.count;
+			while (remaining > 0) {
+				int chunkSize = Math.min(remaining, maxStackSize);
+				ItemStack stackChunk = entry.stack.copy();
+				stackChunk.setCount(chunkSize);
+				stackedContents.accountStack(stackChunk);
+				remaining -= chunkSize;
 			}
-			remaining[i]--;
-			if (matchIngredientRecursive(ingredients, ingredientIndex + 1, availableStacks, remaining)) {
-				return true;
-			}
-			remaining[i]++;
 		}
-		return false;
+		return stackedContents;
 	}
 
 	private static boolean isEligibleCraftingRecipe(CraftingRecipe recipe) {
@@ -887,11 +1148,12 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			restoreNonItemIngredients(ingredientManager);
 			// Let JEI refresh naturally while items are restored in chunks; avoid a full forced rebuild spike.
 			pendingIngredientListRebuild = false;
+			pendingFullIngredientListRebuild = false;
 		}
 
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[NC-JEI] disableAndRestore restoredItems={} restoredNonItemTypes={} universe={} activeMenu={}",
+					"[PROXC-JEI] disableAndRestore restoredItems={} restoredNonItemTypes={} universe={} activeMenu={}",
 					removedKeys.size(),
 					removedNonItemIngredientsByType.size(),
 					universeStacksByKey.size(),
@@ -900,6 +1162,10 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		}
 
 		pendingStateReset = true;
+		pendingRefreshAfterTransition = false;
+		pendingRefreshContainerId = -1;
+		craftableComputation = null;
+		invalidateCraftableCache();
 		enabled = false;
 		activeContainerId = -1;
 	}
@@ -1117,7 +1383,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			}
 
 			if (isDebugLoggingEnabled() && hiddenTypesThisRefresh > 0) {
-				ProximityCrafting.LOGGER.info("[NC-JEI] Hid non-item ingredient types in JEI: {}", hiddenTypesThisRefresh);
+				ProximityCrafting.LOGGER.info("[PROXC-JEI] Hid non-item ingredient types in JEI: {}", hiddenTypesThisRefresh);
 			}
 			return hiddenTypesThisRefresh > 0;
 		} catch (RuntimeException exception) {
@@ -1143,7 +1409,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		}
 
 		if (isDebugLoggingEnabled() && restoredTypes > 0) {
-			ProximityCrafting.LOGGER.info("[NC-JEI] Restored non-item ingredient types in JEI: {}", restoredTypes);
+			ProximityCrafting.LOGGER.info("[PROXC-JEI] Restored non-item ingredient types in JEI: {}", restoredTypes);
 		}
 	}
 
@@ -1195,7 +1461,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			if (isDebugLoggingEnabled()) {
 				long elapsedMs = (System.nanoTime() - startTime) / 1_000_000;
 				ProximityCrafting.LOGGER.info(
-						"[NC-JEI] forceIngredientListOverlayRebuild completed in {}ms (filterRebuilt={} filterNudged={} overlayUpdated={})",
+						"[PROXC-JEI] forceIngredientListOverlayRebuild completed in {}ms (filterRebuilt={} filterNudged={} overlayUpdated={})",
 						elapsedMs,
 						filterRebuilt,
 						filterNudged,
@@ -1206,10 +1472,10 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		}
 	}
 
-	private static void forceIngredientListOverlayVisualRefresh() {
+	private static boolean forceIngredientListOverlayVisualRefresh() {
 		Object runtime = jeiRuntime;
 		if (runtime == null) {
-			return;
+			return false;
 		}
 
 		try {
@@ -1217,12 +1483,14 @@ public final class ProximityCraftingJeiCraftableFilterController {
 			boolean overlayUpdated = forceOverlayScreenPropertiesUpdate(runtime);
 			if (isDebugLoggingEnabled()) {
 				ProximityCrafting.LOGGER.info(
-						"[NC-JEI] forceIngredientListOverlayVisualRefresh filterNudged={} overlayUpdated={}",
+						"[PROXC-JEI] forceIngredientListOverlayVisualRefresh filterNudged={} overlayUpdated={}",
 						filterNudged,
 						overlayUpdated
 				);
 			}
+			return filterNudged || overlayUpdated;
 		} catch (ReflectiveOperationException | RuntimeException ignored) {
+			return false;
 		}
 	}
 
@@ -1383,6 +1651,9 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		return null;
 	}
 
+	private record CraftableSnapshot(List<CraftingRecipe> recipes, Set<String> outputItemIds) {
+	}
+
 	private static final class AvailableIngredientStack {
 		private final ItemStack stack;
 		private int count;
@@ -1390,6 +1661,40 @@ public final class ProximityCraftingJeiCraftableFilterController {
 		private AvailableIngredientStack(ItemStack stack, int count) {
 			this.stack = stack;
 			this.count = count;
+		}
+	}
+
+	private static final class CraftableComputationState {
+		private final int containerId;
+		private final long availabilitySignature;
+		private final Level level;
+		private final StackedContents stackedContents;
+		private final List<CraftingRecipe> recipeCandidates;
+		private final int availablePoolEntryCount;
+		private final long poolTimeNs;
+		private final long startedAtNs;
+		private final List<CraftingRecipe> craftableRecipes = new ArrayList<>();
+		private int nextRecipeIndex = 0;
+		private int eligibleRecipeCount = 0;
+
+		private CraftableComputationState(
+				int containerId,
+				long availabilitySignature,
+				Level level,
+				StackedContents stackedContents,
+				List<CraftingRecipe> recipeCandidates,
+				int availablePoolEntryCount,
+				long poolTimeNs,
+				long startedAtNs
+		) {
+			this.containerId = containerId;
+			this.availabilitySignature = availabilitySignature;
+			this.level = level;
+			this.stackedContents = stackedContents;
+			this.recipeCandidates = recipeCandidates;
+			this.availablePoolEntryCount = availablePoolEntryCount;
+			this.poolTimeNs = poolTimeNs;
+			this.startedAtNs = startedAtNs;
 		}
 	}
 

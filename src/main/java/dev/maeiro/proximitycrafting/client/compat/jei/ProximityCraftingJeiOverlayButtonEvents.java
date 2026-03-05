@@ -63,7 +63,7 @@ public final class ProximityCraftingJeiOverlayButtonEvents {
 		boolean handledByFallback = ProximityCraftingJeiCraftableFilterController.handleIngredientClick(menu, event.getButton());
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
-					"[NC-JEI] MousePressed menu={} button={} fallbackHandled={} canceledAfter={} craftableToggleEnabled={}",
+					"[PROXC-JEI] MousePressed menu={} button={} fallbackHandled={} canceledAfter={} craftableToggleEnabled={}",
 					menu.containerId,
 					event.getButton(),
 					handledByFallback,
@@ -91,7 +91,7 @@ public final class ProximityCraftingJeiOverlayButtonEvents {
 			if (ProximityCraftingJeiCraftableFilterController.isTransitionBlockingInput()) {
 				if (isDebugLoggingEnabled()) {
 					ProximityCrafting.LOGGER.info(
-							"[NC-JEI] Toggle click ignored during transition menu={} mouse=({}, {})",
+							"[PROXC-JEI] Toggle click ignored during transition menu={} mouse=({}, {})",
 							menu.containerId,
 							(int) event.getMouseX(),
 							(int) event.getMouseY()
@@ -105,7 +105,7 @@ public final class ProximityCraftingJeiOverlayButtonEvents {
 			boolean nextEnabled = !ProximityCraftingJeiCraftableFilterController.isEnabledFor(menu.containerId);
 			if (isDebugLoggingEnabled()) {
 				ProximityCrafting.LOGGER.info(
-						"[NC-JEI] Toggle click menu={} enabledBefore={} nextEnabled={} mouse=({}, {}) bounds=({}, {}, {}, {}) runtimeAvailable={}",
+						"[PROXC-JEI] Toggle click menu={} enabledBefore={} nextEnabled={} mouse=({}, {}) bounds=({}, {}, {}, {}) runtimeAvailable={}",
 						menu.containerId,
 						enabledBefore,
 						nextEnabled,
@@ -122,6 +122,9 @@ public final class ProximityCraftingJeiOverlayButtonEvents {
 			ProximityCraftingJeiCraftableFilterController.setEnabled(menu, nextEnabled);
 			if (ProximityCraftingConfig.CLIENT.rememberToggleStates.get()) {
 				ProximityCraftingConfig.CLIENT.jeiCraftableOnlyEnabled.set(nextEnabled);
+			}
+			if (nextEnabled) {
+				screen.requestImmediateSourceSyncAndRefresh();
 			}
 			screen.showInfoStatusMessage(Component.translatable(
 					nextEnabled ? "proximitycrafting.jei.updating.enable" : "proximitycrafting.jei.updating.disable"

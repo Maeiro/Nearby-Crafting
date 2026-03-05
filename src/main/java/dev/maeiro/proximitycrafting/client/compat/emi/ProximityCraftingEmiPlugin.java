@@ -9,6 +9,7 @@ import dev.emi.emi.api.recipe.VanillaEmiRecipeCategories;
 import dev.emi.emi.api.recipe.handler.EmiCraftContext;
 import dev.emi.emi.api.recipe.handler.EmiRecipeHandler;
 import dev.emi.emi.api.stack.EmiStack;
+import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import dev.maeiro.proximitycrafting.networking.C2SRequestRecipeFill;
 import dev.maeiro.proximitycrafting.networking.ProximityCraftingNetwork;
@@ -58,7 +59,15 @@ public class ProximityCraftingEmiPlugin implements EmiPlugin {
 			}
 
 			boolean craftAll = context.getAmount() > 1 || context.getDestination() != EmiCraftContext.Destination.NONE;
-			ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(recipeId, craftAll));
+			boolean queued = ProximityCraftingScreen.enqueueRecipeFillIfScreenOpen(
+					context.getScreenHandler(),
+					recipeId,
+					craftAll,
+					"emi_transfer"
+			);
+			if (!queued) {
+				ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(recipeId, craftAll));
+			}
 			return true;
 		}
 	}

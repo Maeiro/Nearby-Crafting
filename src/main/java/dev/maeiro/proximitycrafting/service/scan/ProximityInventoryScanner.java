@@ -45,6 +45,7 @@ public class ProximityInventoryScanner {
 			boolean includePlayerInventory,
 			ProximityCraftingConfig.SourcePriority priority
 	) {
+		long startNs = System.nanoTime();
 		List<ItemSourceRef> containerSources = collectContainerSources(level, centerPos);
 		List<ItemSourceRef> playerInventorySources = collectPlayerInventorySources(player, includePlayerInventory);
 		List<ItemSourceRef> backpackSources = collectBackpackSources(player, includePlayerInventory);
@@ -62,13 +63,17 @@ public class ProximityInventoryScanner {
 		}
 
 		if (ProximityCraftingConfig.SERVER.debugLogging.get()) {
+			double totalMs = (System.nanoTime() - startNs) / 1_000_000.0D;
 			ProximityCrafting.LOGGER.info(
-					"Collected proximity crafting sources around {} -> containers: {}, player inventory: {}, player backpacks: {}, total: {}",
+					"[PROXC-PERF] collectSources center={} includePlayer={} priority={} containerSlots={} playerSlots={} backpackSlots={} totalSlots={} took={}ms",
 					centerPos,
+					includePlayerInventory,
+					priority,
 					containerSources.size(),
 					playerInventorySources.size(),
 					backpackSources.size(),
-					result.size()
+					result.size(),
+					String.format("%.3f", totalMs)
 			);
 		}
 
@@ -76,6 +81,7 @@ public class ProximityInventoryScanner {
 	}
 
 	public static List<ItemSourceRef> collectContainerSources(Level level, BlockPos centerPos) {
+		long startNs = System.nanoTime();
 		int scanRadius = ProximityCraftingConfig.SERVER.scanRadius.get();
 		int minSlotCount = ProximityCraftingConfig.SERVER.minSlotCount.get();
 		Set<BlockEntityType<?>> blacklist = ProximityCraftingConfig.blockEntityBlacklist == null
@@ -103,6 +109,22 @@ public class ProximityInventoryScanner {
 		for (BlockEntity blockEntity : blockEntities) {
 			blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler ->
 					addHandlerSlots(sources, handler, ItemSourceRef.SourceType.CONTAINER, blockEntity.getBlockPos())
+			);
+		}
+
+		if (ProximityCraftingConfig.SERVER.debugLogging.get()) {
+			int diameter = scanRadius * 2 + 1;
+			long scannedPositions = (long) diameter * diameter * diameter;
+			double totalMs = (System.nanoTime() - startNs) / 1_000_000.0D;
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-PERF] collectContainerSources center={} radius={} scannedPositions={} minSlots={} acceptedHandlers={} containerSlots={} took={}ms",
+					centerPos,
+					scanRadius,
+					scannedPositions,
+					minSlotCount,
+					blockEntities.size(),
+					sources.size(),
+					String.format("%.3f", totalMs)
 			);
 		}
 		return sources;

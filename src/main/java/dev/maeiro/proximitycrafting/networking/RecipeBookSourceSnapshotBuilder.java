@@ -1,5 +1,6 @@
 package dev.maeiro.proximitycrafting.networking;
 
+import dev.maeiro.proximitycrafting.ProximityCrafting;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import dev.maeiro.proximitycrafting.service.scan.ProximityInventoryScanner;
 import dev.maeiro.proximitycrafting.service.source.ItemSourceRef;
@@ -16,8 +17,24 @@ public final class RecipeBookSourceSnapshotBuilder {
 	}
 
 	public static List<ProximityCraftingMenu.RecipeBookSourceEntry> build(ProximityCraftingMenu menu) {
+		long startNs = System.nanoTime();
 		List<ItemSourceRef> sourceRefs = collectRecipeBookSources(menu);
-		return aggregateSourceEntries(sourceRefs);
+		long collectNs = System.nanoTime();
+		List<ProximityCraftingMenu.RecipeBookSourceEntry> entries = aggregateSourceEntries(sourceRefs);
+		long endNs = System.nanoTime();
+
+		if (isDebugLoggingEnabled()) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-PERF] snapshot.build menu={} sourceRefs={} entries={} collectMs={} aggregateMs={} totalMs={}",
+					menu.containerId,
+					sourceRefs.size(),
+					entries.size(),
+					formatMs(collectNs - startNs),
+					formatMs(endNs - collectNs),
+					formatMs(endNs - startNs)
+			);
+		}
+		return entries;
 	}
 
 	private static List<ItemSourceRef> collectRecipeBookSources(ProximityCraftingMenu menu) {
@@ -70,6 +87,18 @@ public final class RecipeBookSourceSnapshotBuilder {
 		stack.save(serialized);
 		serialized.remove("Count");
 		return serialized.toString();
+	}
+
+	private static boolean isDebugLoggingEnabled() {
+		try {
+			return dev.maeiro.proximitycrafting.config.ProximityCraftingConfig.SERVER.debugLogging.get();
+		} catch (RuntimeException exception) {
+			return false;
+		}
+	}
+
+	private static String formatMs(long nanos) {
+		return String.format("%.3f", nanos / 1_000_000.0D);
 	}
 }
 

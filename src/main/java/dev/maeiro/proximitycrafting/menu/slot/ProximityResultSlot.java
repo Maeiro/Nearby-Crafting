@@ -2,7 +2,6 @@ package dev.maeiro.proximitycrafting.menu.slot;
 
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import dev.maeiro.proximitycrafting.networking.ProximityCraftingNetwork;
-import dev.maeiro.proximitycrafting.networking.RecipeBookSourceSnapshotBuilder;
 import dev.maeiro.proximitycrafting.networking.S2CRecipeBookSourceSnapshot;
 import dev.maeiro.proximitycrafting.service.crafting.FillResult;
 import dev.maeiro.proximitycrafting.service.crafting.RecipeFillService;
@@ -40,7 +39,7 @@ public class ProximityResultSlot extends ResultSlot {
 					PacketDistributor.PLAYER.with(() -> serverPlayer),
 					new S2CRecipeBookSourceSnapshot(
 							menu.containerId,
-							RecipeBookSourceSnapshotBuilder.build(menu)
+							menu.getServerRecipeBookSnapshot(false, "result_slot_take")
 					)
 			);
 		}
