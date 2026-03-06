@@ -74,11 +74,7 @@ public class S2CRecipeBookSourceSnapshot {
 	}
 
 	private static boolean isDebugLoggingEnabled() {
-		try {
-			return ProximityCraftingConfig.SERVER.debugLogging.get();
-		} catch (RuntimeException exception) {
-			return false;
-		}
+		return ProximityCraftingConfig.isClientDebugLoggingEnabled();
 	}
 }
 

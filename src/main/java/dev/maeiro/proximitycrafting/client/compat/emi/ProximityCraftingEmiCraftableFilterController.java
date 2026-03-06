@@ -1465,11 +1465,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 	}
 
 	private static boolean isDebugLoggingEnabled() {
-		try {
-			return ProximityCraftingConfig.SERVER.debugLogging.get();
-		} catch (RuntimeException ignored) {
-			return false;
-		}
+		return ProximityCraftingConfig.isClientDebugLoggingEnabled();
 	}
 
 	private static final class AvailableIngredientStack {

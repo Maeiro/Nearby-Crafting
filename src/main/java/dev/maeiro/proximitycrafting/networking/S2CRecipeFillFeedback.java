@@ -70,10 +70,6 @@ public class S2CRecipeFillFeedback {
 	}
 
 	private static boolean isDebugLoggingEnabled() {
-		try {
-			return ProximityCraftingConfig.SERVER.debugLogging.get();
-		} catch (RuntimeException exception) {
-			return false;
-		}
+		return ProximityCraftingConfig.isClientDebugLoggingEnabled();
 	}
 }
