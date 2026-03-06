@@ -28,9 +28,12 @@ public final class ProximityCraftingJeiOverlayButtonEvents {
 	private static final int BUTTON_WIDTH = 26;
 	private static final int BUTTON_HEIGHT = 16;
 	private static final int BUTTON_PADDING_X = 1;
+	private static final long CLIENT_RENDER_LOG_INTERVAL_MS = 1500L;
+	private static final double CLIENT_RENDER_SLOW_THRESHOLD_MS = 2.0D;
 	@Nullable
 	private static Rect2i lastRenderedButtonBounds;
 	private static int lastRenderedContainerId = -1;
+	private static long lastClientRenderPerfLogAtMs = 0L;
 
 	private ProximityCraftingJeiOverlayButtonEvents() {
 	}
@@ -145,7 +148,9 @@ public final class ProximityCraftingJeiOverlayButtonEvents {
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void onScreenRenderPost(ScreenEvent.Render.Post event) {
 		// Process any deferred overlay rebuilds from the JEI filter controller
+		long processStartNs = System.nanoTime();
 		ProximityCraftingJeiCraftableFilterController.processDeferred();
+		double processMs = (System.nanoTime() - processStartNs) / 1_000_000.0D;
 		
 		if (!(event.getScreen() instanceof ProximityCraftingScreen screen)) {
 			lastRenderedButtonBounds = null;
@@ -162,6 +167,7 @@ public final class ProximityCraftingJeiOverlayButtonEvents {
 		}
 		lastRenderedButtonBounds = buttonBounds;
 		lastRenderedContainerId = menu.containerId;
+		logClientRenderPerf(menu, processMs);
 
 		int mouseX = (int) event.getMouseX();
 		int mouseY = (int) event.getMouseY();
@@ -218,11 +224,25 @@ public final class ProximityCraftingJeiOverlayButtonEvents {
 	}
 
 	private static boolean isDebugLoggingEnabled() {
-		try {
-			return ProximityCraftingConfig.SERVER.debugLogging.get();
-		} catch (RuntimeException ignored) {
-			return false;
+		return ProximityCraftingConfig.isClientDebugLoggingEnabled();
+	}
+
+	private static void logClientRenderPerf(ProximityCraftingMenu menu, double processMs) {
+		if (!isDebugLoggingEnabled()) {
+			return;
 		}
+		long nowMs = System.currentTimeMillis();
+		if (processMs < CLIENT_RENDER_SLOW_THRESHOLD_MS && (nowMs - lastClientRenderPerfLogAtMs) < CLIENT_RENDER_LOG_INTERVAL_MS) {
+			return;
+		}
+		lastClientRenderPerfLogAtMs = nowMs;
+		ProximityCrafting.LOGGER.info(
+				"[PROXC-CLIENT] jei.render_post menu={} processDeferredMs={} transitionBlocking={} enabled={}",
+				menu.containerId,
+				String.format("%.3f", processMs),
+				ProximityCraftingJeiCraftableFilterController.isTransitionBlockingInput(),
+				ProximityCraftingJeiCraftableFilterController.isEnabledFor(menu.containerId)
+		);
 	}
 }
 

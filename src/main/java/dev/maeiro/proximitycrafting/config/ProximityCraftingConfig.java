@@ -56,6 +56,22 @@ public class ProximityCraftingConfig {
 				.collect(Collectors.toList());
 	}
 
+	public static boolean isServerDebugLoggingEnabled() {
+		try {
+			return SERVER.debugLogging.get();
+		} catch (RuntimeException exception) {
+			return false;
+		}
+	}
+
+	public static boolean isClientDebugLoggingEnabled() {
+		try {
+			return CLIENT.debugLogging.get();
+		} catch (RuntimeException exception) {
+			return false;
+		}
+	}
+
 	public enum SourcePriority {
 		CONTAINERS_FIRST,
 		PLAYER_FIRST;
@@ -117,6 +133,7 @@ public class ProximityCraftingConfig {
 		public final ForgeConfigSpec.IntValue proximityItemsPanelOffsetY;
 		public final ForgeConfigSpec.BooleanValue jeiCraftableOnlyEnabled;
 		public final ForgeConfigSpec.BooleanValue emiCraftableOnlyEnabled;
+		public final ForgeConfigSpec.BooleanValue debugLogging;
 
 		Client(ForgeConfigSpec.Builder builder) {
 			builder.push("proximityCrafting");
@@ -156,6 +173,10 @@ public class ProximityCraftingConfig {
 			emiCraftableOnlyEnabled = builder
 					.comment("Last remembered state for EMI Craftable Only toggle.")
 					.define("emiCraftableOnlyEnabled", false);
+
+			debugLogging = builder
+					.comment("When true, enables client-side debug/performance logging (PROXC-CLIENT/PROXC-SCROLL). Server logs remain controlled by server debugLogging.")
+					.define("debugLogging", false);
 
 			builder.pop();
 		}

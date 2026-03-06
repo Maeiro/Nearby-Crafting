@@ -30,10 +30,13 @@ public final class ProximityCraftingEmiOverlayButtonEvents {
 	private static final int EMI_SEARCH_FALLBACK_WIDTH = 160;
 	private static final int EMI_SEARCH_FALLBACK_HEIGHT = 18;
 	private static final int EMI_SEARCH_FALLBACK_Y_OFFSET = 21;
+	private static final long CLIENT_RENDER_LOG_INTERVAL_MS = 1500L;
+	private static final double CLIENT_RENDER_SLOW_THRESHOLD_MS = 2.0D;
 
 	@Nullable
 	private static Rect2i lastRenderedButtonBounds;
 	private static int lastRenderedContainerId = -1;
+	private static long lastClientRenderPerfLogAtMs = 0L;
 
 	private ProximityCraftingEmiOverlayButtonEvents() {
 	}
@@ -54,6 +57,34 @@ public final class ProximityCraftingEmiOverlayButtonEvents {
 		if (buttonBounds != null && buttonBounds.contains((int) event.getMouseX(), (int) event.getMouseY())) {
 			event.setCanceled(true);
 		}
+	}
+
+	@SubscribeEvent(priority = EventPriority.HIGHEST)
+	public static void onMouseScrolled(ScreenEvent.MouseScrolled.Pre event) {
+		if (!(event.getScreen() instanceof ProximityCraftingScreen screen)) {
+			return;
+		}
+		if (!ProximityCraftingEmiCraftableFilterController.isRuntimeAvailable()) {
+			return;
+		}
+
+		ProximityCraftingMenu menu = screen.getMenu();
+		if (!ProximityCraftingEmiCraftableFilterController.isEnabledFor(menu.containerId)) {
+			return;
+		}
+
+		// Route scroll to Proximity Crafting incremental logic first.
+		boolean handled = screen.tryHandleRecipeScaleScroll(event.getMouseX(), event.getMouseY(), event.getScrollDelta(), "emi_pre");
+		if (isDebugLoggingEnabled()) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-CLIENT] emi.mouse_scroll_pre menu={} delta={} handledByProx={} canceled=true",
+					menu.containerId,
+					event.getScrollDelta(),
+					handled
+			);
+		}
+		// Always cancel while craftable-only is active to prevent EMI page scrolling conflicts.
+		event.setCanceled(true);
 	}
 
 	@SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -118,9 +149,19 @@ public final class ProximityCraftingEmiOverlayButtonEvents {
 			return;
 		}
 
+		long startNs = System.nanoTime();
 		ProximityCraftingEmiCraftableFilterController.processDeferred();
+		long afterDeferredNs = System.nanoTime();
 		ProximityCraftingEmiCraftableFilterController.enforceIndexOnlyMode();
+		long afterIndexNs = System.nanoTime();
 		ProximityCraftingEmiCraftableFilterController.enforceCraftableSidebarIfEnabled(screen.getMenu());
+		long afterSidebarNs = System.nanoTime();
+		logClientRenderPerf(
+				screen.getMenu(),
+				(afterDeferredNs - startNs) / 1_000_000.0D,
+				(afterIndexNs - afterDeferredNs) / 1_000_000.0D,
+				(afterSidebarNs - afterIndexNs) / 1_000_000.0D
+		);
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
@@ -153,7 +194,6 @@ public final class ProximityCraftingEmiOverlayButtonEvents {
 		int mouseY = (int) event.getMouseY();
 		boolean hovered = buttonBounds.contains(mouseX, mouseY);
 		boolean enabled = ProximityCraftingEmiCraftableFilterController.isEnabledFor(menu.containerId);
-		boolean transition = ProximityCraftingEmiCraftableFilterController.isTransitionBlockingInput();
 
 		int u = BUTTON_U + (enabled ? BUTTON_STATE_X_DIFF : 0);
 		int v = BUTTON_V + (hovered ? BUTTON_HOVER_Y_DIFF : 0);
@@ -166,16 +206,6 @@ public final class ProximityCraftingEmiOverlayButtonEvents {
 				buttonBounds.getWidth(),
 				buttonBounds.getHeight()
 		);
-
-		if (transition) {
-			event.getGuiGraphics().fill(
-					buttonBounds.getX(),
-					buttonBounds.getY(),
-					buttonBounds.getX() + buttonBounds.getWidth(),
-					buttonBounds.getY() + buttonBounds.getHeight(),
-					0x88000000
-			);
-		}
 
 		if (hovered) {
 			Component tooltip = enabled
@@ -214,6 +244,32 @@ public final class ProximityCraftingEmiOverlayButtonEvents {
 			return lastRenderedButtonBounds;
 		}
 		return null;
+	}
+
+	private static boolean isDebugLoggingEnabled() {
+		return ProximityCraftingConfig.isClientDebugLoggingEnabled();
+	}
+
+	private static void logClientRenderPerf(ProximityCraftingMenu menu, double deferredMs, double indexModeMs, double sidebarMs) {
+		if (!isDebugLoggingEnabled()) {
+			return;
+		}
+		double totalMs = deferredMs + indexModeMs + sidebarMs;
+		long nowMs = System.currentTimeMillis();
+		if (totalMs < CLIENT_RENDER_SLOW_THRESHOLD_MS && (nowMs - lastClientRenderPerfLogAtMs) < CLIENT_RENDER_LOG_INTERVAL_MS) {
+			return;
+		}
+		lastClientRenderPerfLogAtMs = nowMs;
+		ProximityCrafting.LOGGER.info(
+				"[PROXC-CLIENT] emi.render_pre menu={} deferredMs={} indexModeMs={} sidebarMs={} totalMs={} transitionBlocking={} enabled={}",
+				menu.containerId,
+				String.format("%.3f", deferredMs),
+				String.format("%.3f", indexModeMs),
+				String.format("%.3f", sidebarMs),
+				String.format("%.3f", totalMs),
+				ProximityCraftingEmiCraftableFilterController.isTransitionBlockingInput(),
+				ProximityCraftingEmiCraftableFilterController.isEnabledFor(menu.containerId)
+		);
 	}
 }
 

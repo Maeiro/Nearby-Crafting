@@ -44,6 +44,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 	private static final String EMI_RECIPE_BOOK_ACTION_CLASS = "dev.emi.emi.config.RecipeBookAction";
 	private static final long REFRESH_DEBOUNCE_MS = 150L;
 	private static final long ENABLE_REFRESH_DELAY_MS = 120L;
+	private static final long ACTION_IDLE_REFRESH_DELAY_MS = 300L;
 	private static final long CRAFTABLE_COMPUTE_BUDGET_NS = 2_000_000L;
 	private static final long CRAFTABLE_COMPUTE_SLICE_WARN_NS = 8_000_000L;
 	private static final long CRAFTABLE_COMPUTE_SLICE_WARN_LOG_INTERVAL_MS = 250L;
@@ -192,6 +193,26 @@ public final class ProximityCraftingEmiCraftableFilterController {
 		logRuntimeState(menu, "setEnabled:pending_refresh");
 	}
 
+	public static void applyStartupPendingViewIfEnabled(ProximityCraftingMenu menu) {
+		if (!isEnabledFor(menu.containerId) || !isRuntimeAvailable()) {
+			return;
+		}
+
+		Object indexType = resolveSidebarType("INDEX");
+		if (indexType == null) {
+			return;
+		}
+
+		// On remembered startup enable, avoid flashing EMI's default full list before
+		// craftable computation/snapshot refresh converges.
+		applySearchSidebarConfig(indexType);
+		setIndexFilteredStacks(List.of());
+		pinnedIndexStacks = List.of();
+		focusSearchSidebarType(indexType);
+		requestSearchRefreshOnly();
+		logRuntimeState(menu, "startup_pending_view_applied");
+	}
+
 	public static void refreshIfEnabled(ProximityCraftingMenu menu) {
 		if (!isEnabledFor(menu.containerId) || !isRuntimeAvailable()) {
 			return;
@@ -256,12 +277,15 @@ public final class ProximityCraftingEmiCraftableFilterController {
 			return;
 		}
 		sourceSyncInFlight = inFlight;
+		long nowMs = System.currentTimeMillis();
 		if (!inFlight) {
 			if (sourcesChanged) {
 				pendingRefresh = true;
 				sourceSnapshotDirty = true;
+				nextRefreshAllowedAtMs = Math.max(nextRefreshAllowedAtMs, nowMs + ACTION_IDLE_REFRESH_DELAY_MS);
+			} else if (!pendingRefresh) {
+				nextRefreshAllowedAtMs = Math.min(nextRefreshAllowedAtMs, nowMs);
 			}
-			nextRefreshAllowedAtMs = 0L;
 		}
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
@@ -279,6 +303,18 @@ public final class ProximityCraftingEmiCraftableFilterController {
 		if (isEnabledFor(containerId)) {
 			disableAndRestore();
 		}
+	}
+
+	public static void onRecipeActionQueued(ProximityCraftingMenu menu) {
+		if (!isEnabledFor(menu.containerId) || !isRuntimeAvailable()) {
+			return;
+		}
+		long nextAllowedAt = System.currentTimeMillis() + ACTION_IDLE_REFRESH_DELAY_MS;
+		if (nextAllowedAt > nextRefreshAllowedAtMs) {
+			nextRefreshAllowedAtMs = nextAllowedAt;
+		}
+		pendingRefresh = true;
+		logRuntimeState(menu, "action_queued:set_idle_window");
 	}
 
 	public static void enforceCraftableSidebarIfEnabled(ProximityCraftingMenu menu) {
@@ -605,8 +641,17 @@ public final class ProximityCraftingEmiCraftableFilterController {
 		long signature = 1469598103934665603L;
 		signature = mix(signature, menu.isIncludePlayerInventory() ? 1 : 0);
 		signature = mix(signature, menu.getSourcePriority().ordinal());
-		for (int slot = 0; slot < menu.getCraftSlots().getContainerSize(); slot++) {
-			signature = mixStack(signature, menu.getCraftSlots().getItem(slot));
+		if (menu.isIncludePlayerInventory()) {
+			Inventory inventory = menu.getPlayer().getInventory();
+			for (ItemStack stack : inventory.items) {
+				signature = mixStack(signature, stack);
+			}
+			for (ItemStack stack : inventory.armor) {
+				signature = mixStack(signature, stack);
+			}
+			for (ItemStack stack : inventory.offhand) {
+				signature = mixStack(signature, stack);
+			}
 		}
 		for (ProximityCraftingMenu.RecipeBookSourceEntry sourceEntry : menu.getClientRecipeBookSupplementalSources()) {
 			signature = mixStack(signature, sourceEntry.stack());
@@ -1420,11 +1465,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 	}
 
 	private static boolean isDebugLoggingEnabled() {
-		try {
-			return ProximityCraftingConfig.SERVER.debugLogging.get();
-		} catch (RuntimeException ignored) {
-			return false;
-		}
+		return ProximityCraftingConfig.isClientDebugLoggingEnabled();
 	}
 
 	private static final class AvailableIngredientStack {
