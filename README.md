@@ -66,6 +66,9 @@ When using Proximity Crafting recipe interactions (including overlay integration
 - JEI
 - EMI
 - Sophisticated Backpacks (+ Sophisticated Core)
+- FastSuite
+  - Highly recommended for large modpacks.
+  - It significantly improves recipe lookup and crafting-related performance, which also helps Proximity Crafting interactions such as incremental scroll loading.
 
 ## Configuration
 The mod generates Forge TOML configs for both server and client.
@@ -89,6 +92,10 @@ All options are under `proximityCrafting`:
 - `proximityItemsPanelOffsetY` (default: `0`): Ingredients panel vertical offset.
 - `jeiCraftableOnlyEnabled` (default: `false`): last remembered state of JEI Craftable Only.
 - `emiCraftableOnlyEnabled` (default: `false`): last remembered state of EMI Craftable Only.
+
+## TODO
+- Continue reducing redundant recipe lookups in hot paths, especially during incremental scroll and repeated recipe resolution in large modpacks.
+- Investigate additional optimizations that complement FastSuite, focusing on client-side UI refresh cost and recipe matching frequency.
 
 ## License
 This project is licensed under **GPL-3.0-only**.
