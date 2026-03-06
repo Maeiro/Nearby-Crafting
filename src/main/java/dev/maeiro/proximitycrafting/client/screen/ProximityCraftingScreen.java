@@ -6,6 +6,7 @@ import dev.maeiro.proximitycrafting.client.compat.jei.ProximityCraftingJeiCrafta
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import dev.maeiro.proximitycrafting.networking.C2SAdjustRecipeLoad;
+import dev.maeiro.proximitycrafting.networking.C2SClearCraftGrid;
 import dev.maeiro.proximitycrafting.networking.C2SRequestRecipeFill;
 import dev.maeiro.proximitycrafting.networking.C2SRequestRecipeBookSources;
 import dev.maeiro.proximitycrafting.networking.C2SUpdateClientPreferences;
@@ -71,6 +72,8 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private static final int PROXIMITY_PANEL_PADDING = 8;
 	private static final int PROXIMITY_PANEL_RECIPE_BOOK_EXTRA_SHIFT = 26;
 	private static final int TOGGLE_SIZE = 18;
+	private static final int CLEAR_GRID_TOGGLE_SIZE = 9;
+	private static final int CLEAR_GRID_TOGGLE_SPACING = 2;
 	private static final int TOGGLE_ICON_SIZE = 16;
 	private static final int TOGGLE_ICON_TEX_WIDTH = 16;
 	private static final int TOGGLE_ICON_TEX_HEIGHT = 16;
@@ -232,11 +235,13 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			}
 		}
 		renderProximityItemsToggle(guiGraphics, mouseX, mouseY);
+		renderClearGridToggle(guiGraphics, mouseX, mouseY);
 		renderAutoRefillToggle(guiGraphics, mouseX, mouseY);
 		renderProximityItemsPanel(guiGraphics, mouseX, mouseY);
 
 		this.renderTooltip(guiGraphics, mouseX, mouseY);
 		renderProximityItemsTooltip(guiGraphics, mouseX, mouseY);
+		renderClearGridTooltip(guiGraphics, mouseX, mouseY);
 		renderAutoRefillTooltip(guiGraphics, mouseX, mouseY);
 		if (!this.vanillaRecipeBookSuppressedByEmi) {
 			this.recipeBookComponent.renderTooltip(guiGraphics, this.leftPos, this.topPos, mouseX, mouseY);
@@ -264,6 +269,11 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		if (button == 0 && isMouseOverProximityItemsToggle(mouseX, mouseY)) {
 			showProximityItemsPanel = !showProximityItemsPanel;
 			saveProximityItemsPanelState(showProximityItemsPanel);
+			Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+			return true;
+		}
+		if (button == 0 && isMouseOverClearGridToggle(mouseX, mouseY)) {
+			sendClearGridPacket("clear_grid_button");
 			Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
 			return true;
 		}
@@ -921,6 +931,27 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		guiGraphics.blit(icon, iconX, iconY, 0, 0, TOGGLE_ICON_SIZE, TOGGLE_ICON_SIZE, TOGGLE_ICON_TEX_WIDTH, TOGGLE_ICON_TEX_HEIGHT);
 	}
 
+	private void renderClearGridToggle(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		Rect2i bounds = getClearGridToggleBounds();
+		int x = bounds.getX();
+		int y = bounds.getY();
+		boolean hovered = bounds.contains(mouseX, mouseY);
+
+		int size = bounds.getWidth();
+		int background = hovered ? 0xFFE2E2E2 : 0xFFD1D1D1;
+		guiGraphics.fill(x, y, x + size, y + size, background);
+		guiGraphics.fill(x, y, x + size, y + 1, PANEL_LINE_LIGHT);
+		guiGraphics.fill(x, y + size - 1, x + size, y + size, PANEL_LINE_DARK);
+		guiGraphics.fill(x, y, x + 1, y + size, PANEL_LINE_LIGHT);
+		guiGraphics.fill(x + size - 1, y, x + size, y + size, PANEL_LINE_DARK);
+
+		int iconColor = 0xFF9D2929;
+		for (int i = 0; i < 5; i++) {
+			guiGraphics.fill(x + 2 + i, y + 2 + i, x + 3 + i, y + 3 + i, iconColor);
+			guiGraphics.fill(x + 6 - i, y + 2 + i, x + 7 - i, y + 3 + i, iconColor);
+		}
+	}
+
 	private void renderAutoRefillToggle(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		Rect2i bounds = getAutoRefillToggleBounds();
 		int x = bounds.getX();
@@ -1021,6 +1052,17 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		return mouseX >= x && mouseX < x + TOGGLE_SIZE && mouseY >= y && mouseY < y + TOGGLE_SIZE;
 	}
 
+	private boolean isMouseOverClearGridToggle(double mouseX, double mouseY) {
+		return getClearGridToggleBounds().contains((int) mouseX, (int) mouseY);
+	}
+
+	private Rect2i getClearGridToggleBounds() {
+		Rect2i autoRefillBounds = getAutoRefillToggleBounds();
+		int x = autoRefillBounds.getX() + autoRefillBounds.getWidth() + CLEAR_GRID_TOGGLE_SPACING;
+		int y = autoRefillBounds.getY();
+		return new Rect2i(x, y, CLEAR_GRID_TOGGLE_SIZE, CLEAR_GRID_TOGGLE_SIZE);
+	}
+
 	private boolean isMouseOverAutoRefillToggle(double mouseX, double mouseY) {
 		return getAutoRefillToggleBounds().contains((int) mouseX, (int) mouseY);
 	}
@@ -1052,6 +1094,20 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 				Component.translatable("proximitycrafting.auto_refill.state", state)
 		);
 		guiGraphics.renderTooltip(this.font, tooltip, Optional.empty(), mouseX, mouseY);
+	}
+
+	private void renderClearGridTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		Rect2i bounds = getClearGridToggleBounds();
+		if (!bounds.contains(mouseX, mouseY)) {
+			return;
+		}
+		guiGraphics.renderTooltip(
+				this.font,
+				List.of(Component.translatable("proximitycrafting.clear_grid.toggle")),
+				Optional.empty(),
+				mouseX,
+				mouseY
+		);
 	}
 
 	private boolean isMouseOverRecipeScaleArea(double mouseX, double mouseY) {
@@ -1583,6 +1639,21 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 
 	public void sendAdjustPacket(int steps, String source) {
 		queueAdjustPacket(steps, source);
+	}
+
+	private void sendClearGridPacket(String source) {
+		lastRecipeActionQueuedAtMs = System.currentTimeMillis();
+		this.pendingFillRequest = null;
+		this.pendingAdjustSteps = 0;
+		ProximityCraftingEmiCraftableFilterController.onRecipeActionQueued(this.menu);
+		ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SClearCraftGrid(this.menu.containerId));
+		if (isDebugLoggingEnabled()) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-PERF] client.sendClearGrid source={} menu={}",
+					source,
+					this.menu.containerId
+			);
+		}
 	}
 
 	private void queueRecipeFillPacket(ResourceLocation recipeId, boolean craftAll, String source) {

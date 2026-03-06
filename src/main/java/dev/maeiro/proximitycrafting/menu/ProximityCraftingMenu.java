@@ -393,6 +393,15 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 				.getRecipeFor(RecipeType.CRAFTING, craftSlots, player.level());
 	}
 
+	public boolean hasAnyCraftGridItems() {
+		for (int slot = 0; slot < this.craftSlots.getContainerSize(); slot++) {
+			if (!this.craftSlots.getItem(slot).isEmpty()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public void clearCraftGridToPlayerOrDrop() {
 		if (this.player.level().isClientSide) {
 			return;

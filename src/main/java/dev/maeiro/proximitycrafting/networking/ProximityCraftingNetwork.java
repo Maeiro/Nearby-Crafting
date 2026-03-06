@@ -6,7 +6,7 @@ import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public class ProximityCraftingNetwork {
-	private static final String PROTOCOL_VERSION = "4";
+	private static final String PROTOCOL_VERSION = "5";
 
 	public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
 			new ResourceLocation(ProximityCrafting.MOD_ID, "main"),
@@ -33,6 +33,13 @@ public class ProximityCraftingNetwork {
 				C2SAdjustRecipeLoad::encode,
 				C2SAdjustRecipeLoad::new,
 				C2SAdjustRecipeLoad::handle
+		);
+		CHANNEL.registerMessage(
+				id++,
+				C2SClearCraftGrid.class,
+				C2SClearCraftGrid::encode,
+				C2SClearCraftGrid::new,
+				C2SClearCraftGrid::handle
 		);
 		CHANNEL.registerMessage(
 				id++,
