@@ -109,7 +109,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 
 		ServerPlayer serverPlayer = (ServerPlayer) player;
 		ItemStack result = ItemStack.EMPTY;
-		Optional<CraftingRecipe> optional = level.getServer().getRecipeManager().getRecipeFor(RecipeType.CRAFTING, craftSlots, level);
+		Optional<CraftingRecipe> optional = resolveCraftingResult(menu, level, craftSlots);
 		if (optional.isPresent()) {
 			CraftingRecipe recipe = optional.get();
 			if (resultSlots.setRecipeUsed(level, serverPlayer, recipe)) {
@@ -123,6 +123,16 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		resultSlots.setItem(0, result);
 		menu.setRemoteSlot(0, result);
 		serverPlayer.connection.send(new ClientboundContainerSetSlotPacket(menu.containerId, menu.incrementStateId(), 0, result));
+	}
+
+	private static Optional<CraftingRecipe> resolveCraftingResult(AbstractContainerMenu menu, Level level, CraftingContainer craftSlots) {
+		if (menu instanceof ProximityCraftingMenu proximityMenu) {
+			Optional<CraftingRecipe> preferredRecipe = proximityMenu.getPreferredTrackedRecipe();
+			if (preferredRecipe.isPresent()) {
+				return preferredRecipe;
+			}
+		}
+		return level.getServer().getRecipeManager().getRecipeFor(RecipeType.CRAFTING, craftSlots, level);
 	}
 
 	@Override
@@ -327,7 +337,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 			return FillResult.success("proximitycrafting.feedback.filled", 0);
 		}
 
-		Optional<CraftingRecipe> currentRecipeOptional = getCurrentCraftingRecipe();
+		Optional<CraftingRecipe> currentRecipeOptional = getPreferredActiveRecipe();
 		CraftingRecipe activeRecipe = currentRecipeOptional.orElse(lastPlacedRecipe);
 		if (activeRecipe == null) {
 			if (isDebugLoggingEnabled()) {
@@ -391,6 +401,24 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		return player.level()
 				.getRecipeManager()
 				.getRecipeFor(RecipeType.CRAFTING, craftSlots, player.level());
+	}
+
+	private Optional<CraftingRecipe> getPreferredTrackedRecipe() {
+		if (lastPlacedRecipe == null || player.level() == null) {
+			return Optional.empty();
+		}
+		if (!lastPlacedRecipe.matches(craftSlots, player.level())) {
+			return Optional.empty();
+		}
+		return Optional.of(lastPlacedRecipe);
+	}
+
+	private Optional<CraftingRecipe> getPreferredActiveRecipe() {
+		Optional<CraftingRecipe> trackedRecipe = getPreferredTrackedRecipe();
+		if (trackedRecipe.isPresent()) {
+			return trackedRecipe;
+		}
+		return getCurrentCraftingRecipe();
 	}
 
 	public boolean hasAnyCraftGridItems() {

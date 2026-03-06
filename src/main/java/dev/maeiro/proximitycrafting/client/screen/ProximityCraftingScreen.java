@@ -1165,27 +1165,33 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	private boolean hasActiveRecipeLoadedInGrid() {
-		if (this.menu.getLevel() == null) {
-			return false;
-		}
-		return this.menu.getLevel()
-				.getRecipeManager()
-				.getRecipeFor(RecipeType.CRAFTING, this.menu.getCraftSlots(), this.menu.getLevel())
-				.isPresent();
+		return resolvePreferredClientRecipe().isPresent();
 	}
 
 	@Nullable
 	private ResourceLocation getActiveRecipeIdForScroll() {
-		if (this.menu.getLevel() != null) {
-			Optional<CraftingRecipe> currentRecipe = this.menu.getLevel()
-					.getRecipeManager()
-					.getRecipeFor(RecipeType.CRAFTING, this.menu.getCraftSlots(), this.menu.getLevel());
-			if (currentRecipe.isPresent() && currentRecipe.get().getId() != null) {
-				return currentRecipe.get().getId();
-			}
+		Optional<CraftingRecipe> preferredRecipe = resolvePreferredClientRecipe();
+		if (preferredRecipe.isPresent() && preferredRecipe.get().getId() != null) {
+			return preferredRecipe.get().getId();
 		}
 
 		return localScrollRecipeId;
+	}
+
+	private Optional<CraftingRecipe> resolvePreferredClientRecipe() {
+		if (this.menu.getLevel() == null) {
+			return Optional.empty();
+		}
+		if (localScrollRecipeId != null) {
+			Optional<?> selectedRecipe = this.menu.getLevel().getRecipeManager().byKey(localScrollRecipeId);
+			if (selectedRecipe.isPresent() && selectedRecipe.get() instanceof CraftingRecipe craftingRecipe
+					&& craftingRecipe.matches(this.menu.getCraftSlots(), this.menu.getLevel())) {
+				return Optional.of(craftingRecipe);
+			}
+		}
+		return this.menu.getLevel()
+				.getRecipeManager()
+				.getRecipeFor(RecipeType.CRAFTING, this.menu.getCraftSlots(), this.menu.getLevel());
 	}
 
 	private void rememberPendingScrollRecipe(ResourceLocation recipeId) {
@@ -1461,11 +1467,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 
 		long recipeLookupStartNs = System.nanoTime();
-		Optional<CraftingRecipe> recipeOptional = menu.getLevel().getRecipeManager().getRecipeFor(
-				RecipeType.CRAFTING,
-				menu.getCraftSlots(),
-				menu.getLevel()
-		);
+		Optional<CraftingRecipe> recipeOptional = resolvePreferredClientRecipe();
 		long recipeLookupEndNs = System.nanoTime();
 		if (recipeOptional.isEmpty()) {
 			proximityPanelCachedEntries = List.of();
