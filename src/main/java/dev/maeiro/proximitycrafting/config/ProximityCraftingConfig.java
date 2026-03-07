@@ -155,7 +155,7 @@ public class ProximityCraftingConfig {
 					.define("rememberToggleStates", true);
 
 			proximityItemsPanelOpen = builder
-					.comment("Last remembered state for the Ingredients panel.")
+					.comment("Last remembered state for the Ingredients Panel.")
 					.define("proximityItemsPanelOpen", true);
 
 			proximityItemsPanelOffsetX = builder
