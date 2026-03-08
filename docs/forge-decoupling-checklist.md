@@ -1,6 +1,7 @@
 # Forge Decoupling Checklist
 
 Architecture diagrams: [docs/architecture/README.md](architecture/README.md)
+Version-branch portability: [docs/version-branch-portability-checklist.md](version-branch-portability-checklist.md)
 
 ## Completed milestones
 - [x] Extract planning/source primitives to `common`

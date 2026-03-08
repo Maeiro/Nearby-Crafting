@@ -3,6 +3,9 @@
 ## Architecture diagrams
 See the current PlantUML baseline in [docs/architecture/README.md](architecture/README.md).
 
+## Version-branch portability
+See the current checklist in [docs/version-branch-portability-checklist.md](version-branch-portability-checklist.md).
+
 ## Current objective
 Keep Proximity Crafting on a modular Architectury-based structure where:
 - `common` owns reusable behavior, state, contracts, payloads, config semantics, and shared descriptors
