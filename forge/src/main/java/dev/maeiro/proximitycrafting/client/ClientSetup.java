@@ -1,5 +1,7 @@
 package dev.maeiro.proximitycrafting.client;
 
+import dev.maeiro.proximitycrafting.client.net.ForgeClientRequestSender;
+import dev.maeiro.proximitycrafting.client.net.ProximityClientServices;
 import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
 import dev.maeiro.proximitycrafting.registry.ModMenuTypes;
 import net.minecraft.client.gui.screens.MenuScreens;
@@ -10,7 +12,10 @@ public class ClientSetup {
 	}
 
 	public static void onClientSetup(FMLClientSetupEvent event) {
-		event.enqueueWork(() -> MenuScreens.register(ModMenuTypes.PROXIMITY_CRAFTING_MENU.get(), ProximityCraftingScreen::new));
+		event.enqueueWork(() -> {
+			ProximityClientServices.registerClientRequestSender(new ForgeClientRequestSender());
+			MenuScreens.register(ModMenuTypes.PROXIMITY_CRAFTING_MENU.get(), ProximityCraftingScreen::new);
+		});
 	}
 }
 

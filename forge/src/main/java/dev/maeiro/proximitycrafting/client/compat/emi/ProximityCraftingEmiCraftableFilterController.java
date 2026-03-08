@@ -1,12 +1,11 @@
 package dev.maeiro.proximitycrafting.client.compat.emi;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
+import dev.maeiro.proximitycrafting.client.net.ProximityClientServices;
 import net.minecraft.client.Minecraft;
 import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
-import dev.maeiro.proximitycrafting.networking.C2SRequestRecipeFill;
-import dev.maeiro.proximitycrafting.networking.ProximityCraftingNetwork;
 import dev.maeiro.proximitycrafting.networking.payload.RecipeBookSourceEntry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.Rect2i;
@@ -379,7 +378,7 @@ public final class ProximityCraftingEmiCraftableFilterController {
 				"emi_direct_alt_click"
 		);
 		if (!queued) {
-			ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(recipeId, craftAll));
+			ProximityClientServices.getClientRequestSender().requestRecipeFill(recipeId, craftAll);
 		}
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(

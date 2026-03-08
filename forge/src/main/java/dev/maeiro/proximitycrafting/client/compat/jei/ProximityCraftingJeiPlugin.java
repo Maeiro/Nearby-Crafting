@@ -1,10 +1,9 @@
 package dev.maeiro.proximitycrafting.client.compat.jei;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
+import dev.maeiro.proximitycrafting.client.net.ProximityClientServices;
 import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
-import dev.maeiro.proximitycrafting.networking.C2SRequestRecipeFill;
-import dev.maeiro.proximitycrafting.networking.ProximityCraftingNetwork;
 import dev.maeiro.proximitycrafting.registry.ModItems;
 import dev.maeiro.proximitycrafting.registry.ModMenuTypes;
 import mezz.jei.api.IModPlugin;
@@ -107,7 +106,7 @@ public class ProximityCraftingJeiPlugin implements IModPlugin {
 					"jei_transfer"
 			);
 			if (!queued) {
-				ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(recipeId, maxTransfer));
+				ProximityClientServices.getClientRequestSender().requestRecipeFill(recipeId, maxTransfer);
 			}
 			return null;
 		}

@@ -64,10 +64,26 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
 - Recipe book snapshot building also uses the Forge scan boundary via `ForgeScanOptionsFactory`.
 - Forge transport still owns packet registration and delivery, but the snapshot/feedback payload model is now shared in `common`.
 
+## Current boundary after phase 3
+- `common` now also owns the outbound client request contract:
+  - `ClientRequestSender`
+  - `ProximityClientServices`
+- Forge provides the active outbound bridge through:
+  - `ForgeClientRequestSender`
+- `ProximityCraftingScreen`, JEI, and EMI no longer call Forge networking directly for client-to-server requests.
+- `common` now owns the non-visual client session controller:
+  - `ClientRecipeSessionState`
+  - `SourceSnapshotApplyResult`
+  - `RecipeActionFeedbackApplyResult`
+- Forge still owns:
+  - packet registration
+  - packet transport
+  - inbound packet handlers
+  - screen/menu side effects and rendering
+- The current split keeps transport platform-side, but outbound request intent and client request/apply state are now reusable.
+
 ## Next migration targets
-1. Decide whether the next networking step should be:
-   - common packet send intent interfaces, or
-   - keeping transport fully platform-side and only sharing payloads
-2. Keep JEI/EMI isolated in Forge until the service split is stable
+1. Decide whether inbound packet application should also gain a common bridge, or stay platform-side longer
+2. Keep JEI/EMI isolated in Forge until the client/session split is validated in real gameplay
 3. Revisit what part of recipe-book snapshot application can move out of Forge screens/menus
-4. Evaluate `CraftConsumeService` call sites and decide whether the façade should remain or be inlined
+4. Evaluate `CraftConsumeService` call sites and decide whether the facade should remain or be inlined

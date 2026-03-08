@@ -1,11 +1,10 @@
 package dev.maeiro.proximitycrafting.client.compat.jei;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
+import dev.maeiro.proximitycrafting.client.net.ProximityClientServices;
 import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
-import dev.maeiro.proximitycrafting.networking.C2SRequestRecipeFill;
-import dev.maeiro.proximitycrafting.networking.ProximityCraftingNetwork;
 import dev.maeiro.proximitycrafting.networking.payload.RecipeBookSourceEntry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
@@ -300,7 +299,7 @@ public final class ProximityCraftingJeiCraftableFilterController {
 							"jei_direct_click"
 					);
 					if (!queued) {
-						ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(matchedRecipeId, craftAll));
+						ProximityClientServices.getClientRequestSender().requestRecipeFill(matchedRecipeId, craftAll);
 					}
 					if (isDebugLoggingEnabled()) {
 						ProximityCrafting.LOGGER.info(

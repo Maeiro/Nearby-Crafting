@@ -9,10 +9,9 @@ import dev.emi.emi.api.recipe.VanillaEmiRecipeCategories;
 import dev.emi.emi.api.recipe.handler.EmiCraftContext;
 import dev.emi.emi.api.recipe.handler.EmiRecipeHandler;
 import dev.emi.emi.api.stack.EmiStack;
+import dev.maeiro.proximitycrafting.client.net.ProximityClientServices;
 import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
-import dev.maeiro.proximitycrafting.networking.C2SRequestRecipeFill;
-import dev.maeiro.proximitycrafting.networking.ProximityCraftingNetwork;
 import dev.maeiro.proximitycrafting.registry.ModBlocks;
 import dev.maeiro.proximitycrafting.registry.ModMenuTypes;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -66,7 +65,7 @@ public class ProximityCraftingEmiPlugin implements EmiPlugin {
 					"emi_transfer"
 			);
 			if (!queued) {
-				ProximityCraftingNetwork.CHANNEL.sendToServer(new C2SRequestRecipeFill(recipeId, craftAll));
+				ProximityClientServices.getClientRequestSender().requestRecipeFill(recipeId, craftAll);
 			}
 			return true;
 		}
