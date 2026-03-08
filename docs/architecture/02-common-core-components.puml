@@ -25,6 +25,11 @@ package "service/crafting" as CraftingPkg {
   component "CraftConsumeSessionPort" as CraftConsumeSessionPort
   component "ResultTakePort" as ResultTakePort
   component "TrackedCraftGridPort" as TrackedGridPort
+  component "MenuRuntimeHost" as MenuRuntimeHost
+  component "MenuSnapshotTransport" as MenuSnapshotTransport
+  component "RecipeBookSnapshotSourcePort" as SnapshotSourcePort
+  component "RecipeBookSnapshotOperations" as SnapshotOps
+  component "MenuRuntimeController" as MenuRuntimeController
   component "RecipeFillOperations" as RecipeFillOps
   component "CraftConsumeOperations" as CraftConsumeOps
   component "CraftingResultOperations" as CraftingResultOps
@@ -32,6 +37,11 @@ package "service/crafting" as CraftingPkg {
   component "ResultTakeOperations" as ResultTakeOps
   component "TrackedCraftGridSession" as TrackedGridSession
   component "RecipeBookSourceSessionState" as RecipeBookSession
+}
+
+package "menu" as MenuPkg {
+  component "SourceTrackingCraftingContainer" as TrackedContainer
+  component "ProximityResultSlot" as SharedResultSlot
 }
 
 package "client/net" as ClientNetPkg {
@@ -88,8 +98,15 @@ CraftConsumeOps --> CraftConsumeSessionPort
 CraftingResultOps --> ResultTakePort
 RecipeSessionOps --> CraftingSessionPort
 ResultTakeOps --> ResultTakePort
+MenuRuntimeController --> MenuRuntimeHost
+MenuRuntimeController --> MenuSnapshotTransport
+MenuRuntimeController --> SnapshotSourcePort
+MenuRuntimeController --> SnapshotOps
+MenuRuntimeController --> RecipeBookSession
 TrackedGridSession --> TrackedGridPort
 RecipeBookSession --> SnapshotPayload
+TrackedContainer --> TrackedGridSession
+SharedResultSlot --> ResultTakePort
 
 ClientResponseDispatcher --> ClientRecipeSessionState
 ClientResponseDispatcher --> SnapshotPayload
@@ -118,7 +135,8 @@ BootstrapDescriptors --> ContentDescriptors
 note bottom
 This diagram shows the current reusable architecture in common:
 ports define runtime seams, operations own behavior, presenters own
-non-visual UI state, runtime controllers coordinate screen behavior,
-and payloads/config records stay loader-agnostic.
+non-visual UI state, runtime controllers coordinate screen and menu
+behavior, shared menu helpers avoid host duplication, and payloads/config
+records stay loader-agnostic.
 end note
 @enduml

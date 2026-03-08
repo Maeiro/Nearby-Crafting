@@ -6,6 +6,8 @@ skinparam packageStyle rectangle
 
 package "common core" as CommonCore {
   component "Crafting / consume /\nresult / session operations" as CommonRuntime
+  component "Shared menu runtime\ncontrollers" as CommonMenuRuntime
+  component "Shared menu helpers\nresult slot / tracked container" as CommonMenuHelpers
   component "Request/response client seams" as CommonClientSeams
   component "Shared screen runtime\ncontrollers" as CommonScreenRuntime
   component "Scan/source orchestration" as CommonScan
@@ -42,6 +44,8 @@ package "neoforge" as NeoForgeHost {
 }
 
 ForgeMenu ..> CommonRuntime
+ForgeMenu ..> CommonMenuRuntime
+ForgeMenu ..> CommonMenuHelpers
 ForgeScreen ..> CommonClientSeams
 ForgeScreen ..> CommonScreenRuntime
 ForgeScreen ..> ForgeRecipeBookBridge
@@ -51,6 +55,8 @@ ForgeScanAdapters ..> CommonScan
 ForgeCompatHosts ..> CommonClientSeams
 
 FabricMenu ..> CommonRuntime
+FabricMenu ..> CommonMenuRuntime
+FabricMenu ..> CommonMenuHelpers
 FabricScreen ..> CommonClientSeams
 FabricScreen ..> CommonScreenRuntime
 FabricScreen ..> FabricRecipeBookBridge
@@ -60,6 +66,8 @@ FabricScanAdapters ..> CommonScan
 FabricCompatPending ..> CommonClientSeams
 
 NeoForgeMenu ..> CommonRuntime
+NeoForgeMenu ..> CommonMenuRuntime
+NeoForgeMenu ..> CommonMenuHelpers
 NeoForgeScreen ..> CommonClientSeams
 NeoForgeScreen ..> CommonScreenRuntime
 NeoForgeScreen ..> NeoForgeRecipeBookBridge
@@ -71,6 +79,7 @@ NeoForgeVanillaOnly ..> CommonClientSeams
 note bottom of ForgeHost
 Reference runtime.
 Full current host with active overlay and backpack compat.
+Menu snapshot lifecycle is now hosted through shared menu controllers.
 end note
 
 note bottom of FabricHost

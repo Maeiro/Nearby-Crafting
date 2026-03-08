@@ -9,6 +9,8 @@ participant "ClientRequestSender" as Sender
 participant "Platform packet transport" as Transport
 participant "Menu / session host" as MenuHost
 participant "Common operations" as CommonOps
+participant "MenuRuntimeController" as MenuRuntimeController
+participant "RecipeBookSnapshotOperations" as SnapshotOps
 participant "Platform S2C handler" as S2CHandler
 participant "ClientResponseDispatcher" as Dispatcher
 participant "ClientRecipeSessionState" as SessionState
@@ -22,7 +24,10 @@ Sender -> Transport : C2S packet
 Transport -> MenuHost : route to open runtime session
 MenuHost -> CommonOps : execute fill / adjust / clear / consume
 CommonOps --> MenuHost : result + updated state
-MenuHost -> Transport : S2CRecipeBookSourceSnapshot\nand/or S2CRecipeFillFeedback
+MenuHost -> MenuRuntimeController : invalidate / prewarm / post-take / send snapshot
+MenuRuntimeController -> SnapshotOps : build snapshot from source port if needed
+SnapshotOps --> MenuRuntimeController : recipe source entries
+MenuRuntimeController -> Transport : send S2CRecipeBookSourceSnapshot\nand/or S2CRecipeFillFeedback
 Transport -> S2CHandler : decode payload
 S2CHandler -> Dispatcher : handleRecipeBookSourceSnapshot(...)\nhandleRecipeFillFeedback(...)
 Dispatcher -> SessionHandle : resolve active session by containerId
@@ -42,6 +47,7 @@ note bottom
 Transport and packet registration remain platform-side.
 Request/response intent, state application, and session coordination
 now live behind shared common seams, with screen runtime behavior
-coordinated before dispatch and after response handling.
+coordinated before dispatch and after response handling, and menu-side
+snapshot lifecycle routed through a shared menu runtime controller.
 end note
 @enduml

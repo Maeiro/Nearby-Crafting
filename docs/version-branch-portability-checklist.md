@@ -36,6 +36,7 @@ Recommended interpretation:
 - [x] Source discovery orchestration is separated from raw loader discovery
 - [x] Screen presenters and session state have started moving out of loader UI classes
 - [x] Screen runtime action/sync/scroll state is centralized behind shared controllers in `common`
+- [x] Menu/result-slot/session runtime is centralized behind shared ports and controllers in `common`
 - [x] Shared ids/bootstrap descriptors are no longer hardcoded only in Forge
 
 ## Remaining work to improve version-branch portability
@@ -43,7 +44,7 @@ Recommended interpretation:
 - [x] Reduce direct dependency on fragile Minecraft-version-specific UI internals where a common presenter/state seam is possible
 - [x] Isolate all recipe book accessors/mixins clearly per loader and per version-sensitive runtime path
 - [ ] Keep packet payload models and request/response state transitions version-local but loader-neutral inside each branch
-- [ ] Keep menu/result-slot/session logic concentrated behind small runtime ports instead of spreading version-sensitive logic across many host classes
+- [x] Keep menu/result-slot/session logic concentrated behind small runtime ports instead of spreading version-sensitive logic across many host classes
 - [ ] Keep scanning/discovery split clean:
   - `common` owns orchestration
   - per-loader code owns raw discovery only
@@ -63,6 +64,8 @@ Recommended interpretation:
   - action dispatch
   - source sync cadence
   - scroll bookkeeping
+- Menu-side snapshot lifecycle, result-slot post-take flow, and source-tracking container behavior now live behind shared menu runtime seams instead of being triplicated in the three platform menus.
+- Recipe book snapshot build orchestration now runs through a shared common seam, while raw source collection and packet send stay platform-side.
 
 ## Branch strategy guideline
 - Prefer reusing the previous adjacent version branch first.
