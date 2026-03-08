@@ -6,7 +6,7 @@
 - [x] Add outbound client request bridge in `common`
 - [x] Add inbound client response dispatcher and runtime hooks in `common`
 - [x] Extract source discovery orchestration to `common`
-- [ ] Reduce `ProximityCraftingMenu` ownership to session hosting and slot adapters
+- [x] Reduce `ProximityCraftingMenu` ownership to session hosting and slot adapters
 - [ ] Extract more screen-side presenters/view-models out of `ProximityCraftingScreen`
 - [ ] Move config semantics/default resolution into `common`
 - [ ] Review registry/bootstrap descriptors for further loader isolation
@@ -15,8 +15,12 @@
 - Source discovery split:
   - `common` owns source orchestration and recipe-book source aggregation
   - `forge` keeps raw container/player/backpack discovery adapters
+- Menu session split:
+  - `common` owns tracked craft-grid mutation/source-ledger state
+  - `common` owns recipe-book source snapshot/client supplemental source session state
+  - `forge` menu now hosts these session objects and exposes slot/runtime adapters
 
 ## Next focus candidates
-- Reduce `ProximityCraftingMenu` ownership to session hosting and slot adapters
 - Extract more screen-side presenters/view-models out of `ProximityCraftingScreen`
 - Move config semantics/default resolution into `common`
+- Review whether the remaining recipe-resolution/output update logic can be split from `ProximityCraftingMenu`

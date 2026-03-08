@@ -112,8 +112,28 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
   - `common`: compose, merge, prioritize, and aggregate source refs
   - `forge`: discover concrete inventories/capabilities/backpacks and adapt them into source refs
 
+## Current boundary after phase 6
+- `common` now also owns menu-adjacent session state that was previously embedded directly in `ProximityCraftingMenu`:
+  - `TrackedCraftGridPort`
+  - `TrackedCraftGridSession`
+  - `RecipeBookSourceSessionState`
+- `TrackedCraftGridSession` now owns:
+  - craft-grid bulk mutation suppression and pending flush behavior
+  - source-ledger tracking for grid slots
+  - tracked return/remove/add/set operations on the crafting grid
+- `RecipeBookSourceSessionState` now owns:
+  - client supplemental recipe-book source state
+  - server recipe-book snapshot cache state
+  - prewarm/adjust-throttle bookkeeping
+- `ProximityCraftingMenu` is now closer to a session host:
+  - it owns the concrete `CraftingContainer`, result slot, and runtime callbacks
+  - it delegates tracked-grid state and recipe-book session state into reusable common components
+- The practical split is now:
+  - `common`: menu-adjacent session state and slot mutation bookkeeping
+  - `forge`: concrete menu/container implementation and result recomputation hook
+
 ## Next migration targets
-1. Reduce `ProximityCraftingMenu` ownership further so it acts primarily as a session host and slot adapter
-2. Extract more screen-side presenters/view-models out of `ProximityCraftingScreen`
-3. Move config semantics/default resolution into `common`, leaving only platform config binding per loader
+1. Extract more screen-side presenters/view-models out of `ProximityCraftingScreen`
+2. Move config semantics/default resolution into `common`, leaving only platform config binding per loader
+3. Review whether the remaining recipe-resolution/result-update logic can be separated from `ProximityCraftingMenu`
 4. Review registry/bootstrap descriptors for additional loader isolation without over-abstracting platform registration
