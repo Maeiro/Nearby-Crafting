@@ -40,6 +40,11 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - In phase 10, move recipe-by-id and adjust-load orchestration into `common`, while keeping concrete menu invalidation/runtime host concerns in Forge.
 - In phase 11, complete the nearby-container scanning seam by routing Forge through the existing common `NearbyContainerSourceCollector`, leaving Forge with only a raw `ContainerDiscoveryPort` adapter.
 - In phase 11, route result-slot refill policy through `common` (`ResultTakePort`, `ResultTakeOperations`) and keep only concrete slot hosting plus packet transport in Forge.
+- In the first Fabric runtime slice, move Fabric from scaffold-only to a real runtime host by adding:
+  - content/menu/screen registration
+  - Architectury `NetworkChannel` transport
+  - Fabric runtime adapters for scanning/session/client hooks
+  - while intentionally keeping config persistence and overlay compat incomplete for a later step.
 
 ## Consequences
 - Future ports can reuse common planning/source logic directly.
@@ -66,3 +71,4 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - Concrete menu invalidation/runtime hosting remains platform-side by design; only recipe request/load orchestration has been generalized.
 - Nearby container world iteration/filtering is no longer Forge-owned; only raw block-entity/item-handler discovery remains platform-side by design.
 - Concrete result slot hosting and packet transport remain platform-side by design; only result-take refill policy has been generalized.
+- Fabric is now beyond scaffold status: it has a build-valid runtime host on top of the shared core, but it is not yet declared feature-parity complete.

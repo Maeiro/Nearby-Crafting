@@ -13,6 +13,7 @@
 - [x] Extract status/feedback presenter flow from `ProximityCraftingScreen`
 - [x] Extract recipe request/session operations from `ProximityCraftingMenu`
 - [x] Review registry/bootstrap descriptors for further loader isolation
+- [x] Establish a first real Fabric runtime host on top of the shared common core
 
 ## Completed in this phase
 - Runtime scanning boundary cleanup:
@@ -52,7 +53,15 @@
 - Recipe request/session split:
   - `common` owns recipe-by-id and adjust-load operations
   - `forge` menu delegates those flows through `RecipeFillService`
+- First Fabric runtime host:
+  - `fabric` now has real content/menu/screen/network wiring
+  - Architectury `NetworkChannel` is now used for the current Fabric packet set
+  - Fabric packet handlers now route through the shared common request/response/session seams
+  - Fabric scanning/session/runtime adapters now host the common core instead of staying scaffold-only
+  - current remaining gaps are documented in `docs/fabric-port-status.md`
 
 ## Next focus candidates
+- Add persisted Fabric config binding
+- Smoke-test the current Fabric runtime slice in-game
 - Review whether more action/panel perf view models can leave `ProximityCraftingScreen`
 - Review whether more menu-side result-slot/session flow can leave `ProximityCraftingMenu`

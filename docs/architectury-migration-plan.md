@@ -49,8 +49,11 @@ Move Proximity Crafting from a single Forge module to a modular Architectury lay
 
 ## Current platform state
 - `forge`: active and validated by `:forge:build`
-- `fabric`: scaffolded and validated by `:fabric:compileJava`
+- `fabric`: first runtime host slice implemented and validated by `:fabric:build`
 - `neoforge`: placeholder module only for now
+
+Detailed Fabric status:
+- `docs/fabric-port-status.md`
 
 ## Why NeoForge is still placeholder
 NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during configuration in this branch. The module exists intentionally, but is not yet wired into the shared runtime path.
@@ -215,7 +218,23 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
   - `common`: result-take refill policy and outcome model
   - `forge`: concrete result slot host, server packet transport, and menu-side runtime callback
 
+## Current Fabric slice
+- Fabric is no longer "compile-only scaffold".
+- Fabric now has:
+  - block/item/menu registration
+  - Architectury menu open flow
+  - Architectury network channel registration
+  - C2S/S2C packet implementations wired to the shared common request/response/session seams
+  - Fabric runtime adapters for scanning, crafting session, consume session, and active client session hooks
+- What is still intentionally missing from Fabric is documented separately in:
+  - `docs/fabric-port-status.md`
+- The important architectural point is:
+  - Fabric now has a concrete runtime host
+  - parity work is now primarily runtime validation and platform-specific feature completion, not foundational restructuring
+
 ## Next migration targets
-1. Review whether additional action/panel perf view models should leave `ProximityCraftingScreen`
-2. Review whether more menu-side result-slot/session flow can be separated from `ProximityCraftingMenu`
-3. Review whether any remaining resource/uid constants still belong in loader modules or should join the shared descriptor layer
+1. Smoke-test the current Fabric runtime slice in-game
+2. Add persisted Fabric config binding
+3. Review whether additional action/panel perf view models should leave `ProximityCraftingScreen`
+4. Review whether more menu-side result-slot/session flow can be separated from `ProximityCraftingMenu`
+5. Revisit Fabric-specific overlay compat after the base runtime is proven stable
