@@ -8,6 +8,7 @@ package "common core" as CommonCore {
   component "Crafting / consume /\nresult / session operations" as CommonRuntime
   component "Shared menu runtime\ncontrollers" as CommonMenuRuntime
   component "Shared menu helpers\nresult slot / tracked container" as CommonMenuHelpers
+  component "Shared server request\nhandling" as CommonServerRequests
   component "Request/response client seams" as CommonClientSeams
   component "Shared screen runtime\ncontrollers" as CommonScreenRuntime
   component "Scan/source orchestration" as CommonScan
@@ -46,6 +47,7 @@ package "neoforge" as NeoForgeHost {
 ForgeMenu ..> CommonRuntime
 ForgeMenu ..> CommonMenuRuntime
 ForgeMenu ..> CommonMenuHelpers
+ForgeNetwork ..> CommonServerRequests
 ForgeScreen ..> CommonClientSeams
 ForgeScreen ..> CommonScreenRuntime
 ForgeScreen ..> ForgeRecipeBookBridge
@@ -57,6 +59,7 @@ ForgeCompatHosts ..> CommonClientSeams
 FabricMenu ..> CommonRuntime
 FabricMenu ..> CommonMenuRuntime
 FabricMenu ..> CommonMenuHelpers
+FabricNetwork ..> CommonServerRequests
 FabricScreen ..> CommonClientSeams
 FabricScreen ..> CommonScreenRuntime
 FabricScreen ..> FabricRecipeBookBridge
@@ -68,6 +71,7 @@ FabricCompatPending ..> CommonClientSeams
 NeoForgeMenu ..> CommonRuntime
 NeoForgeMenu ..> CommonMenuRuntime
 NeoForgeMenu ..> CommonMenuHelpers
+NeoForgeNetwork ..> CommonServerRequests
 NeoForgeScreen ..> CommonClientSeams
 NeoForgeScreen ..> CommonScreenRuntime
 NeoForgeScreen ..> NeoForgeRecipeBookBridge

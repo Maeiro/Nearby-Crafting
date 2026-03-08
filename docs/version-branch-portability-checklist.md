@@ -43,7 +43,7 @@ Recommended interpretation:
 - [ ] Keep `common` free from loader APIs and loader-shaped assumptions
 - [x] Reduce direct dependency on fragile Minecraft-version-specific UI internals where a common presenter/state seam is possible
 - [x] Isolate all recipe book accessors/mixins clearly per loader and per version-sensitive runtime path
-- [ ] Keep packet payload models and request/response state transitions version-local but loader-neutral inside each branch
+- [x] Keep packet payload models and request/response state transitions version-local but loader-neutral inside each branch
 - [x] Keep menu/result-slot/session logic concentrated behind small runtime ports instead of spreading version-sensitive logic across many host classes
 - [ ] Keep scanning/discovery split clean:
   - `common` owns orchestration
@@ -66,6 +66,7 @@ Recommended interpretation:
   - scroll bookkeeping
 - Menu-side snapshot lifecycle, result-slot post-take flow, and source-tracking container behavior now live behind shared menu runtime seams instead of being triplicated in the three platform menus.
 - Recipe book snapshot build orchestration now runs through a shared common seam, while raw source collection and packet send stay platform-side.
+- Server-side C2S request handling now flows through shared request payloads and a common server request controller, while packet context extraction and send APIs remain platform-side.
 
 ## Branch strategy guideline
 - Prefer reusing the previous adjacent version branch first.

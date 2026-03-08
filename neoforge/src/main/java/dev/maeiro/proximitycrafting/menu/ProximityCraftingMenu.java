@@ -10,11 +10,11 @@ import dev.maeiro.proximitycrafting.networking.S2CRecipeBookSourceSnapshot;
 import dev.maeiro.proximitycrafting.registry.ModBlocks;
 import dev.maeiro.proximitycrafting.registry.ModMenuTypes;
 import dev.maeiro.proximitycrafting.networking.payload.RecipeBookSourceEntry;
+import dev.maeiro.proximitycrafting.networking.request.ServerMenuRequestHost;
 import dev.maeiro.proximitycrafting.service.crafting.CraftingResultOperations;
 import dev.maeiro.proximitycrafting.service.crafting.CraftingResultPort;
 import dev.maeiro.proximitycrafting.service.crafting.FillResult;
 import dev.maeiro.proximitycrafting.service.crafting.MenuRuntimeController;
-import dev.maeiro.proximitycrafting.service.crafting.MenuRuntimeHost;
 import dev.maeiro.proximitycrafting.service.crafting.MenuSnapshotTransport;
 import dev.maeiro.proximitycrafting.service.crafting.RecipeFillService;
 import dev.maeiro.proximitycrafting.service.crafting.RecipeBookSnapshotSourcePort;
@@ -53,7 +53,7 @@ import net.minecraftforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
-public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> implements MenuRuntimeHost {
+public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> implements ServerMenuRequestHost {
 	public static final int RESULT_SLOT = 0;
 	private static final long SERVER_SNAPSHOT_CACHE_TTL_MS = 3000L;
 	private static final long ADJUST_SNAPSHOT_MIN_INTERVAL_MS = 250L;

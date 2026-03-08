@@ -16,8 +16,8 @@ Recommended reading order:
 Diagram purpose:
 - `01-module-overview.puml`: module boundaries and ownership rules
 - `02-common-core-components.puml`: the reusable `common` subsystems and contracts
-- `03-runtime-request-response-flow.puml`: the current request/response runtime flow
-- `04-platform-hosts-and-adapters.puml`: how Forge, Fabric, and NeoForge host the shared core, including the platform-local vanilla recipe book seam, shared screen runtime controllers, and shared menu runtime seam
+- `03-runtime-request-response-flow.puml`: the current request/response runtime flow, including the shared server request controller on the C2S side
+- `04-platform-hosts-and-adapters.puml`: how Forge, Fabric, and NeoForge host the shared core, including the platform-local vanilla recipe book seam, shared screen runtime controllers, shared menu runtime seam, and shared server request handling
 
 Rendering locally:
 - If PlantUML is installed, run:

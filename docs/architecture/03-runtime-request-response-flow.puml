@@ -7,6 +7,8 @@ participant "Screen or overlay\n(Forge/Fabric/NeoForge)" as Ui
 participant "Shared screen runtime\ncontroller(s)" as RuntimeController
 participant "ClientRequestSender" as Sender
 participant "Platform packet transport" as Transport
+participant "Platform C2S handler" as C2SHandler
+participant "ServerMenuRequestController" as ServerRequestController
 participant "Menu / session host" as MenuHost
 participant "Common operations" as CommonOps
 participant "MenuRuntimeController" as MenuRuntimeController
@@ -21,7 +23,10 @@ User -> Ui : click / scroll / clear / recipe fill
 Ui -> RuntimeController : enqueue / normalize / schedule
 RuntimeController -> Sender : send outbound request
 Sender -> Transport : C2S packet
-Transport -> MenuHost : route to open runtime session
+Transport -> C2SHandler : decode request
+C2SHandler -> MenuHost : resolve active menu host
+C2SHandler -> ServerRequestController : delegate request payload
+ServerRequestController -> MenuHost : call fill / adjust / clear / prefs
 MenuHost -> CommonOps : execute fill / adjust / clear / consume
 CommonOps --> MenuHost : result + updated state
 MenuHost -> MenuRuntimeController : invalidate / prewarm / post-take / send snapshot
@@ -49,5 +54,7 @@ Request/response intent, state application, and session coordination
 now live behind shared common seams, with screen runtime behavior
 coordinated before dispatch and after response handling, and menu-side
 snapshot lifecycle routed through a shared menu runtime controller.
+C2S request validation/clamping/logging decisions now flow through a
+shared server request controller before reaching the menu host.
 end note
 @enduml

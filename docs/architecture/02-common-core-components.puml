@@ -50,6 +50,13 @@ package "client/net" as ClientNetPkg {
   component "ProximityClientServices" as ProximityClientServices
 }
 
+package "networking/request" as ServerRequestPkg {
+  component "ServerMenuRequestHost" as ServerMenuRequestHost
+  component "ServerResponseTransport" as ServerResponseTransport
+  component "ServerMenuRequestController" as ServerMenuRequestController
+  component "Request payloads\n(fill / adjust / clear / source sync / prefs)" as RequestPayloads
+}
+
 package "client/session" as ClientSessionPkg {
   component "ClientRecipeSessionState" as ClientRecipeSessionState
   component "SourceSnapshotApplyResult" as SourceSnapshotApplyResult
@@ -103,6 +110,11 @@ MenuRuntimeController --> MenuSnapshotTransport
 MenuRuntimeController --> SnapshotSourcePort
 MenuRuntimeController --> SnapshotOps
 MenuRuntimeController --> RecipeBookSession
+ServerMenuRequestController --> ServerMenuRequestHost
+ServerMenuRequestController --> ServerResponseTransport
+ServerMenuRequestController --> RequestPayloads
+ServerMenuRequestController --> FeedbackPayload
+ServerMenuRequestController --> SnapshotPayload
 TrackedGridSession --> TrackedGridPort
 RecipeBookSession --> SnapshotPayload
 TrackedContainer --> TrackedGridSession
@@ -136,7 +148,8 @@ note bottom
 This diagram shows the current reusable architecture in common:
 ports define runtime seams, operations own behavior, presenters own
 non-visual UI state, runtime controllers coordinate screen and menu
-behavior, shared menu helpers avoid host duplication, and payloads/config
+behavior, shared menu helpers avoid host duplication, packet request
+handling is centralized behind a common controller, and payloads/config
 records stay loader-agnostic.
 end note
 @enduml

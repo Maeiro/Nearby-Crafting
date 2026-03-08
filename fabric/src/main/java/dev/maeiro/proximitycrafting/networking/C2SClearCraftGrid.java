@@ -1,17 +1,17 @@
 package dev.maeiro.proximitycrafting.networking;
 
 import dev.architectury.networking.NetworkManager;
-import dev.maeiro.proximitycrafting.ProximityCrafting;
-import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
-import dev.maeiro.proximitycrafting.networking.payload.RecipeBookSourceEntry;
+import dev.maeiro.proximitycrafting.networking.payload.ClearCraftGridRequestPayload;
+import dev.maeiro.proximitycrafting.networking.request.ServerMenuRequestController;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
-import java.util.List;
 import java.util.function.Supplier;
 
 public class C2SClearCraftGrid {
+	private static final ServerMenuRequestController REQUEST_CONTROLLER = new ServerMenuRequestController();
+	private static final PlatformServerResponseTransport RESPONSE_TRANSPORT = new PlatformServerResponseTransport();
 	private final int containerId;
 
 	public C2SClearCraftGrid(int containerId) {
@@ -29,61 +29,15 @@ public class C2SClearCraftGrid {
 	public void handle(Supplier<NetworkManager.PacketContext> ctxSupplier) {
 		NetworkManager.PacketContext ctx = ctxSupplier.get();
 		ctx.queue(() -> {
-			long startNs = System.nanoTime();
 			if (!(ctx.getPlayer() instanceof ServerPlayer player) || !(player.containerMenu instanceof ProximityCraftingMenu menu)) {
 				return;
 			}
-			if (menu.containerId != containerId) {
-				return;
-			}
-
-			boolean hadItems = menu.hasAnyCraftGridItems();
-			long clearStartNs = 0L;
-			long clearEndNs = 0L;
-			if (hadItems) {
-				clearStartNs = System.nanoTime();
-				menu.clearCraftGridToPlayerOrDrop();
-				menu.invalidateServerRecipeBookSnapshotCache();
-				clearEndNs = System.nanoTime();
-			}
-
-			ProximityCraftingNetwork.CHANNEL.sendToPlayer(
+			REQUEST_CONTROLLER.handleClearCraftGrid(
 					player,
-					new S2CRecipeFillFeedback(
-							true,
-							hadItems ? "proximitycrafting.feedback.grid_cleared" : "proximitycrafting.feedback.grid_already_empty",
-							0
-					)
+					menu,
+					RESPONSE_TRANSPORT,
+					new ClearCraftGridRequestPayload(containerId)
 			);
-
-			if (hadItems) {
-				List<RecipeBookSourceEntry> snapshotEntries = menu.getServerRecipeBookSnapshot(false, "packet_clear_grid");
-				ProximityCraftingNetwork.CHANNEL.sendToPlayer(
-						player,
-						new S2CRecipeBookSourceSnapshot(containerId, snapshotEntries)
-				);
-			}
-
-			if (isDebugLoggingEnabled()) {
-				double totalMs = (System.nanoTime() - startNs) / 1_000_000.0D;
-				double clearMs = hadItems ? (clearEndNs - clearStartNs) / 1_000_000.0D : 0.0D;
-				ProximityCrafting.LOGGER.info(
-						"[PROXC-PERF] packet.C2SClearCraftGrid player={} menu={} hadItems={} clearMs={} totalMs={}",
-						player.getGameProfile().getName(),
-						menu.containerId,
-						hadItems,
-						String.format("%.3f", clearMs),
-						String.format("%.3f", totalMs)
-				);
-			}
 		});
-	}
-
-	private static boolean isDebugLoggingEnabled() {
-		try {
-			return ProximityCraftingConfig.serverRuntimeSettings().debugLogging();
-		} catch (RuntimeException exception) {
-			return false;
-		}
 	}
 }

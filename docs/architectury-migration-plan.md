@@ -28,6 +28,7 @@ The migration is no longer about proving the module split. That baseline is alre
   - crafting session operations
   - consume/result-take operations
   - menu runtime controllers and snapshot lifecycle
+  - server request payloads and C2S request handling
   - request/response client flow
   - shared screen runtime controllers for action/sync/scroll flow
   - screen presenters and client session state
@@ -44,6 +45,7 @@ Detailed platform status:
 - source discovery orchestration and aggregation
 - crafting, consume, result, and session operations
 - menu runtime controllers, shared tracked-container helpers, and snapshot build orchestration
+- server request payloads and common C2S request handling
 - client request/response contracts and client session state
 - client runtime controllers for screen action/sync/scroll coordination
 - presenters for non-visual screen state
@@ -56,6 +58,7 @@ Detailed platform status:
 - concrete menu/screen hosts
 - packet transport and registration
 - snapshot transport callbacks and live scan-option adapters
+- packet context extraction and platform send APIs
 - runtime adapters over the common ports
 - final UI-side effects triggered by shared screen runtime controllers
 - recipe-book runtime bridges for version-sensitive vanilla UI access

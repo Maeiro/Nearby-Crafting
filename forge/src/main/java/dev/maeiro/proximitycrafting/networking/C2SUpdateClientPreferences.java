@@ -1,7 +1,8 @@
 package dev.maeiro.proximitycrafting.networking;
 
-import dev.maeiro.proximitycrafting.config.ClientPreferences;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
+import dev.maeiro.proximitycrafting.networking.payload.UpdateClientPreferencesRequestPayload;
+import dev.maeiro.proximitycrafting.networking.request.ServerMenuRequestController;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
@@ -9,6 +10,7 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.function.Supplier;
 
 public class C2SUpdateClientPreferences {
+	private static final ServerMenuRequestController REQUEST_CONTROLLER = new ServerMenuRequestController();
 	private final int containerId;
 	private final boolean autoRefillAfterCraft;
 	private final boolean includePlayerInventory;
@@ -42,15 +44,16 @@ public class C2SUpdateClientPreferences {
 			if (player == null || !(player.containerMenu instanceof ProximityCraftingMenu menu)) {
 				return;
 			}
-			if (menu.containerId != containerId) {
-				return;
-			}
-
-			ClientPreferences preferences = ClientPreferences.fromConfigValues(autoRefillAfterCraft, includePlayerInventory, sourcePriority);
-			menu.setClientPreferences(preferences);
+			REQUEST_CONTROLLER.handleUpdateClientPreferences(
+					menu,
+					new UpdateClientPreferencesRequestPayload(
+							containerId,
+							autoRefillAfterCraft,
+							includePlayerInventory,
+							sourcePriority
+					)
+			);
 		});
 		ctx.setPacketHandled(true);
 	}
 }
-
-
