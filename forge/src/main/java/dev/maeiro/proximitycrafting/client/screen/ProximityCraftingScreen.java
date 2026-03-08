@@ -2,6 +2,10 @@ package dev.maeiro.proximitycrafting.client.screen;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
 import dev.maeiro.proximitycrafting.client.net.ProximityClientServices;
+import dev.maeiro.proximitycrafting.client.presenter.IngredientsPanelContext;
+import dev.maeiro.proximitycrafting.client.presenter.IngredientsPanelEntry;
+import dev.maeiro.proximitycrafting.client.presenter.IngredientsPanelPresenter;
+import dev.maeiro.proximitycrafting.client.presenter.IngredientsPanelUpdateResult;
 import dev.maeiro.proximitycrafting.client.session.ClientRecipeSessionState;
 import dev.maeiro.proximitycrafting.client.session.RecipeActionFeedbackApplyResult;
 import dev.maeiro.proximitycrafting.client.session.SourceSnapshotApplyResult;
@@ -19,17 +23,14 @@ import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
 import net.minecraft.client.gui.screens.recipebook.RecipeUpdateListener;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
@@ -39,10 +40,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @OnlyIn(Dist.CLIENT)
@@ -108,7 +106,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private Component statusMessage;
 	private long statusMessageUntilMs = 0L;
 	private int statusMessageColor = STATUS_COLOR_INFO;
-	private IngredientAvailabilityEntry hoveredProximityEntry;
+	private IngredientsPanelEntry hoveredProximityEntry;
 	@Nullable
 	private ResourceLocation localScrollRecipeId;
 	private long scrollPerfWindowStartMs = 0L;
@@ -124,13 +122,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private int panelPerfLastEntryCount = 0;
 	private int panelPerfLastSourceEntryCount = 0;
 	private long lastPanelSlowFrameLogAtMs = 0L;
-	@Nullable
-	private ResourceLocation proximityPanelCachedRecipeId;
-	private long proximityPanelCachedGridSignature = Long.MIN_VALUE;
-	private long proximityPanelCachedBuiltAtMs = 0L;
-	private boolean proximityPanelCacheDirty = true;
-	private List<RecipeBookSourceEntry> proximityPanelCachedSourcesRef = List.of();
-	private List<IngredientAvailabilityEntry> proximityPanelCachedEntries = List.of();
+	private final IngredientsPanelPresenter ingredientsPanelPresenter = new IngredientsPanelPresenter();
 	private long lastStaleHoveredSlotLogAtMs = 0L;
 	private long lastScrollDebugLogAtMs = 0L;
 	private int suppressedScrollDebugLogs = 0;
@@ -141,6 +133,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			RECIPE_ACTION_IN_FLIGHT_TIMEOUT_MS,
 			RECIPE_ACTION_MAX_ABS_STEPS
 	);
+	private final IngredientsPanelContext ingredientsPanelContext = new ScreenIngredientsPanelContext();
 
 	public ProximityCraftingScreen(ProximityCraftingMenu menu, Inventory playerInventory, Component title) {
 		super(menu, playerInventory, title);
@@ -965,7 +958,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 
 		long frameStartNs = System.nanoTime();
 		long collectStartNs = System.nanoTime();
-		List<IngredientAvailabilityEntry> availabilityEntries = getCurrentRecipeAvailabilityEntries();
+		List<IngredientsPanelEntry> availabilityEntries = getCurrentRecipeAvailabilityEntries();
 		long collectEndNs = System.nanoTime();
 		Rect2i panelBounds = getProximityPanelBounds();
 		int panelX = panelBounds.getX();
@@ -985,7 +978,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		int rowY = panelY + 27;
 		int maxRows = Math.max(0, (panelHeight - 34) / 20);
 		for (int i = 0; i < availabilityEntries.size() && i < maxRows; i++) {
-			IngredientAvailabilityEntry entry = availabilityEntries.get(i);
+			IngredientsPanelEntry entry = availabilityEntries.get(i);
 			int entryY = rowY + i * 20;
 			int iconX = panelX + 7;
 			boolean hovered = mouseX >= panelX + 4 && mouseX < panelX + PROXIMITY_PANEL_WIDTH - 4 && mouseY >= entryY && mouseY < entryY + 18;
@@ -1018,7 +1011,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			return;
 		}
 
-		IngredientAvailabilityEntry entry = hoveredProximityEntry;
+		IngredientsPanelEntry entry = hoveredProximityEntry;
 		List<Component> tooltip = List.of(
 				entry.displayStack().getHoverName(),
 				Component.translatable("proximitycrafting.proximity_items.available", entry.availableCount()),
@@ -1418,197 +1411,45 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 	}
 
-	private List<IngredientAvailabilityEntry> getCurrentRecipeAvailabilityEntries() {
-		List<RecipeBookSourceEntry> currentSources = menu.getClientRecipeBookSupplementalSources();
-		long gridSignature = computeCraftGridSignature();
+	private List<IngredientsPanelEntry> getCurrentRecipeAvailabilityEntries() {
 		long nowMs = System.currentTimeMillis();
-		boolean dirtyBefore = proximityPanelCacheDirty;
-		long previousBuiltAtMs = proximityPanelCachedBuiltAtMs;
-		boolean gridChanged = gridSignature != proximityPanelCachedGridSignature;
-		boolean sourcesChanged = currentSources != proximityPanelCachedSourcesRef;
+		long collectStartNs = System.nanoTime();
+		IngredientsPanelUpdateResult updateResult = ingredientsPanelPresenter.refresh(ingredientsPanelContext, nowMs);
+		long collectEndNs = System.nanoTime();
 
-		// Hot path: avoid expensive recipe-manager lookup when nothing relevant changed.
-		if (!dirtyBefore && !gridChanged && !sourcesChanged) {
-			return proximityPanelCachedEntries;
-		}
-
-		if (menu.getLevel() == null) {
-			proximityPanelCachedEntries = List.of();
-			proximityPanelCachedRecipeId = null;
-			proximityPanelCachedGridSignature = gridSignature;
-			proximityPanelCachedBuiltAtMs = nowMs;
-			proximityPanelCachedSourcesRef = currentSources;
-			proximityPanelCacheDirty = false;
-			return proximityPanelCachedEntries;
-		}
-
-		long recipeLookupStartNs = System.nanoTime();
-		Optional<CraftingRecipe> recipeOptional = resolvePreferredClientRecipe();
-		long recipeLookupEndNs = System.nanoTime();
-		if (recipeOptional.isEmpty()) {
-			proximityPanelCachedEntries = List.of();
-			proximityPanelCachedRecipeId = null;
-			proximityPanelCachedGridSignature = gridSignature;
-			proximityPanelCachedBuiltAtMs = nowMs;
-			proximityPanelCachedSourcesRef = currentSources;
-			proximityPanelCacheDirty = false;
-			return proximityPanelCachedEntries;
-		}
-
-		CraftingRecipe recipe = recipeOptional.get();
-		ResourceLocation recipeId = recipe.getId();
-		boolean recipeChanged = !recipeId.equals(proximityPanelCachedRecipeId);
-
-		proximityPanelCachedEntries = collectCurrentRecipeAvailabilityEntries(
-				recipe,
-				recipeLookupEndNs - recipeLookupStartNs
-		);
-		proximityPanelCachedRecipeId = recipeId;
-		proximityPanelCachedGridSignature = gridSignature;
-		proximityPanelCachedBuiltAtMs = nowMs;
-		proximityPanelCachedSourcesRef = currentSources;
-		proximityPanelCacheDirty = false;
-
-		if (isDebugLoggingEnabled()) {
+		if (isDebugLoggingEnabled() && updateResult.cacheUpdated() && updateResult.recipeId() != null) {
 			ProximityCrafting.LOGGER.info(
 					"[PROXC-PERF] panel.cache.rebuild menu={} recipe={} reason=dirty:{} recipeChanged:{} gridChanged:{} sourcesChanged:{} entries={} ageMs={}",
 					this.menu.containerId,
-					recipeId,
-					dirtyBefore,
-					recipeChanged,
-					gridChanged,
-					sourcesChanged,
-					proximityPanelCachedEntries.size(),
-					previousBuiltAtMs == 0L ? -1L : (nowMs - previousBuiltAtMs)
+					updateResult.recipeId(),
+					updateResult.dirtyBefore(),
+					updateResult.recipeChanged(),
+					updateResult.gridChanged(),
+					updateResult.sourcesChanged(),
+					updateResult.entries().size(),
+					updateResult.previousBuiltAgeMs()
 			);
-		}
-		return proximityPanelCachedEntries;
-	}
 
-	private List<IngredientAvailabilityEntry> collectCurrentRecipeAvailabilityEntries(
-			CraftingRecipe recipe,
-			long recipeLookupDurationNs
-	) {
-		long startNs = System.nanoTime();
-
-		Map<String, IngredientTracker> ingredientTrackers = new LinkedHashMap<>();
-		long trackerBuildStartNs = System.nanoTime();
-		for (Ingredient ingredient : recipe.getIngredients()) {
-			if (ingredient == null || ingredient.isEmpty()) {
-				continue;
-			}
-
-			ItemStack displayStack = resolveDisplayStack(ingredient);
-			if (displayStack.isEmpty()) {
-				continue;
-			}
-
-			String ingredientKey = buildIngredientKey(ingredient);
-			IngredientTracker tracker = ingredientTrackers.computeIfAbsent(
-					ingredientKey,
-					key -> new IngredientTracker(displayStack, ingredient, 0)
-			);
-			tracker.requiredCount++;
-		}
-		long trackerBuildEndNs = System.nanoTime();
-
-		if (ingredientTrackers.isEmpty()) {
-			return List.of();
-		}
-
-		long aggregateStartNs = System.nanoTime();
-		int sourceEntriesProcessed = 0;
-		for (RecipeBookSourceEntry sourceEntry : menu.getClientRecipeBookSupplementalSources()) {
-			ItemStack sourceStack = sourceEntry.stack();
-			if (sourceStack.isEmpty() || sourceEntry.count() <= 0) {
-				continue;
-			}
-			sourceEntriesProcessed++;
-
-			for (IngredientTracker tracker : ingredientTrackers.values()) {
-				if (tracker.ingredient.test(sourceStack)) {
-					tracker.availableCount += sourceEntry.count();
-				}
-			}
-		}
-		long aggregateEndNs = System.nanoTime();
-
-		List<IngredientAvailabilityEntry> entries = new ArrayList<>(ingredientTrackers.size());
-		for (IngredientTracker tracker : ingredientTrackers.values()) {
-			entries.add(new IngredientAvailabilityEntry(tracker.displayStack, tracker.availableCount, tracker.requiredCount));
-		}
-		entries.sort(Comparator.comparingInt(IngredientAvailabilityEntry::requiredCount).reversed());
-
-		if (isDebugLoggingEnabled()) {
-			double totalMs = (System.nanoTime() - startNs) / 1_000_000.0D;
+			double totalMs = (collectEndNs - collectStartNs) / 1_000_000.0D;
 			if (totalMs >= 2.0D) {
+				Optional<CraftingRecipe> recipeOptional = resolvePreferredClientRecipe();
+				int ingredientCount = recipeOptional.map(recipe -> recipe.getIngredients().size()).orElse(0);
 				ProximityCrafting.LOGGER.info(
 						"[PROXC-PERF] panel.collect menu={} recipe={} ingredients={} sourceEntries={} outEntries={} lookupMs={} trackerBuildMs={} aggregateMs={} totalMs={}",
 						this.menu.containerId,
-						recipe.getId(),
-						recipe.getIngredients().size(),
-						sourceEntriesProcessed,
-						entries.size(),
-						String.format("%.3f", recipeLookupDurationNs / 1_000_000.0D),
-						String.format("%.3f", (trackerBuildEndNs - trackerBuildStartNs) / 1_000_000.0D),
-						String.format("%.3f", (aggregateEndNs - aggregateStartNs) / 1_000_000.0D),
+						updateResult.recipeId(),
+						ingredientCount,
+						updateResult.sourceEntriesProcessed(),
+						updateResult.entries().size(),
+						String.format("%.3f", updateResult.recipeLookupDurationNs() / 1_000_000.0D),
+						String.format("%.3f", updateResult.trackerBuildDurationNs() / 1_000_000.0D),
+						String.format("%.3f", updateResult.aggregateDurationNs() / 1_000_000.0D),
 						String.format("%.3f", totalMs)
 				);
 			}
 		}
-		return entries;
-	}
 
-	private long computeCraftGridSignature() {
-		long signature = 1469598103934665603L;
-		for (int slot = 0; slot < 9; slot++) {
-			ItemStack stack = this.menu.getCraftSlots().getItem(slot);
-			if (stack.isEmpty()) {
-				signature = mixPanelSignature(signature, 0L);
-				continue;
-			}
-			signature = mixPanelSignature(signature, Item.getId(stack.getItem()));
-			signature = mixPanelSignature(signature, stack.getCount());
-			signature = mixPanelSignature(signature, stack.hasTag() ? stack.getTag().hashCode() : 0);
-		}
-		return signature;
-	}
-
-	private static long mixPanelSignature(long current, long value) {
-		current ^= value;
-		return current * 1099511628211L;
-	}
-
-	private static ItemStack resolveDisplayStack(Ingredient ingredient) {
-		ItemStack[] options = ingredient.getItems();
-		if (options.length == 0) {
-			return ItemStack.EMPTY;
-		}
-
-		ItemStack display = options[0].copy();
-		display.setCount(1);
-		return display;
-	}
-
-	private static String buildIngredientKey(Ingredient ingredient) {
-		List<String> optionKeys = new ArrayList<>();
-		for (ItemStack option : ingredient.getItems()) {
-			if (option.isEmpty()) {
-				continue;
-			}
-			ItemStack normalized = option.copy();
-			normalized.setCount(1);
-			optionKeys.add(buildStackKey(normalized));
-		}
-		optionKeys.sort(String::compareTo);
-		return String.join("|", optionKeys);
-	}
-
-	private static String buildStackKey(ItemStack stack) {
-		CompoundTag serialized = new CompoundTag();
-		stack.save(serialized);
-		serialized.remove("Count");
-		return serialized.toString();
+		return updateResult.entries();
 	}
 
 	public void sendRecipeFillPacket(ResourceLocation recipeId, boolean craftAll, String source) {
@@ -1876,20 +1717,11 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	private void handleProximityPanelSourceChange() {
-		List<RecipeBookSourceEntry> currentSources = this.menu.getClientRecipeBookSupplementalSources();
-		// If panel is in "no recipe" state, source updates do not change rendered values.
-		if (proximityPanelCachedRecipeId == null
-				&& proximityPanelCachedEntries.isEmpty()
-				&& !proximityPanelCacheDirty) {
-			proximityPanelCachedSourcesRef = currentSources;
-			return;
-		}
-		proximityPanelCachedSourcesRef = currentSources;
-		markProximityPanelCacheDirty();
+		ingredientsPanelPresenter.onSourcesChanged(this.menu.getClientRecipeBookSupplementalSources());
 	}
 
 	private void markProximityPanelCacheDirty() {
-		proximityPanelCacheDirty = true;
+		ingredientsPanelPresenter.markDirty();
 	}
 
 	public static boolean enqueueRecipeFillIfScreenOpen(
@@ -1946,20 +1778,26 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 	}
 
-	private static final class IngredientTracker {
-		private final ItemStack displayStack;
-		private final Ingredient ingredient;
-		private int availableCount;
-		private int requiredCount;
-
-		private IngredientTracker(ItemStack displayStack, Ingredient ingredient, int availableCount) {
-			this.displayStack = displayStack;
-			this.ingredient = ingredient;
-			this.availableCount = availableCount;
+	private final class ScreenIngredientsPanelContext implements IngredientsPanelContext {
+		@Override
+		public List<RecipeBookSourceEntry> getCurrentSources() {
+			return menu.getClientRecipeBookSupplementalSources();
 		}
-	}
 
-	private record IngredientAvailabilityEntry(ItemStack displayStack, int availableCount, int requiredCount) {
+		@Override
+		public Optional<CraftingRecipe> resolvePreferredRecipe() {
+			return resolvePreferredClientRecipe();
+		}
+
+		@Override
+		public int getCraftGridSize() {
+			return menu.getCraftSlots().getContainerSize();
+		}
+
+		@Override
+		public ItemStack getCraftGridItem(int slot) {
+			return menu.getCraftSlots().getItem(slot);
+		}
 	}
 }
 

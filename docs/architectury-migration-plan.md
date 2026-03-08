@@ -132,8 +132,24 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
   - `common`: menu-adjacent session state and slot mutation bookkeeping
   - `forge`: concrete menu/container implementation and result recomputation hook
 
+## Current boundary after phase 7
+- `common` now also owns the first screen-side presenter/view-model slice:
+  - `IngredientsPanelContext`
+  - `IngredientsPanelEntry`
+  - `IngredientsPanelPresenter`
+  - `IngredientsPanelUpdateResult`
+- `IngredientsPanelPresenter` now owns:
+  - ingredients panel cache dirtiness and reuse
+  - craft-grid signature diffing
+  - source aggregation for recipe ingredients
+  - non-visual panel data building
+- `ProximityCraftingScreen` now consumes that presenter through a small Forge-side context adapter instead of owning the full ingredients-panel cache and aggregation flow directly.
+- The practical split is now:
+  - `common`: ingredients panel state/presenter logic
+  - `forge`: screen rendering, hover/tooltips, and UI-side reactions around the presenter
+
 ## Next migration targets
-1. Extract more screen-side presenters/view-models out of `ProximityCraftingScreen`
-2. Move config semantics/default resolution into `common`, leaving only platform config binding per loader
-3. Review whether the remaining recipe-resolution/result-update logic can be separated from `ProximityCraftingMenu`
+1. Move config semantics/default resolution into `common`, leaving only platform config binding per loader
+2. Review whether the remaining recipe-resolution/result-update logic can be separated from `ProximityCraftingMenu`
+3. Review whether additional action/status/panel perf view models should leave `ProximityCraftingScreen`
 4. Review registry/bootstrap descriptors for additional loader isolation without over-abstracting platform registration

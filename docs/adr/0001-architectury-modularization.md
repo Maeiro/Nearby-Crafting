@@ -32,6 +32,7 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - Keep capability access, world/block-entity enumeration, and mod-specific source discovery per loader, but make composition/priority/aggregation reusable from `common`.
 - In phase 6, move menu-adjacent tracked-grid state and recipe-book snapshot state into `common`, while keeping the concrete menu/container and result recomputation hook in Forge.
 - Keep `ProximityCraftingMenu` as a runtime host and slot adapter rather than the owner of all crafting-grid/session bookkeeping.
+- In phase 7, move the Ingredients Panel presenter/cache/diffing logic into `common`, while keeping the Forge screen responsible only for rendering, hover/tooltips, and other UI-side reactions.
 
 ## Consequences
 - Future ports can reuse common planning/source logic directly.
@@ -41,6 +42,7 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - Future ports can reuse the current inbound response/apply seam without reusing Forge packet handlers or screens.
 - Future ports can reuse the source composition and recipe-book supplemental source aggregation flow without reusing Forge scanning code.
 - Future ports can reuse tracked crafting-grid source-ledger behavior and recipe-book source session state without reusing the Forge menu implementation.
+- Future ports can reuse the current ingredients-panel presenter and cache logic without reusing the Forge screen implementation.
 - Forge-specific runtime behavior stays intact while the structure evolves.
 - The first migration phase does not yet make NeoForge feature-complete.
 - JEI/EMI remain Forge-side until the platform-neutral core is stable.
@@ -48,3 +50,4 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - Packet transport and registration are still platform-side, but inbound client apply flow is no longer hardcoded to Forge screen mutation.
 - World/inventory discovery remains platform-side by design; only the orchestration of discovered sources has been generalized.
 - Result-slot recomputation and concrete menu/container callbacks remain Forge-side by design; only the menu-adjacent session bookkeeping has been generalized.
+- Screen rendering remains platform-side by design; only the non-visual ingredients-panel presenter slice has been generalized.
