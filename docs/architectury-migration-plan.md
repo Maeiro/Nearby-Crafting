@@ -82,8 +82,20 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
   - screen/menu side effects and rendering
 - The current split keeps transport platform-side, but outbound request intent and client request/apply state are now reusable.
 
+## Current boundary after phase 4
+- `common` now also owns the inbound client apply seam for the current S2C payloads:
+  - `ClientResponseDispatcher`
+  - `ClientRuntimeHooks`
+  - `ActiveClientSessionHandle`
+- Forge provides the active runtime bridge through:
+  - `ForgeClientRuntimeHooks`
+  - `ForgeActiveClientSessionHandle`
+- The current S2C handlers no longer mutate `ProximityCraftingScreen` directly.
+- `ProximityCraftingScreen` is now consumed through a Forge runtime handle instead of being the packet apply target.
+- Fabric now registers an early client runtime hook so the same dispatcher contract exists there, even though gameplay parity is still not implemented.
+
 ## Next migration targets
-1. Decide whether inbound packet application should also gain a common bridge, or stay platform-side longer
-2. Keep JEI/EMI isolated in Forge until the client/session split is validated in real gameplay
-3. Revisit what part of recipe-book snapshot application can move out of Forge screens/menus
+1. Decide whether to keep inbound transport fully platform-side or introduce a wider common response/event layer beyond the current two S2C payloads
+2. Keep JEI/EMI isolated in Forge until the inbound dispatcher/runtime-hook split is validated in real gameplay
+3. Revisit what part of recipe-book snapshot application can move further out of Forge screens/menus
 4. Evaluate `CraftConsumeService` call sites and decide whether the facade should remain or be inlined

@@ -1,12 +1,10 @@
 package dev.maeiro.proximitycrafting.networking;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
+import dev.maeiro.proximitycrafting.client.net.ProximityClientServices;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
-import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
-import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import dev.maeiro.proximitycrafting.networking.payload.RecipeBookSourceEntry;
 import dev.maeiro.proximitycrafting.networking.payload.RecipeBookSourceSnapshotPayload;
-import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 
@@ -36,23 +34,13 @@ public class S2CRecipeBookSourceSnapshot {
 		NetworkEvent.Context ctx = ctxSupplier.get();
 		ctx.enqueueWork(() -> {
 			long startNs = System.nanoTime();
-			Minecraft minecraft = Minecraft.getInstance();
-			if (minecraft.player == null || !(minecraft.player.containerMenu instanceof ProximityCraftingMenu menu)) {
-				return;
-			}
-			if (menu.containerId != payload.containerId()) {
-				return;
-			}
-
-			boolean sourcesChanged = menu.setClientRecipeBookSupplementalSources(payload.sourceEntries());
-			if (minecraft.screen instanceof ProximityCraftingScreen proximityCraftingScreen) {
-				proximityCraftingScreen.onSourceSnapshotAppliedClient(payload.sourceEntries().size(), sourcesChanged);
-			}
+			boolean handled = ProximityClientServices.getClientResponseDispatcher().handleRecipeBookSourceSnapshot(payload);
 			if (isDebugLoggingEnabled()) {
 				ProximityCrafting.LOGGER.info(
-						"[PROXC-PERF] packet.S2CRecipeBookSourceSnapshot menu={} entries={} applyMs={}",
+						"[PROXC-PERF] packet.S2CRecipeBookSourceSnapshot menu={} entries={} handled={} applyMs={}",
 						payload.containerId(),
 						payload.sourceEntries().size(),
+						handled,
 						String.format("%.3f", (System.nanoTime() - startNs) / 1_000_000.0D)
 				);
 			}

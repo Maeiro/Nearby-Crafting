@@ -13,6 +13,9 @@
   "entrypoints": {
     "main": [
       "dev.maeiro.proximitycrafting.fabric.ProximityCraftingFabric"
+    ],
+    "client": [
+      "dev.maeiro.proximitycrafting.fabric.client.ProximityCraftingFabricClient"
     ]
   },
   "depends": {

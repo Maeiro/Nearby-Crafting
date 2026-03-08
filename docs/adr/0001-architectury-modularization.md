@@ -26,14 +26,17 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - Extract `CraftConsumeOperations` behind `CraftConsumeSessionPort` rather than keeping shift-craft behavior tied directly to `ProximityCraftingMenu`.
 - In phase 3, introduce an outbound-only client request bridge in `common` (`ClientRequestSender`, `ProximityClientServices`) instead of abstracting the full transport stack immediately.
 - Keep `ProximityCraftingScreen` as a Forge-side UI class, but move request/apply bookkeeping into a common controller (`ClientRecipeSessionState`) so future platforms can reuse the session state machine without reusing Forge screens.
+- In phase 4, introduce a common inbound response dispatcher (`ClientResponseDispatcher`) plus runtime hook contracts (`ClientRuntimeHooks`, `ActiveClientSessionHandle`) instead of letting Forge packet handlers mutate the screen directly.
+- Keep packet transport and packet registration platform-side even after the inbound dispatcher is introduced.
 
 ## Consequences
 - Future ports can reuse common planning/source logic directly.
 - Future ports can reuse the full recipe fill workflow by implementing `CraftingSessionPort` and `SourceCollector`.
 - Future ports can reuse the current snapshot/feedback payload model without adopting Forge packet classes.
 - Future ports can reuse outbound client request intent and non-visual request lifecycle bookkeeping without adopting Forge networking APIs.
+- Future ports can reuse the current inbound response/apply seam without reusing Forge packet handlers or screens.
 - Forge-specific runtime behavior stays intact while the structure evolves.
 - The first migration phase does not yet make NeoForge feature-complete.
 - JEI/EMI remain Forge-side until the platform-neutral core is stable.
 - The adapter indirection keeps menu internals free to evolve without leaking Forge container APIs into `common`.
-- Inbound packet handling is still platform-side and remains an explicit future decision.
+- Packet transport and registration are still platform-side, but inbound client apply flow is no longer hardcoded to Forge screen mutation.

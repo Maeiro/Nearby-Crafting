@@ -1,8 +1,8 @@
 package dev.maeiro.proximitycrafting.networking;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
+import dev.maeiro.proximitycrafting.client.net.ProximityClientServices;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
-import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
 import dev.maeiro.proximitycrafting.networking.payload.RecipeFillFeedbackPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
@@ -35,30 +35,21 @@ public class S2CRecipeFillFeedback {
 		ctx.enqueueWork(() -> {
 			long startNs = System.nanoTime();
 			Minecraft minecraft = Minecraft.getInstance();
-			if (minecraft.player == null) {
-				return;
-			}
-
 			Component feedback = payload.craftedAmount() > 0
 					? Component.translatable(payload.messageKey(), payload.craftedAmount())
 					: Component.translatable(payload.messageKey());
 
-			if (minecraft.screen instanceof ProximityCraftingScreen proximityCraftingScreen) {
-				if (payload.success()) {
-					proximityCraftingScreen.showSuccessStatusMessage(feedback);
-				} else {
-					proximityCraftingScreen.showFailureStatusMessage(feedback);
-				}
-				proximityCraftingScreen.onRecipeActionFeedbackReceived(payload.success(), payload.messageKey(), payload.craftedAmount());
-			} else {
+			boolean handled = ProximityClientServices.getClientResponseDispatcher().handleRecipeFillFeedback(payload);
+			if (!handled && minecraft.player != null) {
 				minecraft.player.displayClientMessage(feedback, true);
 			}
 			if (isDebugLoggingEnabled()) {
 				ProximityCrafting.LOGGER.info(
-						"[PROXC-PERF] packet.S2CRecipeFillFeedback success={} key={} amount={} applyMs={}",
+						"[PROXC-PERF] packet.S2CRecipeFillFeedback success={} key={} amount={} handled={} applyMs={}",
 						payload.success(),
 						payload.messageKey(),
 						payload.craftedAmount(),
+						handled,
 						String.format("%.3f", (System.nanoTime() - startNs) / 1_000_000.0D)
 				);
 			}

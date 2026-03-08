@@ -10,6 +10,7 @@ import dev.maeiro.proximitycrafting.client.compat.jei.ProximityCraftingJeiCrafta
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import dev.maeiro.proximitycrafting.networking.payload.RecipeBookSourceEntry;
+import dev.maeiro.proximitycrafting.networking.payload.RecipeFillFeedbackPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ImageButton;
@@ -859,6 +860,10 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 
 	public void showFailureStatusMessage(Component message) {
 		showStatusMessage(message, STATUS_COLOR_FAILURE, 1700);
+	}
+
+	public ClientRecipeSessionState getRecipeSessionState() {
+		return this.recipeSessionState;
 	}
 
 	private void showStatusMessage(Component message, int color, int durationMs) {
@@ -1800,9 +1805,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 	}
 
-	public void onSourceSnapshotAppliedClient(int entryCount, boolean sourcesChanged) {
-		long now = System.currentTimeMillis();
-		SourceSnapshotApplyResult result = this.recipeSessionState.applySourceSnapshot(now, sourcesChanged);
+	public void handleSourceSnapshotAppliedFromRuntime(int entryCount, boolean sourcesChanged, SourceSnapshotApplyResult result) {
 		ProximityCraftingEmiCraftableFilterController.onSourceSyncStateUpdated(this.menu, false, sourcesChanged);
 		if (sourcesChanged) {
 			handleProximityPanelSourceChange();
@@ -1846,15 +1849,22 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		);
 	}
 
-	public void onRecipeActionFeedbackReceived(boolean success, String messageKey, int craftedAmount) {
-		RecipeActionFeedbackApplyResult result = this.recipeSessionState.applyRecipeActionFeedback();
+	public void handleRecipeActionFeedbackFromRuntime(RecipeFillFeedbackPayload payload, RecipeActionFeedbackApplyResult result) {
+		Component feedback = payload.craftedAmount() > 0
+				? Component.translatable(payload.messageKey(), payload.craftedAmount())
+				: Component.translatable(payload.messageKey());
+		if (payload.success()) {
+			showSuccessStatusMessage(feedback);
+		} else {
+			showFailureStatusMessage(feedback);
+		}
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
 					"[PROXC-PERF] client.recipeActionFeedback menu={} success={} key={} amount={} inFlightFill={} inFlightAdjust={} pendingFill={} pendingAdjust={}",
 					this.menu.containerId,
-					success,
-					messageKey,
-					craftedAmount,
+					payload.success(),
+					payload.messageKey(),
+					payload.craftedAmount(),
 					result.clearedInFlightFillRecipeId() == null ? "null" : result.clearedInFlightFillRecipeId(),
 					result.clearedInFlightAdjustSteps(),
 					result.pendingFillRecipeId() == null ? "null" : result.pendingFillRecipeId(),
