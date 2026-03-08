@@ -6,6 +6,8 @@ import dev.maeiro.proximitycrafting.client.presenter.IngredientsPanelContext;
 import dev.maeiro.proximitycrafting.client.presenter.IngredientsPanelEntry;
 import dev.maeiro.proximitycrafting.client.presenter.IngredientsPanelPresenter;
 import dev.maeiro.proximitycrafting.client.presenter.IngredientsPanelUpdateResult;
+import dev.maeiro.proximitycrafting.client.presenter.StatusMessagePresenter;
+import dev.maeiro.proximitycrafting.client.presenter.StatusMessageView;
 import dev.maeiro.proximitycrafting.client.session.ClientRecipeSessionState;
 import dev.maeiro.proximitycrafting.client.session.RecipeActionFeedbackApplyResult;
 import dev.maeiro.proximitycrafting.client.session.SourceSnapshotApplyResult;
@@ -65,9 +67,6 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private static final int MAX_SCROLL_STEPS_PER_EVENT = 3;
 	private static final int MAX_ABS_ADJUST_STEPS_PER_PACKET = 2;
 	private static final int RECIPE_ACTION_MAX_ABS_STEPS = 256;
-	private static final int STATUS_COLOR_SUCCESS = 0x55FF55;
-	private static final int STATUS_COLOR_FAILURE = 0xFF5555;
-	private static final int STATUS_COLOR_INFO = 0xFFFFFF;
 	private static final int PROXIMITY_PANEL_WIDTH = 74;
 	private static final int PROXIMITY_PANEL_PADDING = 8;
 	private static final int PROXIMITY_PANEL_RECIPE_BOOK_EXTRA_SHIFT = 26;
@@ -105,9 +104,6 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private int recipeBookSourceSyncTicker = 0;
 	private int deferredRefreshTicks = 0;
 	private boolean showProximityItemsPanel = true;
-	private Component statusMessage;
-	private long statusMessageUntilMs = 0L;
-	private int statusMessageColor = STATUS_COLOR_INFO;
 	private IngredientsPanelEntry hoveredProximityEntry;
 	@Nullable
 	private ResourceLocation localScrollRecipeId;
@@ -129,6 +125,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private long lastScrollDebugLogAtMs = 0L;
 	private int suppressedScrollDebugLogs = 0;
 	private long lastActionQueueLogAtMs = 0L;
+	private final StatusMessagePresenter statusMessagePresenter = new StatusMessagePresenter();
 	private final ClientRecipeSessionState recipeSessionState = new ClientRecipeSessionState(
 			RECIPE_BOOK_SOURCE_SYNC_MIN_INTERVAL_MS,
 			RECIPE_ACTION_SEND_INTERVAL_MS,
@@ -847,33 +844,24 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	public void showInfoStatusMessage(Component message) {
-		showStatusMessage(message, STATUS_COLOR_INFO, 1400);
+		statusMessagePresenter.showInfo(message, System.currentTimeMillis());
 	}
 
 	public void showSuccessStatusMessage(Component message) {
-		showStatusMessage(message, STATUS_COLOR_SUCCESS, 1600);
+		statusMessagePresenter.showSuccess(message, System.currentTimeMillis());
 	}
 
 	public void showFailureStatusMessage(Component message) {
-		showStatusMessage(message, STATUS_COLOR_FAILURE, 1700);
+		statusMessagePresenter.showFailure(message, System.currentTimeMillis());
 	}
 
 	public ClientRecipeSessionState getRecipeSessionState() {
 		return this.recipeSessionState;
 	}
 
-	private void showStatusMessage(Component message, int color, int durationMs) {
-		this.statusMessage = message;
-		this.statusMessageColor = color;
-		this.statusMessageUntilMs = System.currentTimeMillis() + Math.max(250, durationMs);
-	}
-
 	private void renderStatusMessage(GuiGraphics guiGraphics) {
+		StatusMessageView statusMessage = statusMessagePresenter.current(System.currentTimeMillis());
 		if (statusMessage == null) {
-			return;
-		}
-		if (System.currentTimeMillis() > statusMessageUntilMs) {
-			statusMessage = null;
 			return;
 		}
 
@@ -882,11 +870,11 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		if (y < 6) {
 			y = 6;
 		}
-		int textWidth = this.font.width(statusMessage);
+		int textWidth = this.font.width(statusMessage.message());
 		int x = centerX - (textWidth / 2);
 		guiGraphics.pose().pushPose();
 		guiGraphics.pose().translate(0.0D, 0.0D, 500.0D);
-		guiGraphics.drawString(this.font, statusMessage, x, y, this.statusMessageColor, true);
+		guiGraphics.drawString(this.font, statusMessage.message(), x, y, statusMessage.color(), true);
 		guiGraphics.pose().popPose();
 	}
 
@@ -1697,14 +1685,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	public void handleRecipeActionFeedbackFromRuntime(RecipeFillFeedbackPayload payload, RecipeActionFeedbackApplyResult result) {
-		Component feedback = payload.craftedAmount() > 0
-				? Component.translatable(payload.messageKey(), payload.craftedAmount())
-				: Component.translatable(payload.messageKey());
-		if (payload.success()) {
-			showSuccessStatusMessage(feedback);
-		} else {
-			showFailureStatusMessage(feedback);
-		}
+		statusMessagePresenter.showFeedback(payload, System.currentTimeMillis());
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
 					"[PROXC-PERF] client.recipeActionFeedback menu={} success={} key={} amount={} inFlightFill={} inFlightAdjust={} pendingFill={} pendingAdjust={}",

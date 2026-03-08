@@ -10,6 +10,8 @@
 - [x] Extract more screen-side presenters/view-models out of `ProximityCraftingScreen`
 - [x] Move config semantics/default resolution into `common`
 - [x] Extract recipe-resolution/result-update helper from `ProximityCraftingMenu`
+- [x] Extract status/feedback presenter flow from `ProximityCraftingScreen`
+- [x] Extract recipe request/session operations from `ProximityCraftingMenu`
 - [x] Review registry/bootstrap descriptors for further loader isolation
 
 ## Completed in this phase
@@ -32,7 +34,13 @@
 - Recipe/result split:
   - `common` owns preferred recipe selection and result recomputation helpers
   - `forge` menu keeps the concrete container/result slot host plus a small runtime port adapter
+- Status presenter split:
+  - `common` owns status message lifecycle, colors, and feedback mapping
+  - `forge` screen keeps only rendering and UI-side wrappers
+- Recipe request/session split:
+  - `common` owns recipe-by-id and adjust-load operations
+  - `forge` menu delegates those flows through `RecipeFillService`
 
 ## Next focus candidates
-- Review whether more action/status/panel perf view models can leave `ProximityCraftingScreen`
-- Review whether more menu-side recipe/result/session flow can leave `ProximityCraftingMenu`
+- Review whether more action/panel perf view models can leave `ProximityCraftingScreen`
+- Review whether more menu-side result-slot/session flow can leave `ProximityCraftingMenu`

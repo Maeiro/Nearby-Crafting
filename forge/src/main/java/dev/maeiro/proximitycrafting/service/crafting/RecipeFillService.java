@@ -5,6 +5,7 @@ import dev.maeiro.proximitycrafting.service.scan.ForgeScanOptionsFactory;
 import dev.maeiro.proximitycrafting.service.scan.ProximityInventoryScanner;
 import dev.maeiro.proximitycrafting.service.scan.ScanOptions;
 import dev.maeiro.proximitycrafting.service.scan.SourceCollector;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 
@@ -34,6 +35,17 @@ public final class RecipeFillService {
 		);
 	}
 
+	public static FillResult fillRecipeById(ProximityCraftingMenu menu, ResourceLocation recipeId, boolean craftAll) {
+		return RecipeSessionOperations.fillRecipeById(
+				adapt(menu),
+				menu.getCraftSlots(),
+				SOURCE_COLLECTOR,
+				scanOptions(menu),
+				recipeId,
+				craftAll
+		);
+	}
+
 	public static FillResult addSingleCraft(ProximityCraftingMenu menu, CraftingRecipe recipe) {
 		return RecipeFillOperations.addSingleCraft(
 				adapt(menu),
@@ -50,6 +62,16 @@ public final class RecipeFillService {
 				scanOptions(menu),
 				recipe,
 				requestedCrafts
+		);
+	}
+
+	public static FillResult adjustRecipeLoad(ProximityCraftingMenu menu, int steps) {
+		return RecipeSessionOperations.adjustRecipeLoad(
+				adapt(menu),
+				menu.getCraftSlots(),
+				SOURCE_COLLECTOR,
+				scanOptions(menu),
+				steps
 		);
 	}
 

@@ -180,7 +180,24 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
   - `common`: config defaults/normalization, preferred recipe lookup, result recomputation
   - `forge`: config file binding, block entity registry resolution, concrete menu/container host
 
+## Current boundary after phase 10
+- `common` now also owns screen-side status/feedback presentation state:
+  - `StatusMessagePresenter`
+  - `StatusMessageView`
+- `ProximityCraftingScreen` no longer owns:
+  - status message expiry bookkeeping
+  - status color selection
+  - feedback payload to status mapping
+- `common` now also owns recipe request/session operations:
+  - `RecipeSessionOperations`
+- `ProximityCraftingMenu` no longer owns:
+  - recipe-by-id resolution flow
+  - scroll adjust/load orchestration
+- The practical split is now:
+  - `common`: status message state, feedback mapping, recipe request/load operations
+  - `forge`: render the current status message, invalidate snapshot cache around delegated recipe operations, host the concrete menu/screen runtime
+
 ## Next migration targets
-1. Review whether additional action/status/panel perf view models should leave `ProximityCraftingScreen`
-2. Review whether more menu-side recipe/result/session flow can be separated from `ProximityCraftingMenu`
+1. Review whether additional action/panel perf view models should leave `ProximityCraftingScreen`
+2. Review whether more menu-side result-slot/session flow can be separated from `ProximityCraftingMenu`
 3. Review whether any remaining resource/uid constants still belong in loader modules or should join the shared descriptor layer

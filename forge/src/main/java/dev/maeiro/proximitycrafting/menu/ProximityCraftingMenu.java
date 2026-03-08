@@ -40,7 +40,6 @@ import net.minecraft.world.level.Level;
 
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.Optional;
 
 public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	public static final int RESULT_SLOT = 0;
@@ -269,17 +268,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	}
 
 	public FillResult fillRecipeById(ResourceLocation recipeId, boolean craftAll) {
-		Optional<? extends Recipe<?>> optionalRecipe = this.player.level().getRecipeManager().byKey(recipeId);
-		if (optionalRecipe.isEmpty()) {
-			return FillResult.failure("proximitycrafting.feedback.recipe_not_found");
-		}
-
-		Recipe<?> recipe = optionalRecipe.get();
-		if (!(recipe instanceof CraftingRecipe craftingRecipe)) {
-			return FillResult.failure("proximitycrafting.feedback.invalid_recipe_type");
-		}
-
-		FillResult fillResult = RecipeFillService.fillFromRecipe(this, craftingRecipe, craftAll);
+		FillResult fillResult = RecipeFillService.fillRecipeById(this, recipeId, craftAll);
 		if (fillResult.success() && fillResult.craftedAmount() > 0) {
 			invalidateServerRecipeBookSnapshotCache();
 		}
@@ -287,78 +276,12 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	}
 
 	public FillResult adjustRecipeLoad(int steps) {
-		long startNs = System.nanoTime();
-		if (isDebugLoggingEnabled()) {
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-SCROLL] menu adjustRecipeLoad steps={} menu={} hasLastRecipe={}",
-					steps,
-					this.containerId,
-					this.lastPlacedRecipe != null
-			);
-		}
-		if (steps == 0) {
-			return FillResult.success("proximitycrafting.feedback.filled", 0);
-		}
-
-		Optional<CraftingRecipe> currentRecipeOptional = getPreferredActiveRecipe();
-		CraftingRecipe activeRecipe = currentRecipeOptional.orElse(lastPlacedRecipe);
-		if (activeRecipe == null) {
-			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info("[PROXC-SCROLL] menu no active recipe to adjust");
-			}
-			return FillResult.failure("proximitycrafting.feedback.no_recipe_selected");
-		}
-
-		setLastPlacedRecipe(activeRecipe);
-		int direction = steps > 0 ? 1 : -1;
-		int requestedSteps = Math.abs(steps);
-		FillResult batchResult = direction > 0
-				? RecipeFillService.addCrafts(this, activeRecipe, requestedSteps)
-				: RecipeFillService.removeCrafts(this, activeRecipe, requestedSteps);
+		FillResult batchResult = RecipeFillService.adjustRecipeLoad(this, steps);
 		int appliedSteps = batchResult.success() ? batchResult.craftedAmount() : 0;
-
 		if (appliedSteps > 0) {
 			invalidateServerRecipeBookSnapshotCache();
-			String messageKey = direction > 0
-					? "proximitycrafting.feedback.scroll_increase"
-					: "proximitycrafting.feedback.scroll_decrease";
-			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.info(
-						"[PROXC-PERF] menu.adjustRecipeLoad.success menu={} steps={} applied={} recipe={} took={}ms",
-						this.containerId,
-						steps,
-						appliedSteps,
-						activeRecipe.getId(),
-						String.format("%.3f", (System.nanoTime() - startNs) / 1_000_000.0D)
-				);
-			}
-			return FillResult.success(messageKey, appliedSteps);
 		}
-
-		if (isDebugLoggingEnabled() && batchResult.success()) {
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-SCROLL] menu adjust had no effect requested={} recipe={} reason=no_applied_steps",
-					requestedSteps,
-					activeRecipe.getId()
-			);
-		}
-		if (isDebugLoggingEnabled()) {
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-PERF] menu.adjustRecipeLoad.fail menu={} steps={} applied={} recipe={} reason={} took={}ms",
-					this.containerId,
-					steps,
-					appliedSteps,
-					activeRecipe.getId(),
-					batchResult.messageKey(),
-					String.format("%.3f", (System.nanoTime() - startNs) / 1_000_000.0D)
-			);
-		}
-
 		return batchResult;
-	}
-
-	private Optional<CraftingRecipe> getPreferredActiveRecipe() {
-		return CraftingResultOperations.resolvePreferredActiveRecipe(player.level(), craftSlots, lastPlacedRecipe);
 	}
 
 	public boolean hasAnyCraftGridItems() {
