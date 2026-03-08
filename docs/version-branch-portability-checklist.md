@@ -48,7 +48,7 @@ Recommended interpretation:
 - [ ] Keep scanning/discovery split clean:
   - `common` owns orchestration
   - per-loader code owns raw discovery only
-- [ ] Prevent compat code from leaking into shared core:
+- [x] Prevent compat code from leaking into shared core:
   - JEI
   - EMI
   - backpacks
@@ -67,6 +67,7 @@ Recommended interpretation:
 - Menu-side snapshot lifecycle, result-slot post-take flow, and source-tracking container behavior now live behind shared menu runtime seams instead of being triplicated in the three platform menus.
 - Recipe book snapshot build orchestration now runs through a shared common seam, while raw source collection and packet send stay platform-side.
 - Server-side C2S request handling now flows through shared request payloads and a common server request controller, while packet context extraction and send APIs remain platform-side.
+- Optional overlay compat state and remembered JEI/EMI toggle persistence now live only in the Forge runtime instead of in shared `common` config/runtime types.
 
 ## Branch strategy guideline
 - Prefer reusing the previous adjacent version branch first.

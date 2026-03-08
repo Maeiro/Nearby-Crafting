@@ -150,6 +150,7 @@ ports define runtime seams, operations own behavior, presenters own
 non-visual UI state, runtime controllers coordinate screen and menu
 behavior, shared menu helpers avoid host duplication, packet request
 handling is centralized behind a common controller, and payloads/config
-records stay loader-agnostic.
+records stay loader-agnostic. Optional overlay compat state stays out of
+common and remains platform-owned.
 end note
 @enduml

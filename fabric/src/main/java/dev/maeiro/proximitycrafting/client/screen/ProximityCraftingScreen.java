@@ -909,14 +909,6 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 
 		showProximityItemsPanel = uiState.ingredientsPanelOpen();
-
-		if (uiState.jeiCraftableOnlyEnabled()) {
-			ProximityCraftingJeiCraftableFilterController.setEnabled(menu, true);
-		}
-		if (uiState.emiCraftableOnlyEnabled()) {
-			ProximityCraftingEmiCraftableFilterController.setEnabled(menu, true);
-			ProximityCraftingEmiCraftableFilterController.applyStartupPendingViewIfEnabled(menu);
-		}
 	}
 
 	private static void saveProximityItemsPanelState(boolean isOpen) {
@@ -1097,27 +1089,13 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 				this,
 				entryCount,
 				sourcesChanged,
-				result,
-				ProximityCraftingJeiCraftableFilterController.isEnabledFor(this.menu.containerId),
-				ProximityCraftingEmiCraftableFilterController.isEnabledFor(this.menu.containerId)
+				result
 		);
 		if (uiDecision.sourcesChanged()) {
 			handleProximityPanelSourceChange();
 		}
 		if (uiDecision.shouldRequestQueuedSyncNow()) {
 			requestRecipeBookSourceSync();
-		}
-		if (uiDecision.shouldDeferJeiPrewarm() && isDebugLoggingEnabled()) {
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-PERF] client.deferJeiPrewarm menu={} reason=action_busy inFlight={} pendingFill={} pendingAdjust={}",
-					this.menu.containerId,
-					actionController.sessionState().isRecipeActionInFlight(),
-					actionController.sessionState().getPendingFillRecipeId() == null ? "null" : actionController.sessionState().getPendingFillRecipeId(),
-					actionController.sessionState().getPendingAdjustSteps()
-			);
-		}
-		if (uiDecision.shouldPrewarmJeiNow()) {
-			ProximityCraftingJeiCraftableFilterController.prewarmSnapshot(this.menu, "source_snapshot_applied");
 		}
 	}
 

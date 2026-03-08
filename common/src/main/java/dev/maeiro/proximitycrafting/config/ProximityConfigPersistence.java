@@ -28,8 +28,6 @@ public final class ProximityConfigPersistence {
 						parseBoolean(values, "proximityItemsPanelOpen", ProximityConfigDefaults.CLIENT_INGREDIENTS_PANEL_OPEN),
 						parseInt(values, "proximityItemsPanelOffsetX", ProximityConfigDefaults.CLIENT_INGREDIENTS_PANEL_OFFSET_X),
 						parseInt(values, "proximityItemsPanelOffsetY", ProximityConfigDefaults.CLIENT_INGREDIENTS_PANEL_OFFSET_Y),
-						parseBoolean(values, "jeiCraftableOnlyEnabled", ProximityConfigDefaults.CLIENT_JEI_CRAFTABLE_ONLY_ENABLED),
-						parseBoolean(values, "emiCraftableOnlyEnabled", ProximityConfigDefaults.CLIENT_EMI_CRAFTABLE_ONLY_ENABLED),
 						parseBoolean(values, "debugLogging", ProximityConfigDefaults.CLIENT_DEBUG_LOGGING)
 				)
 		);
@@ -57,8 +55,6 @@ public final class ProximityConfigPersistence {
 				+ "proximityItemsPanelOpen = " + resolvedUiState.ingredientsPanelOpen() + System.lineSeparator()
 				+ "proximityItemsPanelOffsetX = " + resolvedUiState.ingredientsPanelOffsetX() + System.lineSeparator()
 				+ "proximityItemsPanelOffsetY = " + resolvedUiState.ingredientsPanelOffsetY() + System.lineSeparator()
-				+ "jeiCraftableOnlyEnabled = " + resolvedUiState.jeiCraftableOnlyEnabled() + System.lineSeparator()
-				+ "emiCraftableOnlyEnabled = " + resolvedUiState.emiCraftableOnlyEnabled() + System.lineSeparator()
 				+ "debugLogging = " + resolvedUiState.debugLogging() + System.lineSeparator();
 		writeString(path, content);
 	}
@@ -193,8 +189,6 @@ public final class ProximityConfigPersistence {
 				+ "proximityItemsPanelOpen = " + ProximityConfigDefaults.CLIENT_INGREDIENTS_PANEL_OPEN + System.lineSeparator()
 				+ "proximityItemsPanelOffsetX = " + ProximityConfigDefaults.CLIENT_INGREDIENTS_PANEL_OFFSET_X + System.lineSeparator()
 				+ "proximityItemsPanelOffsetY = " + ProximityConfigDefaults.CLIENT_INGREDIENTS_PANEL_OFFSET_Y + System.lineSeparator()
-				+ "jeiCraftableOnlyEnabled = " + ProximityConfigDefaults.CLIENT_JEI_CRAFTABLE_ONLY_ENABLED + System.lineSeparator()
-				+ "emiCraftableOnlyEnabled = " + ProximityConfigDefaults.CLIENT_EMI_CRAFTABLE_ONLY_ENABLED + System.lineSeparator()
 				+ "debugLogging = " + ProximityConfigDefaults.CLIENT_DEBUG_LOGGING + System.lineSeparator();
 	}
 

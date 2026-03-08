@@ -128,7 +128,7 @@ public final class ProximityCraftingEmiOverlayButtonEvents {
 		ProximityCraftingEmiCraftableFilterController.setEnabled(menu, nextEnabled);
 		ClientUiState uiState = ProximityCraftingConfig.clientUiState();
 		if (uiState.rememberToggleStates()) {
-			ProximityCraftingConfig.setClientUiState(uiState.withEmiCraftableOnlyEnabled(nextEnabled));
+			ProximityCraftingConfig.setRememberedEmiCraftableOnlyEnabled(nextEnabled);
 		}
 		if (nextEnabled) {
 			screen.requestImmediateSourceSyncAndRefresh();

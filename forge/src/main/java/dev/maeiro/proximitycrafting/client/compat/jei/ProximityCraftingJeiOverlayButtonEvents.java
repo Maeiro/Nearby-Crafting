@@ -126,7 +126,7 @@ public final class ProximityCraftingJeiOverlayButtonEvents {
 			ProximityCraftingJeiCraftableFilterController.setEnabled(menu, nextEnabled);
 			ClientUiState uiState = ProximityCraftingConfig.clientUiState();
 			if (uiState.rememberToggleStates()) {
-				ProximityCraftingConfig.setClientUiState(uiState.withJeiCraftableOnlyEnabled(nextEnabled));
+				ProximityCraftingConfig.setRememberedJeiCraftableOnlyEnabled(nextEnabled);
 			}
 			if (nextEnabled) {
 				screen.requestImmediateSourceSyncAndRefresh();

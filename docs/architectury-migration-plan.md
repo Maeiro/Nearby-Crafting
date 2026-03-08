@@ -52,6 +52,7 @@ Detailed platform status:
 - config defaults, normalized config records, and lightweight persistence helper
 - shared payload models
 - shared ids and bootstrap descriptors
+- no JEI/EMI toggle state, plugin ids, or overlay-specific follow-up decisions
 
 ### Platform modules own
 - content registration and bootstrap
@@ -63,6 +64,7 @@ Detailed platform status:
 - final UI-side effects triggered by shared screen runtime controllers
 - recipe-book runtime bridges for version-sensitive vanilla UI access
 - loader-specific UI integration and compat
+- optional overlay toggle persistence and compat-specific follow-up behavior
 
 ### Platform-specific status
 - Forge:

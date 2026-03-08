@@ -22,8 +22,6 @@ public final class ProximityConfigDefaults {
 	public static final boolean CLIENT_INGREDIENTS_PANEL_OPEN = true;
 	public static final int CLIENT_INGREDIENTS_PANEL_OFFSET_X = 0;
 	public static final int CLIENT_INGREDIENTS_PANEL_OFFSET_Y = 0;
-	public static final boolean CLIENT_JEI_CRAFTABLE_ONLY_ENABLED = false;
-	public static final boolean CLIENT_EMI_CRAFTABLE_ONLY_ENABLED = false;
 	public static final boolean CLIENT_DEBUG_LOGGING = false;
 
 	private ProximityConfigDefaults() {

@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class ProximityCraftingConfig {
+	private static final boolean FORGE_CLIENT_JEI_CRAFTABLE_ONLY_ENABLED = false;
+	private static final boolean FORGE_CLIENT_EMI_CRAFTABLE_ONLY_ENABLED = false;
 	public static final Server SERVER;
 	public static final ForgeConfigSpec SERVER_SPEC;
 	public static final Client CLIENT;
@@ -111,8 +113,6 @@ public class ProximityCraftingConfig {
 					CLIENT.proximityItemsPanelOpen.get(),
 					CLIENT.proximityItemsPanelOffsetX.get(),
 					CLIENT.proximityItemsPanelOffsetY.get(),
-					CLIENT.jeiCraftableOnlyEnabled.get(),
-					CLIENT.emiCraftableOnlyEnabled.get(),
 					CLIENT.debugLogging.get()
 			);
 		} catch (RuntimeException exception) {
@@ -126,9 +126,31 @@ public class ProximityCraftingConfig {
 		CLIENT.proximityItemsPanelOpen.set(resolved.ingredientsPanelOpen());
 		CLIENT.proximityItemsPanelOffsetX.set(resolved.ingredientsPanelOffsetX());
 		CLIENT.proximityItemsPanelOffsetY.set(resolved.ingredientsPanelOffsetY());
-		CLIENT.jeiCraftableOnlyEnabled.set(resolved.jeiCraftableOnlyEnabled());
-		CLIENT.emiCraftableOnlyEnabled.set(resolved.emiCraftableOnlyEnabled());
 		CLIENT.debugLogging.set(resolved.debugLogging());
+	}
+
+	public static boolean rememberedJeiCraftableOnlyEnabled() {
+		try {
+			return CLIENT.jeiCraftableOnlyEnabled.get();
+		} catch (RuntimeException exception) {
+			return FORGE_CLIENT_JEI_CRAFTABLE_ONLY_ENABLED;
+		}
+	}
+
+	public static void setRememberedJeiCraftableOnlyEnabled(boolean enabled) {
+		CLIENT.jeiCraftableOnlyEnabled.set(enabled);
+	}
+
+	public static boolean rememberedEmiCraftableOnlyEnabled() {
+		try {
+			return CLIENT.emiCraftableOnlyEnabled.get();
+		} catch (RuntimeException exception) {
+			return FORGE_CLIENT_EMI_CRAFTABLE_ONLY_ENABLED;
+		}
+	}
+
+	public static void setRememberedEmiCraftableOnlyEnabled(boolean enabled) {
+		CLIENT.emiCraftableOnlyEnabled.set(enabled);
 	}
 
 	public static class Server {
@@ -210,11 +232,11 @@ public class ProximityCraftingConfig {
 
 			jeiCraftableOnlyEnabled = builder
 					.comment("Last remembered state for JEI Craftable Only toggle.")
-					.define("jeiCraftableOnlyEnabled", ProximityConfigDefaults.CLIENT_JEI_CRAFTABLE_ONLY_ENABLED);
+					.define("jeiCraftableOnlyEnabled", FORGE_CLIENT_JEI_CRAFTABLE_ONLY_ENABLED);
 
 			emiCraftableOnlyEnabled = builder
 					.comment("Last remembered state for EMI Craftable Only toggle.")
-					.define("emiCraftableOnlyEnabled", ProximityConfigDefaults.CLIENT_EMI_CRAFTABLE_ONLY_ENABLED);
+					.define("emiCraftableOnlyEnabled", FORGE_CLIENT_EMI_CRAFTABLE_ONLY_ENABLED);
 
 			debugLogging = builder
 					.comment("When true, enables client-side debug/performance logging (PROXC-CLIENT/PROXC-SCROLL). Server logs remain controlled by server debugLogging.")
@@ -224,5 +246,4 @@ public class ProximityCraftingConfig {
 		}
 	}
 }
-
 

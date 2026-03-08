@@ -21,7 +21,7 @@ package "forge" as ForgeHost {
   component "Network bridge" as ForgeNetwork
   component "Runtime hooks" as ForgeRuntimeHooks
   component "Scan/source adapters" as ForgeScanAdapters
-  component "Compat hosts\nJEI / EMI / SB" as ForgeCompatHosts
+  component "Compat hosts + compat state\nJEI / EMI / SB" as ForgeCompatHosts
 }
 
 package "fabric" as FabricHost {

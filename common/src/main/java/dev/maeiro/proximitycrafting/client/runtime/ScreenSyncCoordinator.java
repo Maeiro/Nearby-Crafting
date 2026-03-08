@@ -63,17 +63,8 @@ public final class ScreenSyncCoordinator {
 			ScreenRuntimeHost host,
 			int entryCount,
 			boolean sourcesChanged,
-			SourceSnapshotApplyResult result,
-			boolean jeiEnabled,
-			boolean emiEnabled
+			SourceSnapshotApplyResult result
 	) {
-		if (sourcesChanged && emiEnabled) {
-			host.sessionState().clearDeferredRecipeBookRefreshAfterAction();
-			deferredRefreshTicks = 0;
-		}
-		if (jeiEnabled && result.actionBusy()) {
-			host.sessionState().markDeferredRecipeBookRefreshAfterAction();
-		}
 		if (host.debugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
 					"[PROXC-PERF] client.sourceSnapshotApplied menu={} entries={} source_sync_rtt_ms={} action_snapshot_apply_delay_ms={} hadSourceSyncInFlight={} actionBusy={}",
@@ -88,8 +79,7 @@ public final class ScreenSyncCoordinator {
 		return new SourceSnapshotUiDecision(
 				sourcesChanged,
 				result.shouldRequestQueuedSyncNow(),
-				jeiEnabled && result.actionBusy(),
-				jeiEnabled && !result.actionBusy()
+				result.actionBusy()
 		);
 	}
 
@@ -132,8 +122,7 @@ public final class ScreenSyncCoordinator {
 	public record SourceSnapshotUiDecision(
 			boolean sourcesChanged,
 			boolean shouldRequestQueuedSyncNow,
-			boolean shouldDeferJeiPrewarm,
-			boolean shouldPrewarmJeiNow
+			boolean actionBusy
 	) {
 	}
 }

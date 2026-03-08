@@ -6,7 +6,6 @@ import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import dev.maeiro.proximitycrafting.registry.ModItems;
 import dev.maeiro.proximitycrafting.registry.ModMenuTypes;
-import dev.maeiro.proximitycrafting.registry.ProximityBootstrapDescriptors;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.RecipeTypes;
@@ -29,7 +28,7 @@ import java.util.Optional;
 
 @JeiPlugin
 public class ProximityCraftingJeiPlugin implements IModPlugin {
-	private static final ResourceLocation PLUGIN_UID = ProximityBootstrapDescriptors.JEI_PLUGIN.location();
+	private static final ResourceLocation PLUGIN_UID = new ResourceLocation(ProximityCrafting.MOD_ID, "jei_plugin");
 
 	@Override
 	public ResourceLocation getPluginUid() {
