@@ -64,7 +64,7 @@ public class C2SRequestRecipeBookSources {
 
 	private static boolean isDebugLoggingEnabled() {
 		try {
-			return ProximityCraftingConfig.SERVER.debugLogging.get();
+			return ProximityCraftingConfig.serverRuntimeSettings().debugLogging();
 		} catch (RuntimeException exception) {
 			return false;
 		}

@@ -54,7 +54,7 @@ public final class RecipeBookSourceSnapshotBuilder {
 
 	private static boolean isDebugLoggingEnabled() {
 		try {
-			return dev.maeiro.proximitycrafting.config.ProximityCraftingConfig.SERVER.debugLogging.get();
+			return dev.maeiro.proximitycrafting.config.ProximityCraftingConfig.serverRuntimeSettings().debugLogging();
 		} catch (RuntimeException exception) {
 			return false;
 		}

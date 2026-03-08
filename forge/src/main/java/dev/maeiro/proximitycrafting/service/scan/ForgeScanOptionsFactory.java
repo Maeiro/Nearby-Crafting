@@ -8,9 +8,7 @@ public final class ForgeScanOptionsFactory {
 	}
 
 	public static ScanOptions fromMenu(ProximityCraftingMenu menu) {
-		return new ScanOptions(
-				ProximityCraftingConfig.SERVER.scanRadius.get(),
-				ProximityCraftingConfig.SERVER.minSlotCount.get(),
+		return ProximityCraftingConfig.serverRuntimeSettings().scanOptions(
 				menu.isIncludePlayerInventory(),
 				menu.getSourcePriority()
 		);

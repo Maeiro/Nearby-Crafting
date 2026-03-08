@@ -1,7 +1,7 @@
 package dev.maeiro.proximitycrafting.networking;
 
+import dev.maeiro.proximitycrafting.config.ClientPreferences;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
-import dev.maeiro.proximitycrafting.service.source.SourcePriority;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
@@ -46,8 +46,8 @@ public class C2SUpdateClientPreferences {
 				return;
 			}
 
-			SourcePriority resolvedPriority = SourcePriority.fromConfig(sourcePriority);
-			menu.setClientPreferences(autoRefillAfterCraft, includePlayerInventory, resolvedPriority);
+			ClientPreferences preferences = ClientPreferences.fromConfigValues(autoRefillAfterCraft, includePlayerInventory, sourcePriority);
+			menu.setClientPreferences(preferences);
 		});
 		ctx.setPacketHandled(true);
 	}

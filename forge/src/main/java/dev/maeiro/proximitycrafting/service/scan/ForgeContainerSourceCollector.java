@@ -53,7 +53,7 @@ public final class ForgeContainerSourceCollector implements ContainerSourceColle
 			);
 		}
 
-		if (ProximityCraftingConfig.SERVER.debugLogging.get()) {
+		if (ProximityCraftingConfig.serverRuntimeSettings().debugLogging()) {
 			int diameter = scanRadius * 2 + 1;
 			long scannedPositions = (long) diameter * diameter * diameter;
 			double totalMs = (System.nanoTime() - startNs) / 1_000_000.0D;

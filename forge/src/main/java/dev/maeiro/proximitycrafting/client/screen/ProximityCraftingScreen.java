@@ -11,6 +11,8 @@ import dev.maeiro.proximitycrafting.client.session.RecipeActionFeedbackApplyResu
 import dev.maeiro.proximitycrafting.client.session.SourceSnapshotApplyResult;
 import dev.maeiro.proximitycrafting.client.compat.emi.ProximityCraftingEmiCraftableFilterController;
 import dev.maeiro.proximitycrafting.client.compat.jei.ProximityCraftingJeiCraftableFilterController;
+import dev.maeiro.proximitycrafting.config.ClientPreferences;
+import dev.maeiro.proximitycrafting.config.ClientUiState;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import dev.maeiro.proximitycrafting.networking.payload.RecipeBookSourceEntry;
@@ -256,11 +258,12 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			return true;
 		}
 		if (button == 0 && isMouseOverAutoRefillToggle(mouseX, mouseY)) {
-			boolean nextAutoRefill = !ProximityCraftingConfig.CLIENT.autoRefillAfterCraft.get();
-			ProximityCraftingConfig.CLIENT.autoRefillAfterCraft.set(nextAutoRefill);
+			ClientPreferences nextPreferences = ProximityCraftingConfig.clientPreferences()
+					.withAutoRefillAfterCraft(!ProximityCraftingConfig.clientPreferences().autoRefillAfterCraft());
+			ProximityCraftingConfig.setClientPreferences(nextPreferences);
 			sendClientPreferencesUpdate();
 			showInfoStatusMessage(Component.translatable(
-					nextAutoRefill
+					nextPreferences.autoRefillAfterCraft()
 							? "proximitycrafting.auto_refill.enabled"
 							: "proximitycrafting.auto_refill.disabled"
 			));
@@ -931,7 +934,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		int x = bounds.getX();
 		int y = bounds.getY();
 		boolean hovered = bounds.contains(mouseX, mouseY);
-		boolean enabled = ProximityCraftingConfig.CLIENT.autoRefillAfterCraft.get();
+		boolean enabled = ProximityCraftingConfig.clientPreferences().autoRefillAfterCraft();
 
 		int background = hovered ? 0xFFE2E2E2 : 0xFFD1D1D1;
 		guiGraphics.fill(x, y, x + AUTO_REFILL_TOGGLE_SIZE, y + AUTO_REFILL_TOGGLE_SIZE, background);
@@ -1059,7 +1062,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			return;
 		}
 
-		boolean enabled = ProximityCraftingConfig.CLIENT.autoRefillAfterCraft.get();
+		boolean enabled = ProximityCraftingConfig.clientPreferences().autoRefillAfterCraft();
 		Component state = enabled
 				? Component.translatable("options.on")
 				: Component.translatable("options.off");
@@ -1182,27 +1185,29 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	private void applyRememberedUiState() {
-		if (!ProximityCraftingConfig.CLIENT.rememberToggleStates.get()) {
+		ClientUiState uiState = ProximityCraftingConfig.clientUiState();
+		if (!uiState.rememberToggleStates()) {
 			showProximityItemsPanel = true;
 			return;
 		}
 
-		showProximityItemsPanel = ProximityCraftingConfig.CLIENT.proximityItemsPanelOpen.get();
+		showProximityItemsPanel = uiState.ingredientsPanelOpen();
 
-		if (ProximityCraftingConfig.CLIENT.jeiCraftableOnlyEnabled.get()) {
+		if (uiState.jeiCraftableOnlyEnabled()) {
 			ProximityCraftingJeiCraftableFilterController.setEnabled(menu, true);
 		}
-		if (ProximityCraftingConfig.CLIENT.emiCraftableOnlyEnabled.get()) {
+		if (uiState.emiCraftableOnlyEnabled()) {
 			ProximityCraftingEmiCraftableFilterController.setEnabled(menu, true);
 			ProximityCraftingEmiCraftableFilterController.applyStartupPendingViewIfEnabled(menu);
 		}
 	}
 
 	private static void saveProximityItemsPanelState(boolean isOpen) {
-		if (!ProximityCraftingConfig.CLIENT.rememberToggleStates.get()) {
+		ClientUiState uiState = ProximityCraftingConfig.clientUiState();
+		if (!uiState.rememberToggleStates()) {
 			return;
 		}
-		ProximityCraftingConfig.CLIENT.proximityItemsPanelOpen.set(isOpen);
+		ProximityCraftingConfig.setClientUiState(uiState.withIngredientsPanelOpen(isOpen));
 	}
 
 	private Rect2i getProximityPanelBounds() {
@@ -1211,8 +1216,9 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			baseX -= RecipeBookComponent.IMAGE_WIDTH + PROXIMITY_PANEL_RECIPE_BOOK_EXTRA_SHIFT;
 		}
 		int baseY = this.topPos;
-		int panelX = baseX + ProximityCraftingConfig.CLIENT.proximityItemsPanelOffsetX.get();
-		int panelY = baseY + ProximityCraftingConfig.CLIENT.proximityItemsPanelOffsetY.get();
+		ClientUiState uiState = ProximityCraftingConfig.clientUiState();
+		int panelX = baseX + uiState.ingredientsPanelOffsetX();
+		int panelY = baseY + uiState.ingredientsPanelOffsetY();
 		return new Rect2i(panelX, panelY, PROXIMITY_PANEL_WIDTH, this.imageHeight);
 	}
 
@@ -1761,19 +1767,20 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	private void sendClientPreferencesUpdate() {
+		ClientPreferences preferences = ProximityCraftingConfig.clientPreferences();
 		ProximityClientServices.getClientRequestSender().updateClientPreferences(
 				this.menu.containerId,
-				ProximityCraftingConfig.CLIENT.autoRefillAfterCraft.get(),
-				ProximityCraftingConfig.CLIENT.includePlayerInventory.get(),
-				ProximityCraftingConfig.CLIENT.sourcePriority.get()
+				preferences.autoRefillAfterCraft(),
+				preferences.includePlayerInventory(),
+				preferences.sourcePriorityValue()
 		);
 		if (isDebugLoggingEnabled()) {
 			ProximityCrafting.LOGGER.info(
 					"[PROXC-PERF] client.sendPreferences menu={} autoRefill={} includePlayer={} sourcePriority={}",
 					this.menu.containerId,
-					ProximityCraftingConfig.CLIENT.autoRefillAfterCraft.get(),
-					ProximityCraftingConfig.CLIENT.includePlayerInventory.get(),
-					ProximityCraftingConfig.CLIENT.sourcePriority.get()
+					preferences.autoRefillAfterCraft(),
+					preferences.includePlayerInventory(),
+					preferences.sourcePriorityValue()
 			);
 		}
 	}

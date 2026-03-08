@@ -1,12 +1,15 @@
 package dev.maeiro.proximitycrafting.menu;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
+import dev.maeiro.proximitycrafting.config.ClientPreferences;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.slot.ProximityResultSlot;
 import dev.maeiro.proximitycrafting.networking.RecipeBookSourceSnapshotBuilder;
 import dev.maeiro.proximitycrafting.registry.ModBlocks;
 import dev.maeiro.proximitycrafting.registry.ModMenuTypes;
 import dev.maeiro.proximitycrafting.networking.payload.RecipeBookSourceEntry;
+import dev.maeiro.proximitycrafting.service.crafting.CraftingResultOperations;
+import dev.maeiro.proximitycrafting.service.crafting.CraftingResultPort;
 import dev.maeiro.proximitycrafting.service.crafting.FillResult;
 import dev.maeiro.proximitycrafting.service.crafting.RecipeBookSourceSessionState;
 import dev.maeiro.proximitycrafting.service.crafting.RecipeFillService;
@@ -15,7 +18,6 @@ import dev.maeiro.proximitycrafting.service.crafting.TrackedCraftGridSession;
 import dev.maeiro.proximitycrafting.service.source.ItemSourceRef;
 import dev.maeiro.proximitycrafting.service.source.SourcePriority;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
@@ -34,7 +36,6 @@ import net.minecraft.world.inventory.TransientCraftingContainer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
 
 import javax.annotation.Nullable;
@@ -59,12 +60,11 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	private final BlockPos tablePos;
 	private final TrackedCraftGridSession trackedCraftGridSession;
 	private final TrackedCraftGridPort trackedCraftGridPort = new MenuTrackedCraftGridPort();
+	private final CraftingResultPort craftingResultPort = new MenuCraftingResultPort();
 	private final RecipeBookSourceSessionState recipeBookSourceSessionState =
 			new RecipeBookSourceSessionState(SERVER_SNAPSHOT_CACHE_TTL_MS, ADJUST_SNAPSHOT_MIN_INTERVAL_MS);
 	private boolean resultShiftCraftInProgress;
-	private boolean autoRefillAfterCraft;
-	private boolean includePlayerInventory = true;
-	private SourcePriority sourcePriority = SourcePriority.CONTAINERS_FIRST;
+	private ClientPreferences clientPreferences = ClientPreferences.defaults();
 
 	private CraftingRecipe lastPlacedRecipe;
 
@@ -99,45 +99,12 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		}
 	}
 
-	public static void slotChangedCraftingGrid(AbstractContainerMenu menu, Level level, Player player, CraftingContainer craftSlots, ResultContainer resultSlots) {
-		if (level.isClientSide) {
-			return;
-		}
-
-		ServerPlayer serverPlayer = (ServerPlayer) player;
-		ItemStack result = ItemStack.EMPTY;
-		Optional<CraftingRecipe> optional = resolveCraftingResult(menu, level, craftSlots);
-		if (optional.isPresent()) {
-			CraftingRecipe recipe = optional.get();
-			if (resultSlots.setRecipeUsed(level, serverPlayer, recipe)) {
-				ItemStack assembled = recipe.assemble(craftSlots, level.registryAccess());
-				if (assembled.isItemEnabled(level.enabledFeatures())) {
-					result = assembled;
-				}
-			}
-		}
-
-		resultSlots.setItem(0, result);
-		menu.setRemoteSlot(0, result);
-		serverPlayer.connection.send(new ClientboundContainerSetSlotPacket(menu.containerId, menu.incrementStateId(), 0, result));
-	}
-
-	private static Optional<CraftingRecipe> resolveCraftingResult(AbstractContainerMenu menu, Level level, CraftingContainer craftSlots) {
-		if (menu instanceof ProximityCraftingMenu proximityMenu) {
-			Optional<CraftingRecipe> preferredRecipe = proximityMenu.getPreferredTrackedRecipe();
-			if (preferredRecipe.isPresent()) {
-				return preferredRecipe;
-			}
-		}
-		return level.getServer().getRecipeManager().getRecipeFor(RecipeType.CRAFTING, craftSlots, level);
-	}
-
 	@Override
 	public void slotsChanged(Container inventory) {
 		if (trackedCraftGridSession.onCraftGridChangedDeferred()) {
 			return;
 		}
-		this.access.execute((level, pos) -> slotChangedCraftingGrid(this, level, this.player, this.craftSlots, this.resultSlots));
+		refreshCraftingResult();
 	}
 
 	@Override
@@ -390,31 +357,8 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		return batchResult;
 	}
 
-	private Optional<CraftingRecipe> getCurrentCraftingRecipe() {
-		if (player.level() == null) {
-			return Optional.empty();
-		}
-		return player.level()
-				.getRecipeManager()
-				.getRecipeFor(RecipeType.CRAFTING, craftSlots, player.level());
-	}
-
-	private Optional<CraftingRecipe> getPreferredTrackedRecipe() {
-		if (lastPlacedRecipe == null || player.level() == null) {
-			return Optional.empty();
-		}
-		if (!lastPlacedRecipe.matches(craftSlots, player.level())) {
-			return Optional.empty();
-		}
-		return Optional.of(lastPlacedRecipe);
-	}
-
 	private Optional<CraftingRecipe> getPreferredActiveRecipe() {
-		Optional<CraftingRecipe> trackedRecipe = getPreferredTrackedRecipe();
-		if (trackedRecipe.isPresent()) {
-			return trackedRecipe;
-		}
-		return getCurrentCraftingRecipe();
+		return CraftingResultOperations.resolvePreferredActiveRecipe(player.level(), craftSlots, lastPlacedRecipe);
 	}
 
 	public boolean hasAnyCraftGridItems() {
@@ -529,7 +473,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	}
 
 	public boolean isAutoRefillAfterCraft() {
-		return autoRefillAfterCraft;
+		return clientPreferences.autoRefillAfterCraft();
 	}
 
 	public boolean isResultShiftCraftInProgress() {
@@ -537,26 +481,25 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	}
 
 	public boolean isIncludePlayerInventory() {
-		return includePlayerInventory;
+		return clientPreferences.includePlayerInventory();
 	}
 
 	public SourcePriority getSourcePriority() {
-		return sourcePriority;
+		return clientPreferences.sourcePriority();
 	}
 
-	public void setClientPreferences(boolean autoRefillAfterCraft, boolean includePlayerInventory, SourcePriority sourcePriority) {
-		boolean includeChanged = this.includePlayerInventory != includePlayerInventory;
-		boolean priorityChanged = this.sourcePriority != (sourcePriority == null
-				? SourcePriority.CONTAINERS_FIRST
-				: sourcePriority);
-		this.autoRefillAfterCraft = autoRefillAfterCraft;
-		this.includePlayerInventory = includePlayerInventory;
-		this.sourcePriority = sourcePriority == null
-				? SourcePriority.CONTAINERS_FIRST
-				: sourcePriority;
+	public void setClientPreferences(ClientPreferences preferences) {
+		ClientPreferences resolvedPreferences = preferences == null ? ClientPreferences.defaults() : preferences;
+		boolean includeChanged = this.clientPreferences.includePlayerInventory() != resolvedPreferences.includePlayerInventory();
+		boolean priorityChanged = this.clientPreferences.sourcePriority() != resolvedPreferences.sourcePriority();
+		this.clientPreferences = resolvedPreferences;
 		if (includeChanged || priorityChanged) {
 			invalidateServerRecipeBookSnapshotCache();
 		}
+	}
+
+	public void setClientPreferences(boolean autoRefillAfterCraft, boolean includePlayerInventory, SourcePriority sourcePriority) {
+		setClientPreferences(ClientPreferences.of(autoRefillAfterCraft, includePlayerInventory, sourcePriority));
 	}
 
 	public boolean setClientRecipeBookSupplementalSources(List<RecipeBookSourceEntry> sourceEntries) {
@@ -630,10 +573,14 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 
 	private static boolean isDebugLoggingEnabled() {
 		try {
-			return ProximityCraftingConfig.SERVER.debugLogging.get();
+			return ProximityCraftingConfig.serverRuntimeSettings().debugLogging();
 		} catch (RuntimeException exception) {
 			return false;
 		}
+	}
+
+	private void refreshCraftingResult() {
+		this.access.execute((level, pos) -> CraftingResultOperations.updateCraftingResult(craftingResultPort));
 	}
 
 	private class MenuTrackedCraftGridPort implements TrackedCraftGridPort {
@@ -674,7 +621,39 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 
 		@Override
 		public void flushCraftingGridChange() {
-			access.execute((level, pos) -> slotChangedCraftingGrid(ProximityCraftingMenu.this, level, player, craftSlots, resultSlots));
+			refreshCraftingResult();
+		}
+	}
+
+	private class MenuCraftingResultPort implements CraftingResultPort {
+		@Override
+		public AbstractContainerMenu getMenu() {
+			return ProximityCraftingMenu.this;
+		}
+
+		@Override
+		public Level getLevel() {
+			return player.level();
+		}
+
+		@Override
+		public Player getPlayer() {
+			return player;
+		}
+
+		@Override
+		public CraftingContainer getCraftSlots() {
+			return craftSlots;
+		}
+
+		@Override
+		public ResultContainer getResultSlots() {
+			return resultSlots;
+		}
+
+		@Override
+		public CraftingRecipe getTrackedRecipe() {
+			return lastPlacedRecipe;
 		}
 	}
 

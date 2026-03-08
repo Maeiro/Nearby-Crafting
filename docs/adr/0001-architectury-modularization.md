@@ -34,6 +34,8 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - Keep `ProximityCraftingMenu` as a runtime host and slot adapter rather than the owner of all crafting-grid/session bookkeeping.
 - In phase 7, move the Ingredients Panel presenter/cache/diffing logic into `common`, while keeping the Forge screen responsible only for rendering, hover/tooltips, and other UI-side reactions.
 - In phase 8, move shared content/bootstrap ids and namespace helpers into `common`, while keeping real registration and bootstrap binding per loader.
+- In phase 9, move config defaults and normalization semantics into `common` through shared config records, while keeping `ForgeConfigSpec` binding and blacklist registry resolution platform-side.
+- In phase 9, move preferred recipe selection and result recomputation helpers into `common`, while keeping the concrete menu/container host and slot wiring in Forge through a small runtime port.
 
 ## Consequences
 - Future ports can reuse common planning/source logic directly.
@@ -54,3 +56,5 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - Result-slot recomputation and concrete menu/container callbacks remain Forge-side by design; only the menu-adjacent session bookkeeping has been generalized.
 - Screen rendering remains platform-side by design; only the non-visual ingredients-panel presenter slice has been generalized.
 - Registry/bootstrap binding remains platform-side by design; only the shared ids and descriptor metadata have been generalized.
+- Config file binding remains platform-side by design; only defaults and normalized runtime/config records have been generalized.
+- Concrete container/result-slot wiring remains platform-side by design; only preferred recipe lookup and result recomputation helpers have been generalized.

@@ -8,7 +8,8 @@
 - [x] Extract source discovery orchestration to `common`
 - [x] Reduce `ProximityCraftingMenu` ownership to session hosting and slot adapters
 - [x] Extract more screen-side presenters/view-models out of `ProximityCraftingScreen`
-- [ ] Move config semantics/default resolution into `common`
+- [x] Move config semantics/default resolution into `common`
+- [x] Extract recipe-resolution/result-update helper from `ProximityCraftingMenu`
 - [x] Review registry/bootstrap descriptors for further loader isolation
 
 ## Completed in this phase
@@ -25,8 +26,13 @@
 - Registry/bootstrap descriptor split:
   - `common` owns shared content/bootstrap IDs and `ResourceLocation` descriptors
   - `forge` keeps actual `DeferredRegister`, packet channel construction, and loader bootstrap binding
+- Config semantics split:
+  - `common` owns config defaults and normalized config records (`ClientPreferences`, `ClientUiState`, `ServerRuntimeSettings`)
+  - `forge` keeps only `ForgeConfigSpec` binding and block-entity blacklist resolution
+- Recipe/result split:
+  - `common` owns preferred recipe selection and result recomputation helpers
+  - `forge` menu keeps the concrete container/result slot host plus a small runtime port adapter
 
 ## Next focus candidates
-- Move config semantics/default resolution into `common`
-- Review whether the remaining recipe-resolution/output update logic can be split from `ProximityCraftingMenu`
 - Review whether more action/status/panel perf view models can leave `ProximityCraftingScreen`
+- Review whether more menu-side recipe/result/session flow can leave `ProximityCraftingMenu`

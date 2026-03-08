@@ -14,7 +14,7 @@ final class ForgeCraftConsumeSessionAdapter implements CraftConsumeSessionPort {
 
 	@Override
 	public int getMaxShiftCraftIterations() {
-		return ProximityCraftingConfig.SERVER.maxShiftCraftIterations.get();
+		return ProximityCraftingConfig.serverRuntimeSettings().maxShiftCraftIterations();
 	}
 
 	@Override

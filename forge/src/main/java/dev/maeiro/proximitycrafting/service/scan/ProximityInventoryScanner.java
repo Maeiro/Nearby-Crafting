@@ -60,7 +60,7 @@ public class ProximityInventoryScanner implements SourceCollector {
 		List<ItemSourceRef> backpackSources = sourceCollectionResult.playerBackpackSources();
 		List<ItemSourceRef> result = sourceCollectionResult.mergedSources(scanOptions.sourcePriority());
 
-		if (ProximityCraftingConfig.SERVER.debugLogging.get()) {
+		if (ProximityCraftingConfig.serverRuntimeSettings().debugLogging()) {
 			double totalMs = (System.nanoTime() - startNs) / 1_000_000.0D;
 			ProximityCrafting.LOGGER.info(
 					"[PROXC-PERF] collectSources center={} includePlayer={} priority={} containerSlots={} playerSlots={} backpackSlots={} totalSlots={} took={}ms",
@@ -92,15 +92,7 @@ public class ProximityInventoryScanner implements SourceCollector {
 	}
 
 	public static List<ItemSourceRef> collectPlayerSources(Player player, boolean includePlayerInventory) {
-		return collectPlayerSources(
-				player,
-				new ScanOptions(
-						ProximityCraftingConfig.SERVER.scanRadius.get(),
-						ProximityCraftingConfig.SERVER.minSlotCount.get(),
-						includePlayerInventory,
-						SourcePriority.CONTAINERS_FIRST
-				)
-		);
+		return collectPlayerSources(player, defaultScanOptions(includePlayerInventory, SourcePriority.CONTAINERS_FIRST));
 	}
 
 	public static List<ItemSourceRef> collectPlayerSources(Player player, ScanOptions scanOptions) {
@@ -112,12 +104,7 @@ public class ProximityInventoryScanner implements SourceCollector {
 	}
 
 	private static ScanOptions defaultScanOptions(boolean includePlayerInventory, SourcePriority priority) {
-		return new ScanOptions(
-				ProximityCraftingConfig.SERVER.scanRadius.get(),
-				ProximityCraftingConfig.SERVER.minSlotCount.get(),
-				includePlayerInventory,
-				priority
-		);
+		return ProximityCraftingConfig.serverRuntimeSettings().scanOptions(includePlayerInventory, priority);
 	}
 }
 

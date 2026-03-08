@@ -162,8 +162,25 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
   - `common`: shared ids, namespace helpers, and bootstrap metadata descriptors
   - `forge`: actual `DeferredRegister` usage, packet channel transport, and loader bootstrap wiring
 
+## Current boundary after phase 9
+- `common` now owns config semantics and default resolution through shared config models:
+  - `ProximityConfigDefaults`
+  - `ServerRuntimeSettings`
+  - `ClientPreferences`
+  - `ClientUiState`
+- Forge now keeps:
+  - `ForgeConfigSpec` binding
+  - block entity blacklist parsing/resolution
+  - application of shared config records to the current runtime
+- `common` now also owns preferred recipe selection and result recomputation helpers:
+  - `CraftingResultPort`
+  - `CraftingResultOperations`
+- `ProximityCraftingMenu` no longer owns recipe lookup/result recomputation directly. It now hosts a small runtime adapter and delegates active-recipe/result decisions into `common`.
+- The practical split is now:
+  - `common`: config defaults/normalization, preferred recipe lookup, result recomputation
+  - `forge`: config file binding, block entity registry resolution, concrete menu/container host
+
 ## Next migration targets
-1. Move config semantics/default resolution into `common`, leaving only platform config binding per loader
-2. Review whether the remaining recipe-resolution/result-update logic can be separated from `ProximityCraftingMenu`
-3. Review whether additional action/status/panel perf view models should leave `ProximityCraftingScreen`
-4. Review whether any remaining resource/uid constants still belong in loader modules or should join the shared descriptor layer
+1. Review whether additional action/status/panel perf view models should leave `ProximityCraftingScreen`
+2. Review whether more menu-side recipe/result/session flow can be separated from `ProximityCraftingMenu`
+3. Review whether any remaining resource/uid constants still belong in loader modules or should join the shared descriptor layer

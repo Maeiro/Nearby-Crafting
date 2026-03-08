@@ -74,12 +74,12 @@ final class ForgeCraftingSessionAdapter implements CraftingSessionPort {
 
 	@Override
 	public int getMaxShiftCraftIterations() {
-		return ProximityCraftingConfig.SERVER.maxShiftCraftIterations.get();
+		return ProximityCraftingConfig.serverRuntimeSettings().maxShiftCraftIterations();
 	}
 
 	@Override
 	public boolean isDebugLoggingEnabled() {
-		return ProximityCraftingConfig.isServerDebugLoggingEnabled();
+		return ProximityCraftingConfig.serverRuntimeSettings().debugLogging();
 	}
 
 	@Override

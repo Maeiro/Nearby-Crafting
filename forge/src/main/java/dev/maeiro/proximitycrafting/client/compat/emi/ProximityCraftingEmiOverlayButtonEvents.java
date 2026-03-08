@@ -2,6 +2,7 @@ package dev.maeiro.proximitycrafting.client.compat.emi;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
 import dev.maeiro.proximitycrafting.client.screen.ProximityCraftingScreen;
+import dev.maeiro.proximitycrafting.config.ClientUiState;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import net.minecraft.client.Minecraft;
@@ -125,8 +126,9 @@ public final class ProximityCraftingEmiOverlayButtonEvents {
 
 		boolean nextEnabled = !ProximityCraftingEmiCraftableFilterController.isEnabledFor(menu.containerId);
 		ProximityCraftingEmiCraftableFilterController.setEnabled(menu, nextEnabled);
-		if (ProximityCraftingConfig.CLIENT.rememberToggleStates.get()) {
-			ProximityCraftingConfig.CLIENT.emiCraftableOnlyEnabled.set(nextEnabled);
+		ClientUiState uiState = ProximityCraftingConfig.clientUiState();
+		if (uiState.rememberToggleStates()) {
+			ProximityCraftingConfig.setClientUiState(uiState.withEmiCraftableOnlyEnabled(nextEnabled));
 		}
 		if (nextEnabled) {
 			screen.requestImmediateSourceSyncAndRefresh();
