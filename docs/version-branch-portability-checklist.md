@@ -40,7 +40,7 @@ Recommended interpretation:
 ## Remaining work to improve version-branch portability
 - [ ] Keep `common` free from loader APIs and loader-shaped assumptions
 - [ ] Reduce direct dependency on fragile Minecraft-version-specific UI internals where a common presenter/state seam is possible
-- [ ] Isolate all recipe book accessors/mixins clearly per loader and per version-sensitive runtime path
+- [x] Isolate all recipe book accessors/mixins clearly per loader and per version-sensitive runtime path
 - [ ] Keep packet payload models and request/response state transitions version-local but loader-neutral inside each branch
 - [ ] Keep menu/result-slot/session logic concentrated behind small runtime ports instead of spreading version-sensitive logic across many host classes
 - [ ] Keep scanning/discovery split clean:
@@ -54,6 +54,10 @@ Recommended interpretation:
 - [ ] Make config semantics stay shared even when config file binding differs by loader/version
 - [ ] Keep architecture diagrams and port-status docs updated when a version branch diverges materially
 - [ ] Document branch strategy explicitly when opening a new Minecraft version line
+
+## Recent progress
+- Vanilla recipe book hover resolution and refresh hooks now sit behind platform-local recipe book runtime bridges.
+- Fabric and NeoForge accessors/mixins for recipe book internals are no longer consumed directly by the screen classes.
 
 ## Branch strategy guideline
 - Prefer reusing the previous adjacent version branch first.

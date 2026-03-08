@@ -1,6 +1,6 @@
 {
   "required": true,
-  "package": "dev.maeiro.proximitycrafting.mixin.client",
+  "package": "dev.maeiro.proximitycrafting.client.recipebook.mixin",
   "compatibilityLevel": "JAVA_17",
   "client": [
     "RecipeBookComponentAccessor",
@@ -10,3 +10,4 @@
     "defaultRequire": 1
   }
 }
+

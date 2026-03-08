@@ -52,6 +52,7 @@ Detailed platform status:
 - concrete menu/screen hosts
 - packet transport and registration
 - runtime adapters over the common ports
+- recipe-book runtime bridges for version-sensitive vanilla UI access
 - loader-specific UI integration and compat
 
 ### Platform-specific status
@@ -61,9 +62,11 @@ Detailed platform status:
   - JEI / EMI / Sophisticated Backpacks integrations remain here
 - Fabric:
   - stable for the vanilla recipe book path
+  - vanilla recipe book runtime access is isolated behind a platform-local bridge
   - overlay integrations still pending
 - NeoForge 1.20.1:
   - stable for the vanilla recipe book path
+  - vanilla recipe book runtime access is isolated behind a platform-local bridge
   - intentionally limited to that scope
   - does not target further overlay or backpack parity on this version line
 

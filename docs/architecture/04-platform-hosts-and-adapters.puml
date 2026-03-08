@@ -13,6 +13,7 @@ package "common core" as CommonCore {
 package "forge" as ForgeHost {
   component "Menu host" as ForgeMenu
   component "Screen host" as ForgeScreen
+  component "Recipe book runtime bridge\n(reflection-backed)" as ForgeRecipeBookBridge
   component "Network bridge" as ForgeNetwork
   component "Runtime hooks" as ForgeRuntimeHooks
   component "Scan/source adapters" as ForgeScanAdapters
@@ -22,6 +23,7 @@ package "forge" as ForgeHost {
 package "fabric" as FabricHost {
   component "Menu host" as FabricMenu
   component "Screen host" as FabricScreen
+  component "Recipe book runtime bridge\n(accessor-backed)" as FabricRecipeBookBridge
   component "Network bridge" as FabricNetwork
   component "Runtime hooks" as FabricRuntimeHooks
   component "Scan/source adapters" as FabricScanAdapters
@@ -31,6 +33,7 @@ package "fabric" as FabricHost {
 package "neoforge" as NeoForgeHost {
   component "Menu host" as NeoForgeMenu
   component "Screen host" as NeoForgeScreen
+  component "Recipe book runtime bridge\n(accessor-backed)" as NeoForgeRecipeBookBridge
   component "Network bridge" as NeoForgeNetwork
   component "Runtime hooks" as NeoForgeRuntimeHooks
   component "Scan/source adapters" as NeoForgeScanAdapters
@@ -39,6 +42,7 @@ package "neoforge" as NeoForgeHost {
 
 ForgeMenu ..> CommonRuntime
 ForgeScreen ..> CommonClientSeams
+ForgeScreen ..> ForgeRecipeBookBridge
 ForgeNetwork ..> CommonClientSeams
 ForgeRuntimeHooks ..> CommonClientSeams
 ForgeScanAdapters ..> CommonScan
@@ -46,6 +50,7 @@ ForgeCompatHosts ..> CommonClientSeams
 
 FabricMenu ..> CommonRuntime
 FabricScreen ..> CommonClientSeams
+FabricScreen ..> FabricRecipeBookBridge
 FabricNetwork ..> CommonClientSeams
 FabricRuntimeHooks ..> CommonClientSeams
 FabricScanAdapters ..> CommonScan
@@ -53,6 +58,7 @@ FabricCompatPending ..> CommonClientSeams
 
 NeoForgeMenu ..> CommonRuntime
 NeoForgeScreen ..> CommonClientSeams
+NeoForgeScreen ..> NeoForgeRecipeBookBridge
 NeoForgeNetwork ..> CommonClientSeams
 NeoForgeRuntimeHooks ..> CommonClientSeams
 NeoForgeScanAdapters ..> CommonScan
