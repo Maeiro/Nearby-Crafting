@@ -1,6 +1,7 @@
 package dev.maeiro.proximitycrafting.networking;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
+import dev.maeiro.proximitycrafting.registry.ProximityBootstrapDescriptors;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
@@ -9,7 +10,7 @@ public class ProximityCraftingNetwork {
 	private static final String PROTOCOL_VERSION = "5";
 
 	public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-			new ResourceLocation(ProximityCrafting.MOD_ID, "main"),
+			ProximityBootstrapDescriptors.NETWORK_CHANNEL.location(),
 			() -> PROTOCOL_VERSION,
 			PROTOCOL_VERSION::equals,
 			PROTOCOL_VERSION::equals

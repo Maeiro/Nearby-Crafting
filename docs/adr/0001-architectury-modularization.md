@@ -33,6 +33,7 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - In phase 6, move menu-adjacent tracked-grid state and recipe-book snapshot state into `common`, while keeping the concrete menu/container and result recomputation hook in Forge.
 - Keep `ProximityCraftingMenu` as a runtime host and slot adapter rather than the owner of all crafting-grid/session bookkeeping.
 - In phase 7, move the Ingredients Panel presenter/cache/diffing logic into `common`, while keeping the Forge screen responsible only for rendering, hover/tooltips, and other UI-side reactions.
+- In phase 8, move shared content/bootstrap ids and namespace helpers into `common`, while keeping real registration and bootstrap binding per loader.
 
 ## Consequences
 - Future ports can reuse common planning/source logic directly.
@@ -43,6 +44,7 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - Future ports can reuse the source composition and recipe-book supplemental source aggregation flow without reusing Forge scanning code.
 - Future ports can reuse tracked crafting-grid source-ledger behavior and recipe-book source session state without reusing the Forge menu implementation.
 - Future ports can reuse the current ingredients-panel presenter and cache logic without reusing the Forge screen implementation.
+- Future ports can bind their own registries/bootstrap flow to the same shared content ids and bootstrap metadata without copying Forge-local string ids.
 - Forge-specific runtime behavior stays intact while the structure evolves.
 - The first migration phase does not yet make NeoForge feature-complete.
 - JEI/EMI remain Forge-side until the platform-neutral core is stable.
@@ -51,3 +53,4 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - World/inventory discovery remains platform-side by design; only the orchestration of discovered sources has been generalized.
 - Result-slot recomputation and concrete menu/container callbacks remain Forge-side by design; only the menu-adjacent session bookkeeping has been generalized.
 - Screen rendering remains platform-side by design; only the non-visual ingredients-panel presenter slice has been generalized.
+- Registry/bootstrap binding remains platform-side by design; only the shared ids and descriptor metadata have been generalized.

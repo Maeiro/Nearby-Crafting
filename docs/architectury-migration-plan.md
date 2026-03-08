@@ -148,8 +148,22 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
   - `common`: ingredients panel state/presenter logic
   - `forge`: screen rendering, hover/tooltips, and UI-side reactions around the presenter
 
+## Current boundary after phase 8
+- `common` now also owns shared content/bootstrap descriptors and namespace helpers:
+  - `ProximityCrafting.id(...)`
+  - `ProximityId`
+  - `ProximityContentDescriptors`
+  - `ProximityBootstrapDescriptors`
+- Forge registries/bootstrap now bind to those shared descriptors instead of hardcoded local string ids for:
+  - content registration paths
+  - network channel id
+  - JEI plugin uid
+- The practical split is now:
+  - `common`: shared ids, namespace helpers, and bootstrap metadata descriptors
+  - `forge`: actual `DeferredRegister` usage, packet channel transport, and loader bootstrap wiring
+
 ## Next migration targets
 1. Move config semantics/default resolution into `common`, leaving only platform config binding per loader
 2. Review whether the remaining recipe-resolution/result-update logic can be separated from `ProximityCraftingMenu`
 3. Review whether additional action/status/panel perf view models should leave `ProximityCraftingScreen`
-4. Review registry/bootstrap descriptors for additional loader isolation without over-abstracting platform registration
+4. Review whether any remaining resource/uid constants still belong in loader modules or should join the shared descriptor layer

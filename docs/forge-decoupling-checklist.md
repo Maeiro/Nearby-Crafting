@@ -9,7 +9,7 @@
 - [x] Reduce `ProximityCraftingMenu` ownership to session hosting and slot adapters
 - [x] Extract more screen-side presenters/view-models out of `ProximityCraftingScreen`
 - [ ] Move config semantics/default resolution into `common`
-- [ ] Review registry/bootstrap descriptors for further loader isolation
+- [x] Review registry/bootstrap descriptors for further loader isolation
 
 ## Completed in this phase
 - Source discovery split:
@@ -22,6 +22,9 @@
 - Screen presenter split:
   - `common` owns the Ingredients Panel presenter/cache/diffing logic
   - `forge` screen keeps render, tooltips, and UI-side hooks around that presenter
+- Registry/bootstrap descriptor split:
+  - `common` owns shared content/bootstrap IDs and `ResourceLocation` descriptors
+  - `forge` keeps actual `DeferredRegister`, packet channel construction, and loader bootstrap binding
 
 ## Next focus candidates
 - Move config semantics/default resolution into `common`
