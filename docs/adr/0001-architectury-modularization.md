@@ -3,6 +3,14 @@
 ## Status
 Accepted
 
+## Later updates
+This ADR captures the baseline modularization decision, not the full current platform matrix.
+
+Since this baseline was accepted:
+- Fabric gained a real runtime host and a stable vanilla recipe book path on 1.20.1.
+- NeoForge 1.20.1 also gained a real runtime host and a stable vanilla recipe book path, but that line is intentionally capped there.
+- Forge remains the reference runtime even though the project is no longer Forge-only.
+
 ## Context
 The project had grown into a Forge-shaped codebase where core crafting logic, scanning, menus, networking, config, and JEI/EMI integrations were tightly mixed. Future Fabric and NeoForge support would be expensive without an early structural split.
 

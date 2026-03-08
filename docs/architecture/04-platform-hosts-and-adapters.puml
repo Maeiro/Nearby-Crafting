@@ -1,0 +1,76 @@
+@startuml
+title Proximity Crafting - Platform Hosts and Adapters
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+package "common core" as CommonCore {
+  component "Crafting / consume /\nresult / session operations" as CommonRuntime
+  component "Request/response client seams" as CommonClientSeams
+  component "Scan/source orchestration" as CommonScan
+}
+
+package "forge" as ForgeHost {
+  component "Menu host" as ForgeMenu
+  component "Screen host" as ForgeScreen
+  component "Network bridge" as ForgeNetwork
+  component "Runtime hooks" as ForgeRuntimeHooks
+  component "Scan/source adapters" as ForgeScanAdapters
+  component "Compat hosts\nJEI / EMI / SB" as ForgeCompatHosts
+}
+
+package "fabric" as FabricHost {
+  component "Menu host" as FabricMenu
+  component "Screen host" as FabricScreen
+  component "Network bridge" as FabricNetwork
+  component "Runtime hooks" as FabricRuntimeHooks
+  component "Scan/source adapters" as FabricScanAdapters
+  component "Overlay compat pending" as FabricCompatPending
+}
+
+package "neoforge" as NeoForgeHost {
+  component "Menu host" as NeoForgeMenu
+  component "Screen host" as NeoForgeScreen
+  component "Network bridge" as NeoForgeNetwork
+  component "Runtime hooks" as NeoForgeRuntimeHooks
+  component "Scan/source adapters" as NeoForgeScanAdapters
+  component "Vanilla-book-only scope" as NeoForgeVanillaOnly
+}
+
+ForgeMenu ..> CommonRuntime
+ForgeScreen ..> CommonClientSeams
+ForgeNetwork ..> CommonClientSeams
+ForgeRuntimeHooks ..> CommonClientSeams
+ForgeScanAdapters ..> CommonScan
+ForgeCompatHosts ..> CommonClientSeams
+
+FabricMenu ..> CommonRuntime
+FabricScreen ..> CommonClientSeams
+FabricNetwork ..> CommonClientSeams
+FabricRuntimeHooks ..> CommonClientSeams
+FabricScanAdapters ..> CommonScan
+FabricCompatPending ..> CommonClientSeams
+
+NeoForgeMenu ..> CommonRuntime
+NeoForgeScreen ..> CommonClientSeams
+NeoForgeNetwork ..> CommonClientSeams
+NeoForgeRuntimeHooks ..> CommonClientSeams
+NeoForgeScanAdapters ..> CommonScan
+NeoForgeVanillaOnly ..> CommonClientSeams
+
+note bottom of ForgeHost
+Reference runtime.
+Full current host with active overlay and backpack compat.
+end note
+
+note bottom of FabricHost
+Stable for the vanilla recipe book path on 1.20.1.
+JEI / EMI integration is still pending.
+end note
+
+note bottom of NeoForgeHost
+Stable for the vanilla recipe book path on 1.20.1.
+This line is intentionally capped and does not target
+further overlay or backpack parity.
+end note
+@enduml

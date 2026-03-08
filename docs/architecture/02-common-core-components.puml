@@ -1,0 +1,109 @@
+@startuml
+title Proximity Crafting - Common Core Components
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+package "service/source" as SourcePkg {
+  component "ItemSourceSlot" as ItemSourceSlot
+  component "IngredientSourcePool" as IngredientSourcePool
+  component "ItemSourceRef / SlotIdentity" as ItemSourceRef
+  component "SourcePriority" as SourcePriority
+}
+
+package "service/scan" as ScanPkg {
+  component "SourceCollector" as SourceCollector
+  component "ContainerDiscoveryPort" as ContainerDiscoveryPort
+  component "CompositeSourceCollector" as CompositeCollector
+  component "NearbyContainerSourceCollector" as NearbyCollector
+  component "RecipeBookSourceAggregator" as SourceAggregator
+  component "ScanOptions" as ScanOptions
+}
+
+package "service/crafting" as CraftingPkg {
+  component "CraftingSessionPort" as CraftingSessionPort
+  component "CraftConsumeSessionPort" as CraftConsumeSessionPort
+  component "ResultTakePort" as ResultTakePort
+  component "TrackedCraftGridPort" as TrackedGridPort
+  component "RecipeFillOperations" as RecipeFillOps
+  component "CraftConsumeOperations" as CraftConsumeOps
+  component "CraftingResultOperations" as CraftingResultOps
+  component "RecipeSessionOperations" as RecipeSessionOps
+  component "ResultTakeOperations" as ResultTakeOps
+  component "TrackedCraftGridSession" as TrackedGridSession
+  component "RecipeBookSourceSessionState" as RecipeBookSession
+}
+
+package "client/net" as ClientNetPkg {
+  component "ClientRequestSender" as ClientRequestSender
+  component "ClientResponseDispatcher" as ClientResponseDispatcher
+  component "ProximityClientServices" as ProximityClientServices
+}
+
+package "client/session" as ClientSessionPkg {
+  component "ClientRecipeSessionState" as ClientRecipeSessionState
+  component "SourceSnapshotApplyResult" as SourceSnapshotApplyResult
+  component "RecipeActionFeedbackApplyResult" as RecipeActionFeedbackApplyResult
+}
+
+package "client/presenter" as PresenterPkg {
+  component "IngredientsPanelPresenter" as IngredientsPanelPresenter
+  component "StatusMessagePresenter" as StatusMessagePresenter
+}
+
+package "config" as ConfigPkg {
+  component "ProximityConfigDefaults" as ProximityConfigDefaults
+  component "ClientPreferences / ClientUiState" as ClientConfigModels
+  component "ServerRuntimeSettings" as ServerRuntimeSettings
+  component "ProximityConfigPersistence" as ConfigPersistence
+}
+
+package "networking/payload" as PayloadPkg {
+  component "RecipeBookSourceSnapshotPayload" as SnapshotPayload
+  component "RecipeFillFeedbackPayload" as FeedbackPayload
+}
+
+package "registry" as RegistryPkg {
+  component "ProximityContentDescriptors" as ContentDescriptors
+  component "ProximityBootstrapDescriptors" as BootstrapDescriptors
+}
+
+SourceCollector --> ScanOptions
+CompositeCollector --> SourceCollector
+NearbyCollector --> ContainerDiscoveryPort
+NearbyCollector --> ItemSourceSlot
+SourceAggregator --> ItemSourceRef
+
+RecipeFillOps --> CraftingSessionPort
+RecipeFillOps --> SourceCollector
+RecipeFillOps --> IngredientSourcePool
+CraftConsumeOps --> CraftConsumeSessionPort
+CraftingResultOps --> ResultTakePort
+RecipeSessionOps --> CraftingSessionPort
+ResultTakeOps --> ResultTakePort
+TrackedGridSession --> TrackedGridPort
+RecipeBookSession --> SnapshotPayload
+
+ClientResponseDispatcher --> ClientRecipeSessionState
+ClientResponseDispatcher --> SnapshotPayload
+ClientResponseDispatcher --> FeedbackPayload
+ProximityClientServices --> ClientRequestSender
+ProximityClientServices --> ClientResponseDispatcher
+
+IngredientsPanelPresenter --> SnapshotPayload
+IngredientsPanelPresenter --> ItemSourceRef
+StatusMessagePresenter --> FeedbackPayload
+
+ConfigPersistence --> ClientConfigModels
+ConfigPersistence --> ServerRuntimeSettings
+ClientConfigModels --> ProximityConfigDefaults
+ServerRuntimeSettings --> ProximityConfigDefaults
+
+BootstrapDescriptors --> ContentDescriptors
+
+note bottom
+This diagram shows the current reusable architecture in common:
+ports define runtime seams, operations own behavior, presenters own
+non-visual UI state, and payloads/config records stay loader-agnostic.
+end note
+@enduml

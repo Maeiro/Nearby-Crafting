@@ -1,5 +1,8 @@
 # Fabric Port Status
 
+## Architecture diagrams
+See the current PlantUML baseline in [docs/architecture/README.md](architecture/README.md).
+
 ## Scope of the current slice
 This is the first real Fabric runtime slice for Proximity Crafting.
 

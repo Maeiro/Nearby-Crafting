@@ -1,5 +1,8 @@
 # NeoForge Port Status
 
+## Architecture diagrams
+See the current PlantUML baseline in [docs/architecture/README.md](architecture/README.md).
+
 ## Scope of the current slice
 This is the first real NeoForge runtime slice for Proximity Crafting.
 
@@ -44,8 +47,8 @@ The goal of this slice was not full gameplay parity. The goal was to move NeoFor
 - Shared ids/bootstrap descriptors from `common` are used by the NeoForge module.
 
 ### Menu open flow
-- `ProximityCraftingTableBlock` now opens the menu through Architectury `MenuRegistry.openExtendedMenu(...)`
-- `ModMenuTypes` now creates the menu through `MenuRegistry.ofExtended(...)`
+- `ProximityCraftingTableBlock` now opens the menu through the native Forge-like `NetworkHooks.openScreen(...)` path used by this NeoForge 1.20.1 runtime
+- `ModMenuTypes` now creates the menu through `IForgeMenuType.create(...)`
 - `BlockPos` is transferred to the menu through the extra menu buffer
 
 ### Networking

@@ -1,5 +1,8 @@
 # Forge Decoupling Checklist
 
+Architecture diagrams: [docs/architecture/README.md](architecture/README.md)
+
+## Completed milestones
 - [x] Extract planning/source primitives to `common`
 - [x] Extract recipe fill core to `common`
 - [x] Extract shift-craft consume core to `common`
@@ -16,59 +19,14 @@
 - [x] Establish a first real Fabric runtime host on top of the shared common core
 - [x] Establish a first real NeoForge runtime host on top of the shared common core
 
-## Completed in this phase
-- Runtime scanning boundary cleanup:
-  - `common` already had `ContainerDiscoveryPort`, `DiscoveredContainer`, and `NearbyContainerSourceCollector`
-  - this phase connected that seam in the actual Forge runtime
-  - `forge` now keeps only `ForgeContainerDiscoveryPort` for raw block-entity/item-handler discovery
-  - radius iteration, blacklist filtering, distance ordering, and slot flattening now run through the common collector path
-- Result slot runtime cleanup:
-  - `common` now actively owns result-take refill policy through:
-    - `ResultTakePort`
-    - `ResultTakeOperations`
-    - `ResultTakeOutcome`
-  - `forge` result-slot behavior is now routed through `ProximityCraftingMenu.handleResultSlotTake(...)`
-  - `ProximityResultSlot` is now a thin slot host instead of owning refill/snapshot policy directly
-- Source discovery split:
-  - `common` owns source orchestration and recipe-book source aggregation
-  - `forge` keeps raw container/player/backpack discovery adapters
-- Menu session split:
-  - `common` owns tracked craft-grid mutation/source-ledger state
-  - `common` owns recipe-book source snapshot/client supplemental source session state
-  - `forge` menu now hosts these session objects and exposes slot/runtime adapters
-- Screen presenter split:
-  - `common` owns the Ingredients Panel presenter/cache/diffing logic
-  - `forge` screen keeps render, tooltips, and UI-side hooks around that presenter
-- Registry/bootstrap descriptor split:
-  - `common` owns shared content/bootstrap IDs and `ResourceLocation` descriptors
-  - `forge` keeps actual `DeferredRegister`, packet channel construction, and loader bootstrap binding
-- Config semantics split:
-  - `common` owns config defaults and normalized config records (`ClientPreferences`, `ClientUiState`, `ServerRuntimeSettings`)
-  - `forge` keeps only `ForgeConfigSpec` binding and block-entity blacklist resolution
-- Recipe/result split:
-  - `common` owns preferred recipe selection and result recomputation helpers
-  - `forge` menu keeps the concrete container/result slot host plus a small runtime port adapter
-- Status presenter split:
-  - `common` owns status message lifecycle, colors, and feedback mapping
-  - `forge` screen keeps only rendering and UI-side wrappers
-- Recipe request/session split:
-  - `common` owns recipe-by-id and adjust-load operations
-  - `forge` menu delegates those flows through `RecipeFillService`
-- First Fabric runtime host:
-  - `fabric` now has real content/menu/screen/network wiring
-  - Architectury `NetworkChannel` is now used for the current Fabric packet set
-  - Fabric packet handlers now route through the shared common request/response/session seams
-  - Fabric scanning/session/runtime adapters now host the common core instead of staying scaffold-only
-  - Fabric 1.20.1 vanilla recipe book flow is now smoke-tested and stable, including hover scroll on recipe book items
-  - current remaining gaps are documented in `docs/fabric-port-status.md`
-- First NeoForge runtime host:
-  - `neoforge` now has real content/menu/screen/network wiring
-  - NeoForge packet handlers now route through the shared common request/response/session seams
-  - NeoForge scanning/session/runtime adapters now host the common core instead of staying placeholder-only
-  - NeoForge 1.20.1 vanilla recipe book flow is wired in code, builds cleanly, and is now validated in-game
-  - current remaining gaps and validation status are documented in `docs/neoforge-port-status.md`
+## Current interpretation
+- The heavy Forge-shaped architecture work is already done.
+- `common` now owns the reusable core.
+- Forge is the reference runtime host.
+- Fabric has moved past scaffold status and is stable for the vanilla recipe book path.
+- NeoForge 1.20.1 has also moved past placeholder status, but it is intentionally capped at vanilla recipe book support.
 
-## Next focus candidates
-- Review whether the current lightweight Fabric/NeoForge config persistence should later move to loader-native config frameworks
-- Review whether more action/panel perf view models can leave `ProximityCraftingScreen`
-- Review whether more menu-side result-slot/session flow can leave `ProximityCraftingMenu`
+## Open review items
+- [ ] Decide whether Fabric/NeoForge should keep the current lightweight file-backed config persistence or move to loader-native config frameworks later.
+- [ ] Review whether any additional high-value action/panel performance view-models should leave `ProximityCraftingScreen`.
+- [ ] Review whether any remaining menu-side result/session flow still worth extracting from `ProximityCraftingMenu` would materially reduce parity cost.

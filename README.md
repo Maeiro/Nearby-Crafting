@@ -5,7 +5,12 @@
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U7U3EQ9EW)
 
-**Proximity Crafting** is a Forge 1.20.1 mod that adds a custom crafting table which can use ingredients from nearby inventories, so you do not need to manually move everything into your player inventory first.
+**Proximity Crafting** is a modular 1.20.1 mod that adds a custom crafting table which can use ingredients from nearby inventories, so you do not need to manually move everything into your player inventory first.
+
+Current platform status:
+- Forge 1.20.1: reference runtime and full current feature set
+- Fabric 1.20.1: stable vanilla recipe book runtime, overlay integrations still pending
+- NeoForge 1.20.1: stable vanilla recipe book runtime only
 
 ## What This Mod Does
 - Adds the **Proximity Crafting Table** (3x3 crafting).
@@ -57,24 +62,38 @@ When using Proximity Crafting recipe interactions (including overlay integration
   - scroll up increases loaded recipe amount step-by-step,
   - scroll down decreases loaded amount and returns ingredients through the tracked source flow.
 
-## Requirements
+## Supported Platforms
 - Minecraft `1.20.1`
-- Forge `47.x`
 - Java `17`
+- Forge `47.x`
+  - reference runtime
+- Fabric `1.20.1`
+  - stable vanilla recipe book path
+- NeoForge `1.20.1`
+  - stable vanilla recipe book path only
 
 ## Optional Dependencies
 - JEI
+  - currently relevant to the Forge runtime
 - EMI
+  - currently relevant to the Forge runtime
 - Sophisticated Backpacks (+ Sophisticated Core)
+  - currently relevant to the Forge runtime
 - FastSuite
   - Highly recommended for large modpacks.
   - It significantly improves recipe lookup and crafting-related performance, which also helps Proximity Crafting interactions such as incremental scroll loading.
 
 ## Configuration
-The mod generates Forge TOML configs for both server and client.
+The mod generates TOML config files for both server and client.
 
 ### Server config (`proximitycrafting-server.toml`)
-All options are under `proximityCrafting`:
+All options are under `proximityCrafting`.
+
+Platform note:
+- Forge uses the native Forge config path/binding.
+- Fabric and NeoForge currently use a lightweight file-backed binding for the same shared config records.
+
+Server options:
 - `scanRadius` (default: `6`): scan radius in blocks around the Proximity Crafting Table.
 - `minSlotCount` (default: `6`): minimum slot count for an inventory to be considered a valid source.
 - `blockEntityBlacklist` (default: furnace, blast_furnace, smoker): block entity IDs excluded from source scanning.
