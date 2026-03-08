@@ -94,8 +94,26 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
 - `ProximityCraftingScreen` is now consumed through a Forge runtime handle instead of being the packet apply target.
 - Fabric now registers an early client runtime hook so the same dispatcher contract exists there, even though gameplay parity is still not implemented.
 
+## Current boundary after phase 5
+- `common` now owns the source discovery orchestration layer:
+  - `ContainerSourceCollector`
+  - `PlayerInventorySourceCollector`
+  - `PlayerBackpackSourceCollector`
+  - `SourceCollectionResult`
+  - `CompositeSourceCollector`
+  - `RecipeBookSourceAggregator`
+- Forge now keeps only the raw discovery adapters:
+  - `ForgeContainerSourceCollector`
+  - `ForgePlayerInventorySourceCollector`
+  - `ForgeBackpackSourceCollector`
+- `ProximityInventoryScanner` is no longer the owner of the full source composition flow. It is now a thin Forge-side boundary over the common orchestration layer.
+- Recipe book source snapshot aggregation no longer lives in Forge networking code. The grouping/aggregation logic now lives in `common` through `RecipeBookSourceAggregator`.
+- The practical split is now:
+  - `common`: compose, merge, prioritize, and aggregate source refs
+  - `forge`: discover concrete inventories/capabilities/backpacks and adapt them into source refs
+
 ## Next migration targets
-1. Decide whether to keep inbound transport fully platform-side or introduce a wider common response/event layer beyond the current two S2C payloads
-2. Keep JEI/EMI isolated in Forge until the inbound dispatcher/runtime-hook split is validated in real gameplay
-3. Revisit what part of recipe-book snapshot application can move further out of Forge screens/menus
-4. Evaluate `CraftConsumeService` call sites and decide whether the facade should remain or be inlined
+1. Reduce `ProximityCraftingMenu` ownership further so it acts primarily as a session host and slot adapter
+2. Extract more screen-side presenters/view-models out of `ProximityCraftingScreen`
+3. Move config semantics/default resolution into `common`, leaving only platform config binding per loader
+4. Review registry/bootstrap descriptors for additional loader isolation without over-abstracting platform registration
