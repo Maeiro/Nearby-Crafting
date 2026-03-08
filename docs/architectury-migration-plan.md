@@ -226,15 +226,16 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
   - Architectury network channel registration
   - C2S/S2C packet implementations wired to the shared common request/response/session seams
   - Fabric runtime adapters for scanning, crafting session, consume session, and active client session hooks
+- Fabric 1.20.1 now has a validated vanilla recipe book path, including direct hover scroll over recipe book items.
 - What is still intentionally missing from Fabric is documented separately in:
   - `docs/fabric-port-status.md`
 - The important architectural point is:
   - Fabric now has a concrete runtime host
-  - parity work is now primarily runtime validation and platform-specific feature completion, not foundational restructuring
+  - the remaining parity work is now primarily platform-specific feature completion, especially JEI/EMI integration, not foundational restructuring
 
 ## Next migration targets
-1. Smoke-test the current Fabric runtime slice in-game
-2. Add persisted Fabric config binding
-3. Review whether additional action/panel perf view models should leave `ProximityCraftingScreen`
-4. Review whether more menu-side result-slot/session flow can be separated from `ProximityCraftingMenu`
-5. Revisit Fabric-specific overlay compat after the base runtime is proven stable
+1. Add persisted Fabric config binding
+2. Implement EMI integration on Fabric
+3. Implement JEI integration on Fabric if it remains part of the target loader feature set
+4. Review whether additional action/panel perf view models should leave `ProximityCraftingScreen`
+5. Review whether more menu-side result-slot/session flow can be separated from `ProximityCraftingMenu`

@@ -58,6 +58,7 @@
   - Architectury `NetworkChannel` is now used for the current Fabric packet set
   - Fabric packet handlers now route through the shared common request/response/session seams
   - Fabric scanning/session/runtime adapters now host the common core instead of staying scaffold-only
+  - Fabric 1.20.1 vanilla recipe book flow is now smoke-tested and stable, including hover scroll on recipe book items
   - current remaining gaps are documented in `docs/fabric-port-status.md`
 
 ## Next focus candidates

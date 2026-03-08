@@ -79,6 +79,14 @@ The goal of this slice was not full gameplay parity. The goal was to move Fabric
   - `FabricActiveClientSessionHandle`
 - `ProximityCraftingScreen` is now hosted in Fabric and wired to the same common client-side state/presenter layers already extracted from Forge.
 
+### Vanilla recipe book status
+- The Fabric 1.20.1 runtime now has a working and validated vanilla recipe book path.
+- Verified behaviors:
+  - recipe book opens and renders inside the Proximity Crafting screen
+  - recipe selection/fill through the vanilla recipe book works
+  - hover scroll directly over vanilla recipe book items works
+- For the vanilla recipe book path specifically, Fabric 1.20.1 should now be treated as stable.
+
 ## What is intentionally minimal or incomplete
 
 ### Config persistence
@@ -97,21 +105,15 @@ The goal of this slice was not full gameplay parity. The goal was to move Fabric
   - `:common:compileJava`
   - `:forge:build`
   - `:fabric:build`
-- This slice has not yet been fully smoke-tested in-game on Fabric.
+- This slice has now also been smoke-tested in-game for the core vanilla path.
 - So the correct statement is:
   - Fabric now has a real runtime host implementation and builds successfully
-  - Fabric gameplay parity is not yet confirmed
+  - the Fabric 1.20.1 vanilla recipe book path is stable
+  - full feature parity is still not confirmed
 
 ## What remains before a meaningful Fabric gameplay milestone
 
 ### High priority
-- Smoke-test the Fabric runtime in-game:
-  - open table
-  - fill recipe
-  - take result
-  - clear grid
-  - scroll add/remove
-  - recipe-book source sync
 - Add a persisted Fabric config binding
 - Validate that menu open/close, source return, and result-take refill behave correctly on Fabric
 
@@ -122,11 +124,15 @@ The goal of this slice was not full gameplay parity. The goal was to move Fabric
 
 ### Later
 - Implement EMI on Fabric
+- Implement JEI on Fabric if it is part of the target feature set for that loader
 - Decide whether a Fabric-only recipe overlay integration is needed before parity
 - Revisit backpack/extra source integrations in a Fabric-specific way
 
 ## Current recommended interpretation
 - Forge remains the reference runtime.
 - Fabric is no longer just scaffold.
-- Fabric is now in "build-valid runtime host" state.
-- The next step is not more blind refactor. The next step is targeted Fabric smoke testing and then filling the missing runtime features deliberately.
+- Fabric 1.20.1 is now in "stable vanilla recipe book runtime" state.
+- The main remaining feature gap for full user-facing parity is recipe overlay integration:
+  - EMI
+  - JEI
+- The next step is not more blind refactor. The next step is targeted completion of the remaining Fabric-specific integrations deliberately.
