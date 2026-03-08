@@ -1,0 +1,10 @@
+plugins {
+    id "base"
+}
+
+description = "NeoForge scaffold placeholder for a later migration phase."
+
+tasks.register("prepareNeoForgeScaffold") {
+    group = "architectury"
+    description = "Placeholder task for the future NeoForge implementation."
+}

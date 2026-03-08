@@ -1,1 +1,16 @@
-rootProject.name = 'Proximity Crafting'
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven { url = "https://maven.architectury.dev/" }
+        maven { url = "https://maven.fabricmc.net/" }
+        maven { url = "https://maven.minecraftforge.net/" }
+        maven { url = "https://maven.neoforged.net/releases/" }
+    }
+}
+
+rootProject.name = "Proximity Crafting"
+
+include("common")
+include("forge")
+include("fabric")
+include("neoforge")

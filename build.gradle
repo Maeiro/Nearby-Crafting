@@ -1,115 +1,63 @@
-buildscript {
-    repositories {
-        maven { url = 'https://maven.minecraftforge.net' }
-        maven { url = 'https://maven.parchmentmc.org' }
-    }
-    dependencies {
-        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.1.+', changing: true
-        classpath 'org.parchmentmc:librarian:1.+'
-    }
+plugins {
+    id "architectury-plugin" version "${architectury_plugin_version}"
+    id "dev.architectury.loom" version "${architectury_loom_version}" apply false
+    id "com.github.johnrengelman.shadow" version "${shadow_plugin_version}" apply false
 }
 
-apply plugin: 'net.minecraftforge.gradle'
-apply plugin: 'org.parchmentmc.librarian.forgegradle'
-apply plugin: 'eclipse'
-apply plugin: 'maven-publish'
+architectury {
+    minecraft = rootProject.mc_version
+}
 
-version = "${mod_version}+forge-${mc_version}"
-group = mod_group
-archivesBaseName = mod_id
+allprojects {
+    group = mod_group
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(17)
-
-minecraft {
-    mappings channel: 'parchment', version: "${parch_mapping}-${mc_version}"
-
-    runs {
-        configureEach {
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-
-            mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+    repositories {
+        mavenCentral()
+        maven { url = "https://maven.architectury.dev/" }
+        maven { url = "https://maven.fabricmc.net/" }
+        maven { url = "https://maven.minecraftforge.net/" }
+        maven { url = "https://maven.neoforged.net/releases/" }
+        maven { url = "https://maven.parchmentmc.org" }
+        maven { url = "https://modmaven.dev" }
+        maven {
+            url = "https://www.cursemaven.com"
+            content {
+                includeGroup "curse.maven"
             }
         }
-
-        client {}
-        server {}
-    }
-}
-
-repositories {
-    mavenCentral()
-    maven { url = 'https://modmaven.dev' }
-    maven {
-        url = 'https://www.cursemaven.com'
-        content {
-            includeGroup 'curse.maven'
-        }
-    }
-    maven {
-        name = 'TerraformersMC'
-        url = 'https://maven.terraformersmc.com/'
-        content {
-            includeGroup 'dev.emi'
+        maven {
+            name = "TerraformersMC"
+            url = "https://maven.terraformersmc.com/"
+            content {
+                includeGroup "dev.emi"
+            }
         }
     }
 }
 
-dependencies {
-    minecraft "net.minecraftforge:forge:${mc_version}-${forge_version}"
+subprojects {
+    version = mod_version
 
-    // Optional compile-time compat APIs
-    compileOnly fg.deobf("mezz.jei:jei-${jei_mc_version}:${jei_version}")
-    compileOnly fg.deobf("dev.emi:emi-forge:${emi_version}:api")
-    compileOnly fg.deobf("curse.maven:sophisticated-backpacks-422301:7645913")
-    compileOnly fg.deobf("curse.maven:sophisticated-core-618298:7645911")
+    plugins.withId("dev.architectury.loom") {
+        base {
+            archivesName = mod_id
+        }
 
-    // Optional dev runtime toggles (defaults false in gradle.properties)
-    if (project.findProperty('enable_jei_dev_runtime')?.toString()?.toBoolean()) {
-        runtimeOnly fg.deobf("mezz.jei:jei-${jei_mc_version}:${jei_version}")
-    }
-    if (project.findProperty('enable_emi_dev_runtime')?.toString()?.toBoolean()) {
-        runtimeOnly fg.deobf("dev.emi:emi-forge:${emi_version}")
-    }
-}
+        java {
+            toolchain.languageVersion = JavaLanguageVersion.of(17)
+            withSourcesJar()
+        }
 
-tasks.withType(ProcessResources).configureEach {
-    def replaceProperties = [
-            minecraft_version      : mc_version,
-            minecraft_version_range: minecraft_version_range,
-            forge_version_range    : forge_version_range,
-            loader_version_range   : loader_version_range,
-            mod_id                 : mod_id,
-            mod_name               : mod_name,
-            mod_license            : mod_license,
-            mod_version            : mod_version,
-            mod_authors            : mod_authors,
-            mod_description        : mod_description
-    ]
+        loom {
+            silentMojangMappingsLicense()
+        }
 
-    inputs.properties replaceProperties
-
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
-        expand replaceProperties + [project: project]
+        dependencies {
+            minecraft "com.mojang:minecraft:${mc_version}"
+            mappings loom.layered {
+                officialMojangMappings()
+                parchment("org.parchmentmc.data:parchment-${mc_version}:${parch_mapping}@zip")
+            }
+        }
     }
 }
-
-jar {
-    manifest {
-        attributes([
-                'Specification-Title'     : mod_id,
-                'Specification-Vendor'    : mod_authors,
-                'Specification-Version'   : '1',
-                'Implementation-Title'    : project.name,
-                'Implementation-Version'  : project.jar.archiveVersion,
-                'Implementation-Vendor'   : mod_authors,
-                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
-        ])
-    }
-}
-
-jar.finalizedBy('reobfJar')

@@ -1,0 +1,35 @@
+plugins {
+    id "architectury-plugin"
+    id "java-library"
+    id "dev.architectury.loom"
+}
+
+architectury {
+    common("forge", "fabric")
+}
+
+dependencies {
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modApi "dev.architectury:architectury:${architectury_api_version}"
+}
+
+tasks.withType(ProcessResources).configureEach {
+    def replaceProperties = [
+            minecraft_version      : mc_version,
+            minecraft_version_range: minecraft_version_range,
+            forge_version_range    : forge_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description
+    ]
+
+    inputs.properties replaceProperties
+
+    filesMatching(["pack.mcmeta"]) {
+        expand replaceProperties + [project: project]
+    }
+}
