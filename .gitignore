@@ -10,6 +10,7 @@ run_dev
 .vscode/
 *.iml
 CONTEXT.md
+scripts/build-and-deploy-test-instances.ps1
 
 # OS
 .DS_Store

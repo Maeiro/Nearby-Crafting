@@ -46,6 +46,13 @@ package "client/session" as ClientSessionPkg {
   component "RecipeActionFeedbackApplyResult" as RecipeActionFeedbackApplyResult
 }
 
+package "client/runtime" as ClientRuntimePkg {
+  component "ScreenRuntimeHost" as ScreenRuntimeHost
+  component "ScreenActionController" as ScreenActionController
+  component "ScreenSyncCoordinator" as ScreenSyncCoordinator
+  component "ScreenScrollController" as ScreenScrollController
+}
+
 package "client/presenter" as PresenterPkg {
   component "IngredientsPanelPresenter" as IngredientsPanelPresenter
   component "StatusMessagePresenter" as StatusMessagePresenter
@@ -89,6 +96,13 @@ ClientResponseDispatcher --> SnapshotPayload
 ClientResponseDispatcher --> FeedbackPayload
 ProximityClientServices --> ClientRequestSender
 ProximityClientServices --> ClientResponseDispatcher
+ScreenActionController --> ScreenRuntimeHost
+ScreenActionController --> ClientRecipeSessionState
+ScreenActionController --> ClientRequestSender
+ScreenActionController --> StatusMessagePresenter
+ScreenSyncCoordinator --> ScreenRuntimeHost
+ScreenSyncCoordinator --> ClientRecipeSessionState
+ScreenScrollController --> ScreenRuntimeHost
 
 IngredientsPanelPresenter --> SnapshotPayload
 IngredientsPanelPresenter --> ItemSourceRef
@@ -104,6 +118,7 @@ BootstrapDescriptors --> ContentDescriptors
 note bottom
 This diagram shows the current reusable architecture in common:
 ports define runtime seams, operations own behavior, presenters own
-non-visual UI state, and payloads/config records stay loader-agnostic.
+non-visual UI state, runtime controllers coordinate screen behavior,
+and payloads/config records stay loader-agnostic.
 end note
 @enduml

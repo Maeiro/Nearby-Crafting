@@ -4,6 +4,7 @@ skinparam shadowing false
 
 actor User
 participant "Screen or overlay\n(Forge/Fabric/NeoForge)" as Ui
+participant "Shared screen runtime\ncontroller(s)" as RuntimeController
 participant "ClientRequestSender" as Sender
 participant "Platform packet transport" as Transport
 participant "Menu / session host" as MenuHost
@@ -15,7 +16,8 @@ participant "ActiveClientSessionHandle" as SessionHandle
 participant "Screen UI update" as UiUpdate
 
 User -> Ui : click / scroll / clear / recipe fill
-Ui -> Sender : send outbound request
+Ui -> RuntimeController : enqueue / normalize / schedule
+RuntimeController -> Sender : send outbound request
 Sender -> Transport : C2S packet
 Transport -> MenuHost : route to open runtime session
 MenuHost -> CommonOps : execute fill / adjust / clear / consume
@@ -26,7 +28,8 @@ S2CHandler -> Dispatcher : handleRecipeBookSourceSnapshot(...)\nhandleRecipeFill
 Dispatcher -> SessionHandle : resolve active session by containerId
 Dispatcher -> SessionState : apply source snapshot / feedback state
 Dispatcher -> SessionHandle : replace sources / run UI-side hooks
-SessionHandle -> UiUpdate : refresh panel, status, recipe book,\ncompat hooks as needed
+SessionHandle -> RuntimeController : runtime-neutral outcomes
+RuntimeController -> UiUpdate : request panel, status, recipe book,\ncompat follow-up hooks
 UiUpdate --> User : updated visible state
 
 note right of Transport
@@ -38,6 +41,7 @@ end note
 note bottom
 Transport and packet registration remain platform-side.
 Request/response intent, state application, and session coordination
-now live behind shared common seams.
+now live behind shared common seams, with screen runtime behavior
+coordinated before dispatch and after response handling.
 end note
 @enduml

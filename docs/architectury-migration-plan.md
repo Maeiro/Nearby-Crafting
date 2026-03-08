@@ -28,6 +28,7 @@ The migration is no longer about proving the module split. That baseline is alre
   - crafting session operations
   - consume/result-take operations
   - request/response client flow
+  - shared screen runtime controllers for action/sync/scroll flow
   - screen presenters and client session state
   - config semantics and shared descriptors
 
@@ -42,6 +43,7 @@ Detailed platform status:
 - source discovery orchestration and aggregation
 - crafting, consume, result, and session operations
 - client request/response contracts and client session state
+- client runtime controllers for screen action/sync/scroll coordination
 - presenters for non-visual screen state
 - config defaults, normalized config records, and lightweight persistence helper
 - shared payload models
@@ -52,6 +54,7 @@ Detailed platform status:
 - concrete menu/screen hosts
 - packet transport and registration
 - runtime adapters over the common ports
+- final UI-side effects triggered by shared screen runtime controllers
 - recipe-book runtime bridges for version-sensitive vanilla UI access
 - loader-specific UI integration and compat
 

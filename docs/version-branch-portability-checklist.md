@@ -35,11 +35,12 @@ Recommended interpretation:
 - [x] Request/response client flow is abstracted behind common seams
 - [x] Source discovery orchestration is separated from raw loader discovery
 - [x] Screen presenters and session state have started moving out of loader UI classes
+- [x] Screen runtime action/sync/scroll state is centralized behind shared controllers in `common`
 - [x] Shared ids/bootstrap descriptors are no longer hardcoded only in Forge
 
 ## Remaining work to improve version-branch portability
 - [ ] Keep `common` free from loader APIs and loader-shaped assumptions
-- [ ] Reduce direct dependency on fragile Minecraft-version-specific UI internals where a common presenter/state seam is possible
+- [x] Reduce direct dependency on fragile Minecraft-version-specific UI internals where a common presenter/state seam is possible
 - [x] Isolate all recipe book accessors/mixins clearly per loader and per version-sensitive runtime path
 - [ ] Keep packet payload models and request/response state transitions version-local but loader-neutral inside each branch
 - [ ] Keep menu/result-slot/session logic concentrated behind small runtime ports instead of spreading version-sensitive logic across many host classes
@@ -58,6 +59,10 @@ Recommended interpretation:
 ## Recent progress
 - Vanilla recipe book hover resolution and refresh hooks now sit behind platform-local recipe book runtime bridges.
 - Fabric and NeoForge accessors/mixins for recipe book internals are no longer consumed directly by the screen classes.
+- The remaining non-visual screen runtime flow now lives in shared `client/runtime` controllers for:
+  - action dispatch
+  - source sync cadence
+  - scroll bookkeeping
 
 ## Branch strategy guideline
 - Prefer reusing the previous adjacent version branch first.

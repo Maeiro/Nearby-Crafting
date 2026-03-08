@@ -8,6 +8,10 @@ import dev.maeiro.proximitycrafting.client.presenter.IngredientsPanelPresenter;
 import dev.maeiro.proximitycrafting.client.presenter.IngredientsPanelUpdateResult;
 import dev.maeiro.proximitycrafting.client.presenter.StatusMessagePresenter;
 import dev.maeiro.proximitycrafting.client.presenter.StatusMessageView;
+import dev.maeiro.proximitycrafting.client.runtime.ScreenActionController;
+import dev.maeiro.proximitycrafting.client.runtime.ScreenRuntimeHost;
+import dev.maeiro.proximitycrafting.client.runtime.ScreenScrollController;
+import dev.maeiro.proximitycrafting.client.runtime.ScreenSyncCoordinator;
 import dev.maeiro.proximitycrafting.client.session.ClientRecipeSessionState;
 import dev.maeiro.proximitycrafting.client.session.RecipeActionFeedbackApplyResult;
 import dev.maeiro.proximitycrafting.client.session.SourceSnapshotApplyResult;
@@ -46,7 +50,7 @@ import java.util.List;
 import java.util.Optional;
 
 @OnlyIn(Dist.CLIENT)
-public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCraftingMenu> implements RecipeUpdateListener {
+public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCraftingMenu> implements RecipeUpdateListener, ScreenRuntimeHost {
 	private static final ResourceLocation CRAFTING_TABLE_LOCATION = new ResourceLocation("textures/gui/container/crafting_table.png");
 	private static final ResourceLocation RECIPE_BUTTON_LOCATION = new ResourceLocation("textures/gui/recipe_button.png");
 	private static final ResourceLocation PROXIMITY_ITEMS_TOGGLE_ON_ICON = new ResourceLocation("proximitycrafting", "icon/toggle_on.png");
@@ -100,17 +104,10 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private final RecipeBookRuntimeBridge recipeBookRuntimeBridge;
 	private boolean widthTooNarrow;
 	private boolean vanillaRecipeBookSuppressedByEmi;
-	private int recipeBookSourceSyncTicker = 0;
-	private int deferredRefreshTicks = 0;
 	private boolean showProximityItemsPanel = true;
 	private IngredientsPanelEntry hoveredProximityEntry;
 	@Nullable
 	private ResourceLocation localScrollRecipeId;
-	private long scrollPerfWindowStartMs = 0L;
-	private int scrollPerfEvents = 0;
-	private int scrollPerfHandledEvents = 0;
-	private long scrollPerfTotalNs = 0L;
-	private double scrollPerfMaxMs = 0.0D;
 	private long panelPerfWindowStartMs = 0L;
 	private int panelPerfSamples = 0;
 	private long panelPerfCollectNs = 0L;
@@ -121,15 +118,19 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	private long lastPanelSlowFrameLogAtMs = 0L;
 	private final IngredientsPanelPresenter ingredientsPanelPresenter = new IngredientsPanelPresenter();
 	private long lastStaleHoveredSlotLogAtMs = 0L;
-	private long lastScrollDebugLogAtMs = 0L;
-	private int suppressedScrollDebugLogs = 0;
-	private long lastActionQueueLogAtMs = 0L;
 	private final StatusMessagePresenter statusMessagePresenter = new StatusMessagePresenter();
-	private final ClientRecipeSessionState recipeSessionState = new ClientRecipeSessionState(
+	private final ScreenActionController actionController = new ScreenActionController(
 			RECIPE_BOOK_SOURCE_SYNC_MIN_INTERVAL_MS,
 			RECIPE_ACTION_SEND_INTERVAL_MS,
 			RECIPE_ACTION_IN_FLIGHT_TIMEOUT_MS,
-			RECIPE_ACTION_MAX_ABS_STEPS
+			RECIPE_ACTION_MAX_ABS_STEPS,
+			ACTION_QUEUE_LOG_INTERVAL_MS
+	);
+	private final ScreenSyncCoordinator syncCoordinator = new ScreenSyncCoordinator();
+	private final ScreenScrollController scrollController = new ScreenScrollController(
+			SCROLL_DEBUG_LOG_THROTTLE_MS,
+			SCROLL_PERF_LOG_INTERVAL_MS,
+			SCROLL_SLOW_EVENT_MS
 	);
 	private final IngredientsPanelContext ingredientsPanelContext = new ScreenIngredientsPanelContext();
 
@@ -176,22 +177,17 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		} else {
 			ProximityCraftingEmiCraftableFilterController.enforceIndexOnlyMode();
 		}
-		if (deferredRefreshTicks > 0) {
-			deferredRefreshTicks--;
-			if (deferredRefreshTicks == 0) {
-				refreshRecipeBookFromSyncedSources();
-			}
-		}
 		long nowMs = System.currentTimeMillis();
-		if (!shouldDeferPeriodicSourceSync(nowMs)) {
-			recipeBookSourceSyncTicker++;
-			int syncIntervalTicks = getCurrentSourceSyncIntervalTicks();
-			if (recipeBookSourceSyncTicker >= syncIntervalTicks) {
-				recipeBookSourceSyncTicker = 0;
-				requestRecipeBookSourceSync();
-			}
-		} else {
-			recipeBookSourceSyncTicker = 0;
+		ScreenSyncCoordinator.TickResult tickResult = syncCoordinator.tick(
+				nowMs,
+				shouldDeferPeriodicSourceSync(nowMs),
+				getCurrentSourceSyncIntervalTicks()
+		);
+		if (tickResult.shouldRefreshRecipeBookNow()) {
+			refreshRecipeBookFromSyncedSources();
+		}
+		if (tickResult.shouldRequestSourceSyncNow()) {
+			requestRecipeBookSourceSync();
 		}
 	}
 
@@ -424,18 +420,7 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	private int normalizeScrollSteps(double scrollDelta, String source) {
-		int rawSteps = Math.max(1, (int) Math.round(Math.abs(scrollDelta)));
-		int normalizedSteps = Math.min(rawSteps, MAX_SCROLL_STEPS_PER_EVENT);
-		if (rawSteps != normalizedSteps) {
-			logScrollDebug(
-					"[PROXC-SCROLL] client source={} clamped scroll steps raw={} clamped={} delta={}",
-					source,
-					rawSteps,
-					normalizedSteps,
-					scrollDelta
-			);
-		}
-		return normalizedSteps;
+		return scrollController.normalizeScrollSteps(this, scrollDelta, source, MAX_SCROLL_STEPS_PER_EVENT);
 	}
 
 	@Nullable
@@ -552,33 +537,9 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 
 	private void requestRecipeBookSourceSync() {
 		long nowMs = System.currentTimeMillis();
-		ClientRecipeSessionState.SourceSyncRequestResult requestResult = this.recipeSessionState.requestSourceSync(
-				ProximityClientServices.getClientRequestSender(),
-				this.menu.containerId,
-				nowMs
-		);
+		ClientRecipeSessionState.SourceSyncRequestResult requestResult = this.syncCoordinator.requestSourceSync(this, nowMs);
 		if (requestResult.disposition() == ClientRecipeSessionState.SourceSyncDisposition.SENT) {
 			ProximityCraftingEmiCraftableFilterController.onSourceSyncStateUpdated(this.menu, true, false);
-		}
-		if (isDebugLoggingEnabled()) {
-			switch (requestResult.disposition()) {
-				case QUEUED_IN_FLIGHT -> ProximityCrafting.LOGGER.info(
-						"[PROXC-PERF] client.requestRecipeBookSourceSync queued menu={} reason=in_flight deferredRefreshTicks={}",
-						this.menu.containerId,
-						deferredRefreshTicks
-				);
-				case QUEUED_MIN_INTERVAL -> ProximityCrafting.LOGGER.info(
-						"[PROXC-PERF] client.requestRecipeBookSourceSync queued menu={} reason=min_interval elapsedMs={} deferredRefreshTicks={}",
-						this.menu.containerId,
-						requestResult.elapsedSinceLastSendMs(),
-						deferredRefreshTicks
-				);
-				case SENT -> ProximityCrafting.LOGGER.info(
-						"[PROXC-PERF] client.requestRecipeBookSourceSync menu={} deferredRefreshTicks={}",
-						this.menu.containerId,
-						deferredRefreshTicks
-				);
-			}
 		}
 	}
 
@@ -605,7 +566,27 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	public ClientRecipeSessionState getRecipeSessionState() {
-		return this.recipeSessionState;
+		return this.actionController.sessionState();
+	}
+
+	@Override
+	public int containerId() {
+		return this.menu.containerId;
+	}
+
+	@Override
+	public dev.maeiro.proximitycrafting.client.net.ClientRequestSender requestSender() {
+		return ProximityClientServices.getClientRequestSender();
+	}
+
+	@Override
+	public ClientRecipeSessionState sessionState() {
+		return this.actionController.sessionState();
+	}
+
+	@Override
+	public boolean debugLoggingEnabled() {
+		return isDebugLoggingEnabled();
 	}
 
 	private void renderStatusMessage(GuiGraphics guiGraphics) {
@@ -915,7 +896,9 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	@Override
 	public void removed() {
 		this.localScrollRecipeId = null;
-		this.recipeSessionState.reset();
+		this.actionController.reset();
+		this.syncCoordinator.reset();
+		this.scrollController.reset();
 		ProximityCraftingEmiCraftableFilterController.handleMenuClosed(this.menu.containerId);
 		ProximityCraftingJeiCraftableFilterController.handleMenuClosed(this.menu.containerId);
 		super.removed();
@@ -960,108 +943,11 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	private boolean finishScrollPerf(String source, double scrollDelta, boolean handled, long startNs) {
-		recordScrollPerf(source, scrollDelta, handled, startNs);
-		return handled;
-	}
-
-	private void recordScrollPerf(String source, double scrollDelta, boolean handled, long startNs) {
-		if (!isDebugLoggingEnabled()) {
-			return;
-		}
-		long nowMs = System.currentTimeMillis();
-		if (scrollPerfWindowStartMs == 0L) {
-			scrollPerfWindowStartMs = nowMs;
-		}
-		double elapsedMs = (System.nanoTime() - startNs) / 1_000_000.0D;
-		scrollPerfEvents++;
-		if (handled) {
-			scrollPerfHandledEvents++;
-		}
-		scrollPerfTotalNs += (long) (elapsedMs * 1_000_000.0D);
-		if (elapsedMs > scrollPerfMaxMs) {
-			scrollPerfMaxMs = elapsedMs;
-		}
-
-		if (elapsedMs >= SCROLL_SLOW_EVENT_MS) {
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-CLIENT] scroll.slow menu={} source={} handled={} delta={} elapsedMs={} inFlight={} pendingFill={} pendingAdjust={} sourceSyncInFlight={}",
-					this.menu.containerId,
-					source,
-					handled,
-					scrollDelta,
-					String.format("%.3f", elapsedMs),
-					recipeSessionState.isRecipeActionInFlight(),
-					recipeSessionState.getPendingFillRecipeId() == null ? "null" : recipeSessionState.getPendingFillRecipeId(),
-					recipeSessionState.getPendingAdjustSteps(),
-					recipeSessionState.isSourceSyncInFlight()
-			);
-		}
-
-		if ((nowMs - scrollPerfWindowStartMs) >= SCROLL_PERF_LOG_INTERVAL_MS) {
-			double avgMs = scrollPerfEvents == 0 ? 0.0D : (scrollPerfTotalNs / 1_000_000.0D) / scrollPerfEvents;
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-CLIENT] scroll.window menu={} events={} handled={} avgMs={} maxMs={} inFlight={} pendingFill={} pendingAdjust={} sourceSyncInFlight={} sourceSyncQueued={} windowMs={}",
-					this.menu.containerId,
-					scrollPerfEvents,
-					scrollPerfHandledEvents,
-					String.format("%.3f", avgMs),
-					String.format("%.3f", scrollPerfMaxMs),
-					recipeSessionState.isRecipeActionInFlight(),
-					recipeSessionState.getPendingFillRecipeId() == null ? "null" : recipeSessionState.getPendingFillRecipeId(),
-					recipeSessionState.getPendingAdjustSteps(),
-					recipeSessionState.isSourceSyncInFlight(),
-					recipeSessionState.isSourceSyncQueued(),
-					nowMs - scrollPerfWindowStartMs
-			);
-			scrollPerfWindowStartMs = nowMs;
-			scrollPerfEvents = 0;
-			scrollPerfHandledEvents = 0;
-			scrollPerfTotalNs = 0L;
-			scrollPerfMaxMs = 0.0D;
-		}
-	}
-
-	private void logActionQueueState(String phase, long nowMs) {
-		if (!isDebugLoggingEnabled()) {
-			return;
-		}
-		if ((nowMs - lastActionQueueLogAtMs) < ACTION_QUEUE_LOG_INTERVAL_MS) {
-			return;
-		}
-		lastActionQueueLogAtMs = nowMs;
-		ProximityCrafting.LOGGER.info(
-				"[PROXC-CLIENT] action.queue phase={} menu={} inFlight={} inFlightFill={} inFlightAdjust={} pendingFill={} pendingAdjust={} sourceSyncInFlight={} sourceSyncQueued={}",
-				phase,
-				this.menu.containerId,
-				recipeSessionState.isRecipeActionInFlight(),
-				recipeSessionState.getInFlightFillRecipeId() == null ? "null" : recipeSessionState.getInFlightFillRecipeId(),
-				recipeSessionState.getInFlightAdjustSteps(),
-				recipeSessionState.getPendingFillRecipeId() == null ? "null" : recipeSessionState.getPendingFillRecipeId(),
-				recipeSessionState.getPendingAdjustSteps(),
-				recipeSessionState.isSourceSyncInFlight(),
-				recipeSessionState.isSourceSyncQueued()
-		);
+		return scrollController.finish(this, source, scrollDelta, handled, startNs);
 	}
 
 	private void logScrollDebug(String pattern, Object... args) {
-		if (!isDebugLoggingEnabled()) {
-			return;
-		}
-		long nowMs = System.currentTimeMillis();
-		if ((nowMs - lastScrollDebugLogAtMs) < SCROLL_DEBUG_LOG_THROTTLE_MS) {
-			suppressedScrollDebugLogs++;
-			return;
-		}
-		if (suppressedScrollDebugLogs > 0) {
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-SCROLL] throttled={} menu={}",
-					suppressedScrollDebugLogs,
-					this.menu.containerId
-			);
-			suppressedScrollDebugLogs = 0;
-		}
-		lastScrollDebugLogAtMs = nowMs;
-		ProximityCrafting.LOGGER.info(pattern, args);
+		scrollController.logDebug(this, pattern, args);
 	}
 
 	private static boolean isDebugLoggingEnabled() {
@@ -1119,124 +1005,29 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 
 	private void sendClearGridPacket(String source) {
 		long nowMs = System.currentTimeMillis();
-		this.recipeSessionState.clearQueuedActionsForImmediateRequest(nowMs);
 		ProximityCraftingEmiCraftableFilterController.onRecipeActionQueued(this.menu);
-		ProximityClientServices.getClientRequestSender().clearCraftGrid(this.menu.containerId);
-		if (isDebugLoggingEnabled()) {
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-PERF] client.sendClearGrid source={} menu={}",
-					source,
-					this.menu.containerId
-			);
-		}
+		this.actionController.sendClearGrid(this, nowMs, source);
 	}
 
 	private void queueRecipeFillPacket(ResourceLocation recipeId, boolean craftAll, String source) {
 		long nowMs = System.currentTimeMillis();
 		ProximityCraftingEmiCraftableFilterController.onRecipeActionQueued(this.menu);
-		ClientRecipeSessionState.QueueRecipeFillResult result = this.recipeSessionState.queueRecipeFill(recipeId, craftAll, nowMs);
-		if (isDebugLoggingEnabled()) {
-			switch (result.disposition()) {
-				case DEDUPED_IN_FLIGHT -> ProximityCrafting.LOGGER.info(
-						"[PROXC-PERF] client.queueRecipeFill dedupe=in_flight source={} menu={} recipe={} craftAll={}",
-						source,
-						this.menu.containerId,
-						recipeId,
-						craftAll
-				);
-				case DEDUPED_PENDING -> ProximityCrafting.LOGGER.info(
-						"[PROXC-PERF] client.queueRecipeFill dedupe=pending source={} menu={} recipe={} craftAll={}",
-						source,
-						this.menu.containerId,
-						recipeId,
-						craftAll
-				);
-				default -> {
-				}
-			}
-		}
-		if (result.disposition() == ClientRecipeSessionState.QueueRecipeFillDisposition.IGNORED_NULL) {
-			return;
-		}
-		processQueuedRecipeActions("queue_fill");
+		this.actionController.queueRecipeFill(this, recipeId, craftAll, nowMs, source, MAX_ABS_ADJUST_STEPS_PER_PACKET);
 	}
 
 	private void queueAdjustPacket(int steps, String source) {
-		if (steps == 0) {
-			return;
-		}
 		long nowMs = System.currentTimeMillis();
 		ProximityCraftingEmiCraftableFilterController.onRecipeActionQueued(this.menu);
-		ClientRecipeSessionState.QueueAdjustResult result = this.recipeSessionState.queueAdjust(steps, nowMs);
-
-		if (isDebugLoggingEnabled()) {
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-PERF] client.queueAdjust source={} menu={} incomingSteps={} pendingBefore={} pendingAfter={}",
-					source,
-					this.menu.containerId,
-					steps,
-					result.pendingBefore(),
-					result.pendingAfter()
-			);
-		}
-		processQueuedRecipeActions("queue_adjust");
+		this.actionController.queueAdjust(this, steps, nowMs, source, MAX_ABS_ADJUST_STEPS_PER_PACKET);
 	}
 
 	private void processQueuedRecipeActions(String reason) {
 		long nowMs = System.currentTimeMillis();
-		logActionQueueState("enter:" + reason, nowMs);
-		ClientRecipeSessionState.ActionDispatchResult dispatchResult = this.recipeSessionState.dispatchNextAction(
-				ProximityClientServices.getClientRequestSender(),
-				nowMs,
-				MAX_ABS_ADJUST_STEPS_PER_PACKET
-		);
-		if (dispatchResult.timedOutCleared()) {
-			if (isDebugLoggingEnabled()) {
-				ProximityCrafting.LOGGER.warn(
-						"[PROXC-PERF] client.recipeAction timeout clearing in-flight menu={} inFlightFill={} inFlightAdjust={} ageMs={} reason={}",
-						this.menu.containerId,
-						recipeSessionState.getInFlightFillRecipeId() == null ? "null" : recipeSessionState.getInFlightFillRecipeId(),
-						recipeSessionState.getInFlightAdjustSteps(),
-						RECIPE_ACTION_IN_FLIGHT_TIMEOUT_MS,
-						reason
-				);
-			}
-			logActionQueueState("timeout_clear:" + reason, nowMs);
-		}
-		switch (dispatchResult.disposition()) {
-			case BLOCKED_IN_FLIGHT -> logActionQueueState("blocked_in_flight:" + reason, nowMs);
-			case SENT_FILL -> {
-				if (isDebugLoggingEnabled()) {
-					ProximityCrafting.LOGGER.info(
-							"[PROXC-PERF] client.sendRecipeFill menu={} recipe={} craftAll={} reason={} pendingAdjustAfterSend={}",
-							this.menu.containerId,
-							dispatchResult.recipeId(),
-							dispatchResult.craftAll(),
-							reason,
-							dispatchResult.pendingAdjustRemaining()
-					);
-				}
-				logActionQueueState("sent_fill:" + reason, nowMs);
-			}
-			case SENT_ADJUST -> {
-				if (isDebugLoggingEnabled()) {
-					ProximityCrafting.LOGGER.info(
-							"[PROXC-PERF] client.sendAdjust menu={} steps={} reason={} pendingRemaining={}",
-							this.menu.containerId,
-							dispatchResult.stepsSent(),
-							reason,
-							dispatchResult.pendingAdjustRemaining()
-					);
-				}
-				logActionQueueState("sent_adjust:" + reason, nowMs);
-			}
-			default -> {
-			}
-		}
+		this.actionController.processQueuedActions(this, nowMs, reason, MAX_ABS_ADJUST_STEPS_PER_PACKET);
 	}
 
 	private boolean shouldDeferPeriodicSourceSync(long nowMs) {
-		return this.recipeSessionState.shouldDeferPeriodicSourceSync(nowMs, RECIPE_BOOK_SOURCE_SYNC_ACTION_COOLDOWN_MS);
+		return this.syncCoordinator.shouldDeferPeriodicSourceSync(this, nowMs, RECIPE_BOOK_SOURCE_SYNC_ACTION_COOLDOWN_MS);
 	}
 
 	private int getCurrentSourceSyncIntervalTicks() {
@@ -1305,63 +1096,36 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 
 	public void handleSourceSnapshotAppliedFromRuntime(int entryCount, boolean sourcesChanged, SourceSnapshotApplyResult result) {
 		ProximityCraftingEmiCraftableFilterController.onSourceSyncStateUpdated(this.menu, false, sourcesChanged);
-		if (sourcesChanged) {
+		ScreenSyncCoordinator.SourceSnapshotUiDecision uiDecision = this.syncCoordinator.onSourceSnapshotApplied(
+				this,
+				entryCount,
+				sourcesChanged,
+				result,
+				ProximityCraftingJeiCraftableFilterController.isEnabledFor(this.menu.containerId),
+				ProximityCraftingEmiCraftableFilterController.isEnabledFor(this.menu.containerId)
+		);
+		if (uiDecision.sourcesChanged()) {
 			handleProximityPanelSourceChange();
 		}
-		if (sourcesChanged && ProximityCraftingEmiCraftableFilterController.isEnabledFor(this.menu.containerId)) {
-			// EMI refresh is intentionally idle-first and controlled by the EMI controller;
-			// avoid bouncing full refresh requests on every action snapshot.
-			this.recipeSessionState.clearDeferredRecipeBookRefreshAfterAction();
-			deferredRefreshTicks = 0;
-		}
-		if (result.shouldRequestQueuedSyncNow()) {
+		if (uiDecision.shouldRequestQueuedSyncNow()) {
 			requestRecipeBookSourceSync();
 		}
-		if (ProximityCraftingJeiCraftableFilterController.isEnabledFor(this.menu.containerId)) {
-			if (result.actionBusy()) {
-				this.recipeSessionState.markDeferredRecipeBookRefreshAfterAction();
-				if (isDebugLoggingEnabled()) {
-					ProximityCrafting.LOGGER.info(
-							"[PROXC-PERF] client.deferJeiPrewarm menu={} reason=action_busy inFlight={} pendingFill={} pendingAdjust={}",
-							this.menu.containerId,
-							recipeSessionState.isRecipeActionInFlight(),
-							recipeSessionState.getPendingFillRecipeId() == null ? "null" : recipeSessionState.getPendingFillRecipeId(),
-							recipeSessionState.getPendingAdjustSteps()
-					);
-				}
-			} else {
-				ProximityCraftingJeiCraftableFilterController.prewarmSnapshot(this.menu, "source_snapshot_applied");
-			}
+		if (uiDecision.shouldDeferJeiPrewarm() && isDebugLoggingEnabled()) {
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-PERF] client.deferJeiPrewarm menu={} reason=action_busy inFlight={} pendingFill={} pendingAdjust={}",
+					this.menu.containerId,
+					actionController.sessionState().isRecipeActionInFlight(),
+					actionController.sessionState().getPendingFillRecipeId() == null ? "null" : actionController.sessionState().getPendingFillRecipeId(),
+					actionController.sessionState().getPendingAdjustSteps()
+			);
 		}
-		if (!isDebugLoggingEnabled()) {
-			return;
+		if (uiDecision.shouldPrewarmJeiNow()) {
+			ProximityCraftingJeiCraftableFilterController.prewarmSnapshot(this.menu, "source_snapshot_applied");
 		}
-		ProximityCrafting.LOGGER.info(
-				"[PROXC-PERF] client.sourceSnapshotApplied menu={} entries={} source_sync_rtt_ms={} action_snapshot_apply_delay_ms={} hadSourceSyncInFlight={} actionBusy={}",
-				this.menu.containerId,
-				entryCount,
-				result.sourceSyncRttMs(),
-				result.actionSnapshotApplyDelayMs(),
-				result.hadSourceSyncInFlight(),
-				result.actionBusy()
-		);
 	}
 
 	public void handleRecipeActionFeedbackFromRuntime(RecipeFillFeedbackPayload payload, RecipeActionFeedbackApplyResult result) {
-		statusMessagePresenter.showFeedback(payload, System.currentTimeMillis());
-		if (isDebugLoggingEnabled()) {
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-PERF] client.recipeActionFeedback menu={} success={} key={} amount={} inFlightFill={} inFlightAdjust={} pendingFill={} pendingAdjust={}",
-					this.menu.containerId,
-					payload.success(),
-					payload.messageKey(),
-					payload.craftedAmount(),
-					result.clearedInFlightFillRecipeId() == null ? "null" : result.clearedInFlightFillRecipeId(),
-					result.clearedInFlightAdjustSteps(),
-					result.pendingFillRecipeId() == null ? "null" : result.pendingFillRecipeId(),
-					result.pendingAdjustSteps()
-			);
-		}
+		this.actionController.handleRecipeActionFeedback(this, payload, result, this.statusMessagePresenter, System.currentTimeMillis());
 		processQueuedRecipeActions("feedback");
 		flushDeferredRecipeBookRefreshAfterAction("feedback");
 	}
@@ -1388,41 +1152,15 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 	}
 
 	public void scheduleDeferredRecipeBookRefresh() {
-		deferredRefreshTicks = Math.max(deferredRefreshTicks, 2);
+		this.syncCoordinator.scheduleDeferredRecipeBookRefresh();
 	}
 
 	private void flushDeferredRecipeBookRefreshAfterAction(String reason) {
-		if (!this.recipeSessionState.shouldFlushDeferredRecipeBookRefresh()) {
-			return;
-		}
-		this.recipeSessionState.consumeDeferredRecipeBookRefresh();
-		scheduleDeferredRecipeBookRefresh();
-		if (isDebugLoggingEnabled()) {
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-PERF] client.flushDeferredRecipeBookRefresh menu={} reason={}",
-					this.menu.containerId,
-					reason
-			);
-		}
+		this.syncCoordinator.flushDeferredRecipeBookRefreshAfterAction(this, reason);
 	}
 
 	private void sendClientPreferencesUpdate() {
-		ClientPreferences preferences = ProximityCraftingConfig.clientPreferences();
-		ProximityClientServices.getClientRequestSender().updateClientPreferences(
-				this.menu.containerId,
-				preferences.autoRefillAfterCraft(),
-				preferences.includePlayerInventory(),
-				preferences.sourcePriorityValue()
-		);
-		if (isDebugLoggingEnabled()) {
-			ProximityCrafting.LOGGER.info(
-					"[PROXC-PERF] client.sendPreferences menu={} autoRefill={} includePlayer={} sourcePriority={}",
-					this.menu.containerId,
-					preferences.autoRefillAfterCraft(),
-					preferences.includePlayerInventory(),
-					preferences.sourcePriorityValue()
-			);
-		}
+		this.actionController.sendClientPreferencesUpdate(this, ProximityCraftingConfig.clientPreferences());
 	}
 
 	private final class ScreenIngredientsPanelContext implements IngredientsPanelContext {

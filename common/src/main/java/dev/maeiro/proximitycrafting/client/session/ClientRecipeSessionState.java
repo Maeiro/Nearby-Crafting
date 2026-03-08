@@ -258,6 +258,10 @@ public final class ClientRecipeSessionState {
 		return pendingAdjustSteps;
 	}
 
+	public long getLastRecipeActionSentAtMs() {
+		return lastRecipeActionSentAtMs;
+	}
+
 	private void markRecipeActionInFlight(@Nullable PendingFillRequest fillRequest, int adjustSteps, long nowMs) {
 		recipeActionInFlight = true;
 		recipeActionInFlightStartedAtMs = nowMs;
@@ -319,3 +323,4 @@ public final class ClientRecipeSessionState {
 	) {
 	}
 }
+

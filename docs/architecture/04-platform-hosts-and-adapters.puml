@@ -7,6 +7,7 @@ skinparam packageStyle rectangle
 package "common core" as CommonCore {
   component "Crafting / consume /\nresult / session operations" as CommonRuntime
   component "Request/response client seams" as CommonClientSeams
+  component "Shared screen runtime\ncontrollers" as CommonScreenRuntime
   component "Scan/source orchestration" as CommonScan
 }
 
@@ -42,6 +43,7 @@ package "neoforge" as NeoForgeHost {
 
 ForgeMenu ..> CommonRuntime
 ForgeScreen ..> CommonClientSeams
+ForgeScreen ..> CommonScreenRuntime
 ForgeScreen ..> ForgeRecipeBookBridge
 ForgeNetwork ..> CommonClientSeams
 ForgeRuntimeHooks ..> CommonClientSeams
@@ -50,6 +52,7 @@ ForgeCompatHosts ..> CommonClientSeams
 
 FabricMenu ..> CommonRuntime
 FabricScreen ..> CommonClientSeams
+FabricScreen ..> CommonScreenRuntime
 FabricScreen ..> FabricRecipeBookBridge
 FabricNetwork ..> CommonClientSeams
 FabricRuntimeHooks ..> CommonClientSeams
@@ -58,6 +61,7 @@ FabricCompatPending ..> CommonClientSeams
 
 NeoForgeMenu ..> CommonRuntime
 NeoForgeScreen ..> CommonClientSeams
+NeoForgeScreen ..> CommonScreenRuntime
 NeoForgeScreen ..> NeoForgeRecipeBookBridge
 NeoForgeNetwork ..> CommonClientSeams
 NeoForgeRuntimeHooks ..> CommonClientSeams
