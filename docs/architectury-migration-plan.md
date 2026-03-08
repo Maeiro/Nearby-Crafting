@@ -24,7 +24,7 @@ The migration is no longer about proving the module split. That baseline is alre
 - NeoForge 1.20.1 has a real runtime host and a stable vanilla recipe book path, but that line is intentionally capped there.
 - Shared assets/data/resources live in `common`.
 - Shared architecture seams now exist for:
-  - source scanning and aggregation
+  - source scanning, discovery orchestration, and aggregation
   - crafting session operations
   - consume/result-take operations
   - menu runtime controllers and snapshot lifecycle
@@ -42,7 +42,7 @@ Detailed platform status:
 
 ### `common` owns
 - source and slot abstractions
-- source discovery orchestration and aggregation
+- source discovery orchestration, scan runtime, and aggregation
 - crafting, consume, result, and session operations
 - menu runtime controllers, shared tracked-container helpers, and snapshot build orchestration
 - server request payloads and common C2S request handling
@@ -58,7 +58,7 @@ Detailed platform status:
 - content registration and bootstrap
 - concrete menu/screen hosts
 - packet transport and registration
-- snapshot transport callbacks and live scan-option adapters
+- snapshot transport callbacks and raw scan/source adapters
 - packet context extraction and platform send APIs
 - runtime adapters over the common ports
 - final UI-side effects triggered by shared screen runtime controllers
@@ -86,4 +86,4 @@ Detailed platform status:
 2. Implement JEI on Fabric only if it remains part of the target feature set.
 3. Keep NeoForge 1.20.1 in maintenance-only mode for vanilla-book issues.
 4. Revisit whether the lightweight Fabric/NeoForge config persistence should later move to loader-native config frameworks.
-5. Continue moving any remaining high-value screen/menu runtime glue out of platform hosts only when it reduces future parity cost.
+5. Continue moving any remaining high-value runtime glue out of platform hosts only when it reduces future parity cost.

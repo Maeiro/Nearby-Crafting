@@ -20,7 +20,7 @@ package "forge" as ForgeHost {
   component "Recipe book runtime bridge\n(reflection-backed)" as ForgeRecipeBookBridge
   component "Network bridge" as ForgeNetwork
   component "Runtime hooks" as ForgeRuntimeHooks
-  component "Scan/source adapters" as ForgeScanAdapters
+  component "Thin scanner adapters" as ForgeScanAdapters
   component "Compat hosts + compat state\nJEI / EMI / SB" as ForgeCompatHosts
 }
 
@@ -30,7 +30,7 @@ package "fabric" as FabricHost {
   component "Recipe book runtime bridge\n(accessor-backed)" as FabricRecipeBookBridge
   component "Network bridge" as FabricNetwork
   component "Runtime hooks" as FabricRuntimeHooks
-  component "Scan/source adapters" as FabricScanAdapters
+  component "Thin scanner adapters" as FabricScanAdapters
   component "Overlay compat pending" as FabricCompatPending
 }
 
@@ -40,7 +40,7 @@ package "neoforge" as NeoForgeHost {
   component "Recipe book runtime bridge\n(accessor-backed)" as NeoForgeRecipeBookBridge
   component "Network bridge" as NeoForgeNetwork
   component "Runtime hooks" as NeoForgeRuntimeHooks
-  component "Scan/source adapters" as NeoForgeScanAdapters
+  component "Thin scanner adapters" as NeoForgeScanAdapters
   component "Vanilla-book-only scope" as NeoForgeVanillaOnly
 }
 
@@ -84,6 +84,7 @@ note bottom of ForgeHost
 Reference runtime.
 Full current host with active overlay and backpack compat.
 Menu snapshot lifecycle is now hosted through shared menu controllers.
+Source discovery orchestration now runs through a shared scan runtime.
 end note
 
 note bottom of FabricHost

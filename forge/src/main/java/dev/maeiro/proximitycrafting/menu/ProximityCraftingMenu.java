@@ -24,7 +24,6 @@ import dev.maeiro.proximitycrafting.service.crafting.TrackedCraftGridPort;
 import dev.maeiro.proximitycrafting.service.crafting.TrackedCraftGridSession;
 import dev.maeiro.proximitycrafting.service.source.ItemSourceRef;
 import dev.maeiro.proximitycrafting.service.source.SourcePriority;
-import dev.maeiro.proximitycrafting.service.scan.ForgeScanOptionsFactory;
 import dev.maeiro.proximitycrafting.service.scan.ProximityInventoryScanner;
 import dev.maeiro.proximitycrafting.service.scan.ScanOptions;
 import dev.maeiro.proximitycrafting.service.scan.SourceCollectionResult;
@@ -578,7 +577,10 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> imp
 
 		@Override
 		public List<ItemSourceRef> collectRecipeBookSourceRefs() {
-			ScanOptions scanOptions = ForgeScanOptionsFactory.fromMenu(ProximityCraftingMenu.this);
+			ScanOptions scanOptions = ProximityCraftingConfig.serverRuntimeSettings().scanOptions(
+					ProximityCraftingMenu.this.isIncludePlayerInventory(),
+					ProximityCraftingMenu.this.getSourcePriority()
+			);
 			SourceCollectionResult result = ProximityInventoryScanner.collectSourceResult(
 					getLevel(),
 					getTablePos(),
@@ -589,4 +591,3 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> imp
 		}
 	}
 }
-

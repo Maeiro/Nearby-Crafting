@@ -1,7 +1,7 @@
 package dev.maeiro.proximitycrafting.service.crafting;
 
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
-import dev.maeiro.proximitycrafting.service.scan.NeoForgeScanOptionsFactory;
+import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.service.scan.ProximityInventoryScanner;
 import dev.maeiro.proximitycrafting.service.scan.ScanOptions;
 import dev.maeiro.proximitycrafting.service.scan.SourceCollector;
@@ -92,7 +92,10 @@ public final class RecipeFillService {
 	}
 
 	private static ScanOptions scanOptions(ProximityCraftingMenu menu) {
-		return NeoForgeScanOptionsFactory.fromMenu(menu);
+		return ProximityCraftingConfig.serverRuntimeSettings().scanOptions(
+				menu.isIncludePlayerInventory(),
+				menu.getSourcePriority()
+		);
 	}
 }
 

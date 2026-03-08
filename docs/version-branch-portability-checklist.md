@@ -45,7 +45,7 @@ Recommended interpretation:
 - [x] Isolate all recipe book accessors/mixins clearly per loader and per version-sensitive runtime path
 - [x] Keep packet payload models and request/response state transitions version-local but loader-neutral inside each branch
 - [x] Keep menu/result-slot/session logic concentrated behind small runtime ports instead of spreading version-sensitive logic across many host classes
-- [ ] Keep scanning/discovery split clean:
+- [x] Keep scanning/discovery split clean:
   - `common` owns orchestration
   - per-loader code owns raw discovery only
 - [x] Prevent compat code from leaking into shared core:
@@ -68,6 +68,7 @@ Recommended interpretation:
 - Recipe book snapshot build orchestration now runs through a shared common seam, while raw source collection and packet send stay platform-side.
 - Server-side C2S request handling now flows through shared request payloads and a common server request controller, while packet context extraction and send APIs remain platform-side.
 - Optional overlay compat state and remembered JEI/EMI toggle persistence now live only in the Forge runtime instead of in shared `common` config/runtime types.
+- Scan/discovery orchestration now runs through a shared `SourceScanRuntime`, while each loader only supplies raw discovery and platform source collectors.
 
 ## Branch strategy guideline
 - Prefer reusing the previous adjacent version branch first.
