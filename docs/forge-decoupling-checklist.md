@@ -14,6 +14,7 @@
 - [x] Extract recipe request/session operations from `ProximityCraftingMenu`
 - [x] Review registry/bootstrap descriptors for further loader isolation
 - [x] Establish a first real Fabric runtime host on top of the shared common core
+- [x] Establish a first real NeoForge runtime host on top of the shared common core
 
 ## Completed in this phase
 - Runtime scanning boundary cleanup:
@@ -60,9 +61,15 @@
   - Fabric scanning/session/runtime adapters now host the common core instead of staying scaffold-only
   - Fabric 1.20.1 vanilla recipe book flow is now smoke-tested and stable, including hover scroll on recipe book items
   - current remaining gaps are documented in `docs/fabric-port-status.md`
+- First NeoForge runtime host:
+  - `neoforge` now has real content/menu/screen/network wiring
+  - NeoForge packet handlers now route through the shared common request/response/session seams
+  - NeoForge scanning/session/runtime adapters now host the common core instead of staying placeholder-only
+  - NeoForge 1.20.1 vanilla recipe book flow is wired in code, builds cleanly, and is now validated in-game
+  - current remaining gaps and validation status are documented in `docs/neoforge-port-status.md`
 
 ## Next focus candidates
 - Add persisted Fabric config binding
-- Smoke-test the current Fabric runtime slice in-game
+- Add persisted NeoForge config binding only if a vanilla-book bug on 1.20.1 requires it
 - Review whether more action/panel perf view models can leave `ProximityCraftingScreen`
 - Review whether more menu-side result-slot/session flow can leave `ProximityCraftingMenu`

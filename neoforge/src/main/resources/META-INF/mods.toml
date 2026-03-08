@@ -1,5 +1,5 @@
 modLoader="javafml"
-loaderVersion="[1,)"
+loaderVersion="${loader_version_range}"
 license="${mod_license}"
 
 [[mods]]
@@ -11,15 +11,15 @@ authors="${mod_authors}"
 description='''${mod_description}'''
 
 [[dependencies.proximitycrafting]]
-modId="minecraft"
+modId="forge"
 mandatory=true
-versionRange="${minecraft_version_range}"
+versionRange="${forge_version_range}"
 ordering="NONE"
 side="BOTH"
 
 [[dependencies.proximitycrafting]]
-modId="architectury"
+modId="minecraft"
 mandatory=true
-versionRange="[${architectury_api_version},)"
-ordering="AFTER"
+versionRange="${minecraft_version_range}"
+ordering="NONE"
 side="BOTH"

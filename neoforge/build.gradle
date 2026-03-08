@@ -1,10 +1,79 @@
 plugins {
-    id "base"
+    id "architectury-plugin"
+    id "dev.architectury.loom"
+    id "com.github.johnrengelman.shadow"
 }
 
-description = "NeoForge scaffold placeholder for a later migration phase."
+architectury {
+    platformSetupLoomIde()
+    forge()
+}
 
-tasks.register("prepareNeoForgeScaffold") {
-    group = "architectury"
-    description = "Placeholder task for the future NeoForge implementation."
+loom {
+    forge {
+        mixinConfig "proximitycrafting.neoforge.mixins.json"
+    }
+}
+
+configurations {
+    common {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    shadowCommon {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentForge.extendsFrom common
+}
+
+version = "${mod_version}+neoforge-${mc_version}"
+
+dependencies {
+    forge "net.neoforged:forge:${neoforge_version}"
+
+    common(project(path: ":common", configuration: "namedElements")) { transitive false }
+    shadowCommon(project(path: ":common", configuration: "transformProductionForge")) { transitive false }
+}
+
+tasks.withType(ProcessResources).configureEach {
+    def replaceProperties = [
+            minecraft_version      : mc_version,
+            minecraft_version_range: minecraft_version_range,
+            loader_version_range   : loader_version_range,
+            forge_version_range    : forge_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+            architectury_api_version: architectury_api_version,
+            neoforge_version       : neoforge_version
+    ]
+
+    inputs.properties replaceProperties
+
+    filesMatching(["META-INF/mods.toml"]) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowCommon]
+    archiveClassifier = "dev-shadow"
+}
+
+remapJar {
+    inputFile.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveClassifier = null
+}
+
+sourcesJar {
+    def commonSources = project(":common").tasks.named("sourcesJar")
+    dependsOn commonSources
+    from commonSources.map { zipTree(it.archiveFile) }
 }

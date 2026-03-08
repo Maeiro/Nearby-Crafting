@@ -50,13 +50,15 @@ Move Proximity Crafting from a single Forge module to a modular Architectury lay
 ## Current platform state
 - `forge`: active and validated by `:forge:build`
 - `fabric`: first runtime host slice implemented and validated by `:fabric:build`
-- `neoforge`: placeholder module only for now
+- `neoforge`: real runtime host implemented and validated by `:neoforge:build`
 
 Detailed Fabric status:
 - `docs/fabric-port-status.md`
+Detailed NeoForge status:
+- `docs/neoforge-port-status.md`
 
-## Why NeoForge is still placeholder
-NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during configuration in this branch. The module exists intentionally, but is not yet wired into the shared runtime path.
+## NeoForge implementation note
+NeoForge 1.20.1 is now wired as a real platform module in this branch, but it uses a Forge-shaped Loom/tooling path (`loom.platform=forge` with `net.neoforged:forge`) because the direct NeoForge Loom path was not stable in this setup.
 
 ## Current boundary after phase 2
 - `RecipeFillOperations` no longer depends on:
@@ -233,9 +235,32 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
   - Fabric now has a concrete runtime host
   - the remaining parity work is now primarily platform-specific feature completion, especially JEI/EMI integration, not foundational restructuring
 
+## Current NeoForge slice
+- NeoForge is no longer scaffold-only.
+- NeoForge now has:
+  - block/item/menu registration
+  - screen registration
+  - creative tab insertion
+  - packet channel registration and packet handlers
+  - NeoForge-side runtime adapters over the current common core
+  - vanilla recipe book hover-resolution wiring through NeoForge mixins/accessors
+- The NeoForge module now builds successfully through:
+  - `:neoforge:compileJava`
+  - `:neoforge:build`
+- The current NeoForge milestone should be read as:
+  - build-valid
+  - validated stable for the vanilla recipe book path on 1.20.1
+  - intentionally capped at vanilla recipe book scope on this version line
+- Remaining NeoForge gaps for full parity are intentionally deferred:
+  - no JEI integration yet
+  - no EMI integration yet
+  - no backpack compat yet
+  - no persisted NeoForge config binding yet
+  - no plan to expand further on NeoForge 1.20.1 unless a vanilla-book bug requires it
+
 ## Next migration targets
 1. Add persisted Fabric config binding
-2. Implement EMI integration on Fabric
-3. Implement JEI integration on Fabric if it remains part of the target loader feature set
-4. Review whether additional action/panel perf view models should leave `ProximityCraftingScreen`
-5. Review whether more menu-side result-slot/session flow can be separated from `ProximityCraftingMenu`
+2. Add persisted NeoForge config binding only if required for vanilla-book bugfixes on 1.20.1
+3. Implement EMI integration on Fabric
+4. Implement JEI integration on Fabric if it remains part of the target loader feature set
+5. Treat further NeoForge feature expansion as a later-version concern, not a 1.20.1 goal
