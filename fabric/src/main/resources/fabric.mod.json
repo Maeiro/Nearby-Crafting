@@ -18,6 +18,9 @@
       "dev.maeiro.proximitycrafting.fabric.client.ProximityCraftingFabricClient"
     ]
   },
+  "mixins": [
+    "proximitycrafting.fabric.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.15.11",
     "minecraft": "~${minecraft_version}",

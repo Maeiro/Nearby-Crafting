@@ -16,6 +16,8 @@ import dev.maeiro.proximitycrafting.client.compat.jei.ProximityCraftingJeiCrafta
 import dev.maeiro.proximitycrafting.config.ClientPreferences;
 import dev.maeiro.proximitycrafting.config.ClientUiState;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
+import dev.maeiro.proximitycrafting.mixin.client.RecipeBookComponentAccessor;
+import dev.maeiro.proximitycrafting.mixin.client.RecipeBookPageAccessor;
 import dev.maeiro.proximitycrafting.menu.ProximityCraftingMenu;
 import dev.maeiro.proximitycrafting.networking.payload.RecipeBookSourceEntry;
 import dev.maeiro.proximitycrafting.networking.payload.RecipeFillFeedbackPayload;
@@ -24,6 +26,8 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
+import net.minecraft.client.gui.screens.recipebook.RecipeBookPage;
+import net.minecraft.client.gui.screens.recipebook.RecipeButton;
 import net.minecraft.client.gui.screens.recipebook.RecipeUpdateListener;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -468,6 +472,12 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		}
 
 		try {
+			ResourceLocation accessorResolvedId = tryResolveRecipeBookHoverViaAccessor();
+			if (accessorResolvedId != null) {
+				logScrollDebug("[PROXC-SCROLL] vanilla hover resolve success via mixin accessor: {}", accessorResolvedId);
+				return accessorResolvedId;
+			}
+
 			Object recipeBookPage = getFieldValue(this.recipeBookComponent, "recipeBookPage");
 			if (recipeBookPage == null) {
 				Field recipeBookPageField = findFieldByTypeNameContains(this.recipeBookComponent.getClass(), "RecipeBookPage");
@@ -542,6 +552,30 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 			logScrollDebug("[PROXC-SCROLL] vanilla hover resolve exception: {}", ignored.toString());
 		}
 		return null;
+	}
+
+	@Nullable
+	private ResourceLocation tryResolveRecipeBookHoverViaAccessor() {
+		if (!(this.recipeBookComponent instanceof RecipeBookComponentAccessor componentAccessor)) {
+			return null;
+		}
+
+		RecipeBookPage recipeBookPage = componentAccessor.proximitycrafting$getRecipeBookPage();
+		if (recipeBookPage == null || !(recipeBookPage instanceof RecipeBookPageAccessor pageAccessor)) {
+			return null;
+		}
+
+		RecipeButton hoveredButton = pageAccessor.proximitycrafting$getHoveredButton();
+		if (hoveredButton == null) {
+			return null;
+		}
+
+		Object recipe = hoveredButton.getRecipe();
+		ResourceLocation directId = tryExtractRecipeId(recipe);
+		if (directId != null) {
+			return directId;
+		}
+		return tryResolveRecipeIdFromRecipeButtonFields(hoveredButton);
 	}
 
 	@Nullable
