@@ -53,7 +53,7 @@ Recommended interpretation:
   - EMI
   - backpacks
   - future mod-specific bridges
-- [ ] Make config semantics stay shared even when config file binding differs by loader/version
+- [x] Make config semantics stay shared even when config file binding differs by loader/version
 - [ ] Keep architecture diagrams and port-status docs updated when a version branch diverges materially
 - [ ] Document branch strategy explicitly when opening a new Minecraft version line
 
@@ -69,6 +69,7 @@ Recommended interpretation:
 - Server-side C2S request handling now flows through shared request payloads and a common server request controller, while packet context extraction and send APIs remain platform-side.
 - Optional overlay compat state and remembered JEI/EMI toggle persistence now live only in the Forge runtime instead of in shared `common` config/runtime types.
 - Scan/discovery orchestration now runs through a shared `SourceScanRuntime`, while each loader only supplies raw discovery and platform source collectors.
+- Config semantics now stay in shared `common` records/codecs, while Forge, Fabric, and NeoForge bind them through loader-local config backends.
 
 ## Branch strategy guideline
 - Prefer reusing the previous adjacent version branch first.

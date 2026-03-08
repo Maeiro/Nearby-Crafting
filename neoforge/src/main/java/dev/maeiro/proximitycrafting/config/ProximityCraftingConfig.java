@@ -16,11 +16,11 @@ public final class ProximityCraftingConfig {
 		clientConfigPath = configDirectory.resolve("proximitycrafting-client.toml");
 		serverConfigPath = configDirectory.resolve("proximitycrafting-server.toml");
 
-		ProximityConfigPersistence.LoadedClientConfig loadedClient = ProximityConfigPersistence.loadClient(clientConfigPath);
+		LoadedClientConfig loadedClient = ProximityConfigPersistence.loadClient(clientConfigPath);
 		clientPreferences = loadedClient.preferences();
 		clientUiState = loadedClient.uiState();
 
-		ProximityConfigPersistence.LoadedServerConfig loadedServer = ProximityConfigPersistence.loadServer(serverConfigPath);
+		LoadedServerConfig loadedServer = ProximityConfigPersistence.loadServer(serverConfigPath);
 		serverRuntimeSettings = loadedServer.settings();
 	}
 

@@ -21,6 +21,7 @@ package "forge" as ForgeHost {
   component "Network bridge" as ForgeNetwork
   component "Runtime hooks" as ForgeRuntimeHooks
   component "Thin scanner adapters" as ForgeScanAdapters
+  component "Forge config binding\n(ForgeConfigSpec)" as ForgeConfigBinding
   component "Compat hosts + compat state\nJEI / EMI / SB" as ForgeCompatHosts
 }
 
@@ -31,6 +32,7 @@ package "fabric" as FabricHost {
   component "Network bridge" as FabricNetwork
   component "Runtime hooks" as FabricRuntimeHooks
   component "Thin scanner adapters" as FabricScanAdapters
+  component "Fabric config binding\n(local file backend)" as FabricConfigBinding
   component "Overlay compat pending" as FabricCompatPending
 }
 
@@ -41,6 +43,7 @@ package "neoforge" as NeoForgeHost {
   component "Network bridge" as NeoForgeNetwork
   component "Runtime hooks" as NeoForgeRuntimeHooks
   component "Thin scanner adapters" as NeoForgeScanAdapters
+  component "NeoForge config binding\n(local file backend)" as NeoForgeConfigBinding
   component "Vanilla-book-only scope" as NeoForgeVanillaOnly
 }
 
@@ -54,6 +57,7 @@ ForgeScreen ..> ForgeRecipeBookBridge
 ForgeNetwork ..> CommonClientSeams
 ForgeRuntimeHooks ..> CommonClientSeams
 ForgeScanAdapters ..> CommonScan
+ForgeConfigBinding ..> CommonCore
 ForgeCompatHosts ..> CommonClientSeams
 
 FabricMenu ..> CommonRuntime
@@ -66,6 +70,7 @@ FabricScreen ..> FabricRecipeBookBridge
 FabricNetwork ..> CommonClientSeams
 FabricRuntimeHooks ..> CommonClientSeams
 FabricScanAdapters ..> CommonScan
+FabricConfigBinding ..> CommonCore
 FabricCompatPending ..> CommonClientSeams
 
 NeoForgeMenu ..> CommonRuntime
@@ -78,6 +83,7 @@ NeoForgeScreen ..> NeoForgeRecipeBookBridge
 NeoForgeNetwork ..> CommonClientSeams
 NeoForgeRuntimeHooks ..> CommonClientSeams
 NeoForgeScanAdapters ..> CommonScan
+NeoForgeConfigBinding ..> CommonCore
 NeoForgeVanillaOnly ..> CommonClientSeams
 
 note bottom of ForgeHost

@@ -32,7 +32,7 @@ The migration is no longer about proving the module split. That baseline is alre
   - request/response client flow
   - shared screen runtime controllers for action/sync/scroll flow
   - screen presenters and client session state
-  - config semantics and shared descriptors
+  - config semantics, shared config codecs, and shared descriptors
 
 Detailed platform status:
 - Fabric: `docs/fabric-port-status.md`
@@ -49,7 +49,7 @@ Detailed platform status:
 - client request/response contracts and client session state
 - client runtime controllers for screen action/sync/scroll coordination
 - presenters for non-visual screen state
-- config defaults, normalized config records, and lightweight persistence helper
+- config defaults, normalized config records, and shared config codecs
 - shared payload models
 - shared ids and bootstrap descriptors
 - no JEI/EMI toggle state, plugin ids, or overlay-specific follow-up decisions
@@ -65,6 +65,7 @@ Detailed platform status:
 - recipe-book runtime bridges for version-sensitive vanilla UI access
 - loader-specific UI integration and compat
 - optional overlay toggle persistence and compat-specific follow-up behavior
+- loader-local config binding backends
 
 ### Platform-specific status
 - Forge:
@@ -85,5 +86,5 @@ Detailed platform status:
 1. Implement EMI integration on Fabric.
 2. Implement JEI on Fabric only if it remains part of the target feature set.
 3. Keep NeoForge 1.20.1 in maintenance-only mode for vanilla-book issues.
-4. Revisit whether the lightweight Fabric/NeoForge config persistence should later move to loader-native config frameworks.
+4. Revisit whether the Fabric/NeoForge local config backends should later move to loader-native config frameworks.
 5. Continue moving any remaining high-value runtime glue out of platform hosts only when it reduces future parity cost.

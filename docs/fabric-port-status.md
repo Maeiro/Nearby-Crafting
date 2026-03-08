@@ -96,7 +96,7 @@ The goal of this slice was not full gameplay parity. The goal was to move Fabric
 - Fabric now generates:
   - `config/proximitycrafting-client.toml`
   - `config/proximitycrafting-server.toml`
-- The Fabric config layer now persists the shared config records to those files through the common config persistence helper.
+- The Fabric config layer now persists the shared config records through a Fabric-local file backend built on the shared config codec.
 - This is a lightweight file-backed binding, not a deeper Fabric config framework integration.
 
 ### Mod compat

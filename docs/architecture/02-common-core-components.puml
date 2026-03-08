@@ -80,7 +80,8 @@ package "config" as ConfigPkg {
   component "ProximityConfigDefaults" as ProximityConfigDefaults
   component "ClientPreferences / ClientUiState" as ClientConfigModels
   component "ServerRuntimeSettings" as ServerRuntimeSettings
-  component "ProximityConfigPersistence" as ConfigPersistence
+  component "LoadedClientConfig /\nLoadedServerConfig" as LoadedConfigs
+  component "ProximityConfigCodec" as ConfigCodec
 }
 
 package "networking/payload" as PayloadPkg {
@@ -141,8 +142,9 @@ IngredientsPanelPresenter --> SnapshotPayload
 IngredientsPanelPresenter --> ItemSourceRef
 StatusMessagePresenter --> FeedbackPayload
 
-ConfigPersistence --> ClientConfigModels
-ConfigPersistence --> ServerRuntimeSettings
+ConfigCodec --> LoadedConfigs
+ConfigCodec --> ClientConfigModels
+ConfigCodec --> ServerRuntimeSettings
 ClientConfigModels --> ProximityConfigDefaults
 ServerRuntimeSettings --> ProximityConfigDefaults
 
@@ -155,7 +157,7 @@ non-visual UI state, runtime controllers coordinate screen and menu
 behavior, shared menu helpers avoid host duplication, packet request
 handling is centralized behind a common controller, scan discovery
 orchestration is centralized behind a shared runtime, and payloads/config
-records stay loader-agnostic. Optional overlay compat state stays out of
-common and remains platform-owned.
+records stay loader-agnostic. Common owns config semantics and codecs,
+while concrete config backends remain platform-owned.
 end note
 @enduml
