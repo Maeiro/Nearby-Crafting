@@ -4,7 +4,9 @@ import dev.maeiro.proximitycrafting.ProximityCrafting;
 import dev.maeiro.proximitycrafting.config.ClientPreferences;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.menu.slot.ProximityResultSlot;
+import dev.maeiro.proximitycrafting.networking.ProximityCraftingNetwork;
 import dev.maeiro.proximitycrafting.networking.RecipeBookSourceSnapshotBuilder;
+import dev.maeiro.proximitycrafting.networking.S2CRecipeBookSourceSnapshot;
 import dev.maeiro.proximitycrafting.registry.ModBlocks;
 import dev.maeiro.proximitycrafting.registry.ModMenuTypes;
 import dev.maeiro.proximitycrafting.networking.payload.RecipeBookSourceEntry;
@@ -13,6 +15,9 @@ import dev.maeiro.proximitycrafting.service.crafting.CraftingResultPort;
 import dev.maeiro.proximitycrafting.service.crafting.FillResult;
 import dev.maeiro.proximitycrafting.service.crafting.RecipeBookSourceSessionState;
 import dev.maeiro.proximitycrafting.service.crafting.RecipeFillService;
+import dev.maeiro.proximitycrafting.service.crafting.ResultTakeOperations;
+import dev.maeiro.proximitycrafting.service.crafting.ResultTakeOutcome;
+import dev.maeiro.proximitycrafting.service.crafting.ResultTakePort;
 import dev.maeiro.proximitycrafting.service.crafting.TrackedCraftGridPort;
 import dev.maeiro.proximitycrafting.service.crafting.TrackedCraftGridSession;
 import dev.maeiro.proximitycrafting.service.source.ItemSourceRef;
@@ -37,6 +42,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.network.PacketDistributor;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -60,6 +66,7 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 	private final TrackedCraftGridSession trackedCraftGridSession;
 	private final TrackedCraftGridPort trackedCraftGridPort = new MenuTrackedCraftGridPort();
 	private final CraftingResultPort craftingResultPort = new MenuCraftingResultPort();
+	private final ResultTakePort resultTakePort = new MenuResultTakePort();
 	private final RecipeBookSourceSessionState recipeBookSourceSessionState =
 			new RecipeBookSourceSessionState(SERVER_SNAPSHOT_CACHE_TTL_MS, ADJUST_SNAPSHOT_MIN_INTERVAL_MS);
 	private boolean resultShiftCraftInProgress;
@@ -403,6 +410,14 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		return resultShiftCraftInProgress;
 	}
 
+	public void handleResultSlotTake(ServerPlayer serverPlayer) {
+		ResultTakeOutcome outcome = ResultTakeOperations.afterResultTaken(resultTakePort);
+		if (outcome.refillSucceeded()) {
+			invalidateServerRecipeBookSnapshotCache();
+		}
+		sendRecipeBookSourceSnapshot(serverPlayer, false, "result_slot_take");
+	}
+
 	public boolean isIncludePlayerInventory() {
 		return clientPreferences.includePlayerInventory();
 	}
@@ -485,6 +500,16 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 			return false;
 		}
 		return true;
+	}
+
+	public void sendRecipeBookSourceSnapshot(ServerPlayer serverPlayer, boolean preferCache, String reason) {
+		ProximityCraftingNetwork.CHANNEL.send(
+				PacketDistributor.PLAYER.with(() -> serverPlayer),
+				new S2CRecipeBookSourceSnapshot(
+						this.containerId,
+						getServerRecipeBookSnapshot(preferCache, reason)
+				)
+		);
 	}
 
 	private void prewarmServerRecipeBookSnapshotIfNeeded() {
@@ -577,6 +602,23 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		@Override
 		public CraftingRecipe getTrackedRecipe() {
 			return lastPlacedRecipe;
+		}
+	}
+
+	private class MenuResultTakePort implements ResultTakePort {
+		@Override
+		public boolean isAutoRefillAfterCraft() {
+			return clientPreferences.autoRefillAfterCraft();
+		}
+
+		@Override
+		public boolean isResultShiftCraftInProgress() {
+			return resultShiftCraftInProgress;
+		}
+
+		@Override
+		public FillResult refillLastRecipe() {
+			return RecipeFillService.refillLastRecipe(ProximityCraftingMenu.this);
 		}
 	}
 

@@ -82,7 +82,8 @@ public class ProximityCraftingConfig {
 					SERVER.scanRadius.get(),
 					SERVER.minSlotCount.get(),
 					SERVER.maxShiftCraftIterations.get(),
-					SERVER.debugLogging.get()
+					SERVER.debugLogging.get(),
+					SERVER.blacklistedBlockEntities.get()
 			);
 		} catch (RuntimeException exception) {
 			return ServerRuntimeSettings.defaults();

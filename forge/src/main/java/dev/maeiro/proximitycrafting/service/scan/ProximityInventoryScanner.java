@@ -3,6 +3,9 @@ package dev.maeiro.proximitycrafting.service.scan;
 import dev.maeiro.proximitycrafting.ProximityCrafting;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.service.scan.CompositeSourceCollector;
+import dev.maeiro.proximitycrafting.service.scan.ContainerDiscoveryPort;
+import dev.maeiro.proximitycrafting.service.scan.ContainerSourceCollector;
+import dev.maeiro.proximitycrafting.service.scan.NearbyContainerSourceCollector;
 import dev.maeiro.proximitycrafting.service.scan.SourceCollectionResult;
 import dev.maeiro.proximitycrafting.service.source.ItemSourceRef;
 import dev.maeiro.proximitycrafting.service.source.SourcePriority;
@@ -14,7 +17,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ProximityInventoryScanner implements SourceCollector {
-	private static final ForgeContainerSourceCollector CONTAINER_SOURCE_COLLECTOR = new ForgeContainerSourceCollector();
+	private static final ContainerDiscoveryPort CONTAINER_DISCOVERY_PORT = new ForgeContainerDiscoveryPort();
+	private static final ContainerSourceCollector CONTAINER_SOURCE_COLLECTOR =
+			new NearbyContainerSourceCollector(CONTAINER_DISCOVERY_PORT);
 	private static final ForgePlayerInventorySourceCollector PLAYER_INVENTORY_SOURCE_COLLECTOR = new ForgePlayerInventorySourceCollector();
 	private static final ForgeBackpackSourceCollector BACKPACK_SOURCE_COLLECTOR = new ForgeBackpackSourceCollector();
 	private static final CompositeSourceCollector DELEGATE = new CompositeSourceCollector(
@@ -88,7 +93,24 @@ public class ProximityInventoryScanner implements SourceCollector {
 	}
 
 	public static List<ItemSourceRef> collectContainerSources(Level level, BlockPos centerPos, ScanOptions scanOptions) {
-		return CONTAINER_SOURCE_COLLECTOR.collectContainerSources(level, centerPos, scanOptions);
+		long startNs = System.nanoTime();
+		List<ItemSourceRef> sources = CONTAINER_SOURCE_COLLECTOR.collectContainerSources(level, centerPos, scanOptions);
+		if (ProximityCraftingConfig.serverRuntimeSettings().debugLogging()) {
+			int scanRadius = scanOptions.scanRadius();
+			int diameter = scanRadius * 2 + 1;
+			long scannedPositions = (long) diameter * diameter * diameter;
+			double totalMs = (System.nanoTime() - startNs) / 1_000_000.0D;
+			ProximityCrafting.LOGGER.info(
+					"[PROXC-PERF] collectContainerSources center={} radius={} scannedPositions={} minSlots={} containerSlots={} took={}ms",
+					centerPos,
+					scanRadius,
+					scannedPositions,
+					scanOptions.minSlotCount(),
+					sources.size(),
+					String.format("%.3f", totalMs)
+			);
+		}
+		return sources;
 	}
 
 	public static List<ItemSourceRef> collectPlayerSources(Player player, boolean includePlayerInventory) {

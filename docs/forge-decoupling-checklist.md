@@ -15,6 +15,18 @@
 - [x] Review registry/bootstrap descriptors for further loader isolation
 
 ## Completed in this phase
+- Runtime scanning boundary cleanup:
+  - `common` already had `ContainerDiscoveryPort`, `DiscoveredContainer`, and `NearbyContainerSourceCollector`
+  - this phase connected that seam in the actual Forge runtime
+  - `forge` now keeps only `ForgeContainerDiscoveryPort` for raw block-entity/item-handler discovery
+  - radius iteration, blacklist filtering, distance ordering, and slot flattening now run through the common collector path
+- Result slot runtime cleanup:
+  - `common` now actively owns result-take refill policy through:
+    - `ResultTakePort`
+    - `ResultTakeOperations`
+    - `ResultTakeOutcome`
+  - `forge` result-slot behavior is now routed through `ProximityCraftingMenu.handleResultSlotTake(...)`
+  - `ProximityResultSlot` is now a thin slot host instead of owning refill/snapshot policy directly
 - Source discovery split:
   - `common` owns source orchestration and recipe-book source aggregation
   - `forge` keeps raw container/player/backpack discovery adapters

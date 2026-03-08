@@ -38,6 +38,8 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - In phase 9, move preferred recipe selection and result recomputation helpers into `common`, while keeping the concrete menu/container host and slot wiring in Forge through a small runtime port.
 - In phase 10, move status/feedback presentation state into `common`, while keeping status rendering and UI wrappers inside the Forge screen.
 - In phase 10, move recipe-by-id and adjust-load orchestration into `common`, while keeping concrete menu invalidation/runtime host concerns in Forge.
+- In phase 11, complete the nearby-container scanning seam by routing Forge through the existing common `NearbyContainerSourceCollector`, leaving Forge with only a raw `ContainerDiscoveryPort` adapter.
+- In phase 11, route result-slot refill policy through `common` (`ResultTakePort`, `ResultTakeOperations`) and keep only concrete slot hosting plus packet transport in Forge.
 
 ## Consequences
 - Future ports can reuse common planning/source logic directly.
@@ -62,3 +64,5 @@ The project had grown into a Forge-shaped codebase where core crafting logic, sc
 - Concrete container/result-slot wiring remains platform-side by design; only preferred recipe lookup and result recomputation helpers have been generalized.
 - Status rendering remains platform-side by design; only the status message state and feedback mapping have been generalized.
 - Concrete menu invalidation/runtime hosting remains platform-side by design; only recipe request/load orchestration has been generalized.
+- Nearby container world iteration/filtering is no longer Forge-owned; only raw block-entity/item-handler discovery remains platform-side by design.
+- Concrete result slot hosting and packet transport remain platform-side by design; only result-take refill policy has been generalized.

@@ -97,20 +97,23 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
 ## Current boundary after phase 5
 - `common` now owns the source discovery orchestration layer:
   - `ContainerSourceCollector`
+  - `ContainerDiscoveryPort`
+  - `DiscoveredContainer`
+  - `NearbyContainerSourceCollector`
   - `PlayerInventorySourceCollector`
   - `PlayerBackpackSourceCollector`
   - `SourceCollectionResult`
   - `CompositeSourceCollector`
   - `RecipeBookSourceAggregator`
 - Forge now keeps only the raw discovery adapters:
-  - `ForgeContainerSourceCollector`
+  - `ForgeContainerDiscoveryPort`
   - `ForgePlayerInventorySourceCollector`
   - `ForgeBackpackSourceCollector`
 - `ProximityInventoryScanner` is no longer the owner of the full source composition flow. It is now a thin Forge-side boundary over the common orchestration layer.
 - Recipe book source snapshot aggregation no longer lives in Forge networking code. The grouping/aggregation logic now lives in `common` through `RecipeBookSourceAggregator`.
 - The practical split is now:
-  - `common`: compose, merge, prioritize, and aggregate source refs
-  - `forge`: discover concrete inventories/capabilities/backpacks and adapt them into source refs
+  - `common`: compose, merge, prioritize, aggregate source refs, and own nearby-container scan geometry/filtering
+  - `forge`: discover concrete inventories/capabilities/backpacks and adapt them into raw discovered containers/source refs
 
 ## Current boundary after phase 6
 - `common` now also owns menu-adjacent session state that was previously embedded directly in `ProximityCraftingMenu`:
@@ -196,6 +199,21 @@ NeoForge 1.20.1 setup through the current Architectury/Loom stack fails during c
 - The practical split is now:
   - `common`: status message state, feedback mapping, recipe request/load operations
   - `forge`: render the current status message, invalidate snapshot cache around delegated recipe operations, host the concrete menu/screen runtime
+
+## Current boundary after phase 11
+- `common` now actively owns the result-take refill decision path:
+  - `ResultTakePort`
+  - `ResultTakeOperations`
+  - `ResultTakeOutcome`
+- `ProximityResultSlot` no longer owns:
+  - refill decision policy
+  - direct snapshot-send policy
+- `ProximityCraftingMenu` now hosts that runtime seam through:
+  - `handleResultSlotTake(...)`
+  - `sendRecipeBookSourceSnapshot(...)`
+- The practical split is now:
+  - `common`: result-take refill policy and outcome model
+  - `forge`: concrete result slot host, server packet transport, and menu-side runtime callback
 
 ## Next migration targets
 1. Review whether additional action/panel perf view models should leave `ProximityCraftingScreen`
