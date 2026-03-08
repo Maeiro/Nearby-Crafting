@@ -1,11 +1,6 @@
 package dev.maeiro.proximitycrafting.config;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
-import dev.maeiro.proximitycrafting.config.ClientPreferences;
-import dev.maeiro.proximitycrafting.config.ClientUiState;
-import dev.maeiro.proximitycrafting.config.ProximityConfigDefaults;
-import dev.maeiro.proximitycrafting.config.ServerRuntimeSettings;
-import dev.maeiro.proximitycrafting.service.source.SourcePriority;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraftforge.common.ForgeConfigSpec;

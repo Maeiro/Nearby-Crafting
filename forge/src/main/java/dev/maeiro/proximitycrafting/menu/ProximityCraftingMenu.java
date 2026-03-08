@@ -358,10 +358,6 @@ public class ProximityCraftingMenu extends RecipeBookMenu<CraftingContainer> {
 		trackedCraftGridSession.onContainerSet(slot);
 	}
 
-	private void clearAllCraftSlotSources() {
-		trackedCraftGridSession.onContainerCleared();
-	}
-
 	public void beginCraftGridBulkMutation() {
 		trackedCraftGridSession.beginBulkMutation();
 	}

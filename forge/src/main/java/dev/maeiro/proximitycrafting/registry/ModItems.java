@@ -1,7 +1,6 @@
 package dev.maeiro.proximitycrafting.registry;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
-import dev.maeiro.proximitycrafting.registry.ProximityContentDescriptors;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.registries.DeferredRegister;

@@ -2,7 +2,6 @@ package dev.maeiro.proximitycrafting.registry;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
 import dev.maeiro.proximitycrafting.block.ProximityCraftingTableBlock;
-import dev.maeiro.proximitycrafting.registry.ProximityContentDescriptors;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraftforge.registries.DeferredRegister;

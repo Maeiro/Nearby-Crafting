@@ -1,8 +1,6 @@
 package dev.maeiro.proximitycrafting.networking;
 
-import dev.maeiro.proximitycrafting.ProximityCrafting;
 import dev.maeiro.proximitycrafting.registry.ProximityBootstrapDescriptors;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 

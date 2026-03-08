@@ -1367,10 +1367,6 @@ public class ProximityCraftingScreen extends AbstractContainerScreen<ProximityCr
 		ingredientsPanelPresenter.onSourcesChanged(this.menu.getClientRecipeBookSupplementalSources());
 	}
 
-	private void markProximityPanelCacheDirty() {
-		ingredientsPanelPresenter.markDirty();
-	}
-
 	public static boolean enqueueRecipeFillIfScreenOpen(
 			ProximityCraftingMenu menu,
 			ResourceLocation recipeId,

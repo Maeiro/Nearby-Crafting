@@ -2,11 +2,6 @@ package dev.maeiro.proximitycrafting.service.scan;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
 import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
-import dev.maeiro.proximitycrafting.service.scan.CompositeSourceCollector;
-import dev.maeiro.proximitycrafting.service.scan.ContainerDiscoveryPort;
-import dev.maeiro.proximitycrafting.service.scan.ContainerSourceCollector;
-import dev.maeiro.proximitycrafting.service.scan.NearbyContainerSourceCollector;
-import dev.maeiro.proximitycrafting.service.scan.SourceCollectionResult;
 import dev.maeiro.proximitycrafting.service.source.ItemSourceRef;
 import dev.maeiro.proximitycrafting.service.source.SourcePriority;
 import net.minecraft.core.BlockPos;
