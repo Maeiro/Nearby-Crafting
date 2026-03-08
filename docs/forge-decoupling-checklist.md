@@ -69,7 +69,6 @@
   - current remaining gaps and validation status are documented in `docs/neoforge-port-status.md`
 
 ## Next focus candidates
-- Add persisted Fabric config binding
-- Add persisted NeoForge config binding only if a vanilla-book bug on 1.20.1 requires it
+- Review whether the current lightweight Fabric/NeoForge config persistence should later move to loader-native config frameworks
 - Review whether more action/panel perf view models can leave `ProximityCraftingScreen`
 - Review whether more menu-side result-slot/session flow can leave `ProximityCraftingMenu`

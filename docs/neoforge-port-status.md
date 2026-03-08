@@ -104,8 +104,11 @@ The goal of this slice was not full gameplay parity. The goal was to move NeoFor
 ## What is intentionally minimal or incomplete
 
 ### Config persistence
-- NeoForge currently uses an in-memory `ProximityCraftingConfig` wrapper.
-- It provides the shared config records to the runtime, but it does not yet bind them to a persisted NeoForge config file.
+- NeoForge now generates:
+  - `config/proximitycrafting-client.toml`
+  - `config/proximitycrafting-server.toml`
+- The NeoForge config layer now persists the shared config records to those files through the common config persistence helper.
+- This is a lightweight file-backed binding, not a deeper NeoForge config framework integration.
 
 ### Mod compat
 - NeoForge JEI integration is not implemented in this slice.
@@ -136,7 +139,6 @@ The goal of this slice was not full gameplay parity. The goal was to move NeoFor
 - Avoid feature work that would require deeper Architectury runtime support on this target
 
 ### Medium priority
-- Add persisted NeoForge config binding only if a bug forces it for vanilla stability
 - Confirm the current NeoForge container discovery path behaves correctly across vanilla containers
 - Validate packet ordering and client session state behavior under repeated actions when needed for bugfixes
 

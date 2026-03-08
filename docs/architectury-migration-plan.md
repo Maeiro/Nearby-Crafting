@@ -234,6 +234,7 @@ NeoForge 1.20.1 is now wired as a real platform module in this branch, but it us
 - The important architectural point is:
   - Fabric now has a concrete runtime host
   - the remaining parity work is now primarily platform-specific feature completion, especially JEI/EMI integration, not foundational restructuring
+  - Fabric now also has lightweight file-backed config generation for client/server config files
 
 ## Current NeoForge slice
 - NeoForge is no longer scaffold-only.
@@ -255,12 +256,10 @@ NeoForge 1.20.1 is now wired as a real platform module in this branch, but it us
   - no JEI integration yet
   - no EMI integration yet
   - no backpack compat yet
-  - no persisted NeoForge config binding yet
   - no plan to expand further on NeoForge 1.20.1 unless a vanilla-book bug requires it
 
 ## Next migration targets
-1. Add persisted Fabric config binding
-2. Add persisted NeoForge config binding only if required for vanilla-book bugfixes on 1.20.1
-3. Implement EMI integration on Fabric
-4. Implement JEI integration on Fabric if it remains part of the target loader feature set
-5. Treat further NeoForge feature expansion as a later-version concern, not a 1.20.1 goal
+1. Implement EMI integration on Fabric
+2. Implement JEI integration on Fabric if it remains part of the target loader feature set
+3. Treat further NeoForge feature expansion as a later-version concern, not a 1.20.1 goal
+4. Review whether the lightweight file-backed config layer should later be replaced by loader-native config frameworks

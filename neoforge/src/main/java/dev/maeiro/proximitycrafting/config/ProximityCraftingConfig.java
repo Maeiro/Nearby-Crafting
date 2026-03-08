@@ -1,11 +1,27 @@
 package dev.maeiro.proximitycrafting.config;
 
+import java.nio.file.Path;
+
 public final class ProximityCraftingConfig {
 	private static ClientPreferences clientPreferences = ClientPreferences.defaults();
 	private static ClientUiState clientUiState = ClientUiState.defaults();
 	private static ServerRuntimeSettings serverRuntimeSettings = ServerRuntimeSettings.defaults();
+	private static Path clientConfigPath;
+	private static Path serverConfigPath;
 
 	private ProximityCraftingConfig() {
+	}
+
+	public static void initialize(Path configDirectory) {
+		clientConfigPath = configDirectory.resolve("proximitycrafting-client.toml");
+		serverConfigPath = configDirectory.resolve("proximitycrafting-server.toml");
+
+		ProximityConfigPersistence.LoadedClientConfig loadedClient = ProximityConfigPersistence.loadClient(clientConfigPath);
+		clientPreferences = loadedClient.preferences();
+		clientUiState = loadedClient.uiState();
+
+		ProximityConfigPersistence.LoadedServerConfig loadedServer = ProximityConfigPersistence.loadServer(serverConfigPath);
+		serverRuntimeSettings = loadedServer.settings();
 	}
 
 	public static boolean isServerDebugLoggingEnabled() {
@@ -22,6 +38,9 @@ public final class ProximityCraftingConfig {
 
 	public static void setServerRuntimeSettings(ServerRuntimeSettings settings) {
 		serverRuntimeSettings = settings == null ? ServerRuntimeSettings.defaults() : settings;
+		if (serverConfigPath != null) {
+			ProximityConfigPersistence.saveServer(serverConfigPath, serverRuntimeSettings);
+		}
 	}
 
 	public static ClientPreferences clientPreferences() {
@@ -30,6 +49,9 @@ public final class ProximityCraftingConfig {
 
 	public static void setClientPreferences(ClientPreferences preferences) {
 		clientPreferences = preferences == null ? ClientPreferences.defaults() : preferences;
+		if (clientConfigPath != null) {
+			ProximityConfigPersistence.saveClient(clientConfigPath, clientPreferences, clientUiState);
+		}
 	}
 
 	public static ClientUiState clientUiState() {
@@ -38,5 +60,8 @@ public final class ProximityCraftingConfig {
 
 	public static void setClientUiState(ClientUiState uiState) {
 		clientUiState = uiState == null ? ClientUiState.defaults() : uiState;
+		if (clientConfigPath != null) {
+			ProximityConfigPersistence.saveClient(clientConfigPath, clientPreferences, clientUiState);
+		}
 	}
 }

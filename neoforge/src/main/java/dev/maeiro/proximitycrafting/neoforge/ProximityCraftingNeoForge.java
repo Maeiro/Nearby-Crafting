@@ -2,6 +2,7 @@ package dev.maeiro.proximitycrafting.neoforge;
 
 import dev.maeiro.proximitycrafting.ProximityCrafting;
 import dev.maeiro.proximitycrafting.client.ClientSetup;
+import dev.maeiro.proximitycrafting.config.ProximityCraftingConfig;
 import dev.maeiro.proximitycrafting.networking.ProximityCraftingNetwork;
 import dev.maeiro.proximitycrafting.registry.CreativeTabEvents;
 import dev.maeiro.proximitycrafting.registry.ModBlocks;
@@ -13,11 +14,13 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.minecraftforge.fml.loading.FMLPaths;
 
 @Mod(ProximityCrafting.MOD_ID)
 public class ProximityCraftingNeoForge {
 	public ProximityCraftingNeoForge() {
 		ProximityCrafting.init();
+		ProximityCraftingConfig.initialize(FMLPaths.CONFIGDIR.get());
 
 		IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
 		ModBlocks.BLOCKS.register(modBus);

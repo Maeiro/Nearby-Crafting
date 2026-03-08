@@ -90,9 +90,11 @@ The goal of this slice was not full gameplay parity. The goal was to move Fabric
 ## What is intentionally minimal or incomplete
 
 ### Config persistence
-- Fabric currently uses an in-memory `ProximityCraftingConfig` wrapper.
-- It provides the shared config records to the runtime, but it does not yet bind them to a persisted Fabric config file.
-- This means Fabric defaults are functional for compile/build and runtime wiring, but user-facing config persistence is not implemented yet.
+- Fabric now generates:
+  - `config/proximitycrafting-client.toml`
+  - `config/proximitycrafting-server.toml`
+- The Fabric config layer now persists the shared config records to those files through the common config persistence helper.
+- This is a lightweight file-backed binding, not a deeper Fabric config framework integration.
 
 ### Mod compat
 - Fabric JEI/EMI integration is not implemented in this slice.
@@ -114,7 +116,6 @@ The goal of this slice was not full gameplay parity. The goal was to move Fabric
 ## What remains before a meaningful Fabric gameplay milestone
 
 ### High priority
-- Add a persisted Fabric config binding
 - Validate that menu open/close, source return, and result-take refill behave correctly on Fabric
 
 ### Medium priority
