@@ -22,7 +22,7 @@ package "forge" as ForgeHost {
   component "Runtime hooks" as ForgeRuntimeHooks
   component "Thin scanner adapters" as ForgeScanAdapters
   component "Forge config binding\n(ForgeConfigSpec)" as ForgeConfigBinding
-  component "Compat hosts + compat state\nJEI / EMI / SB" as ForgeCompatHosts
+  component "Compat hosts + compat state\nJEI / EMI" as ForgeCompatHosts
 }
 
 package "fabric" as FabricHost {
@@ -64,7 +64,7 @@ FabricCompatPending ..> CommonClientSeams
 
 note bottom of ForgeHost
 Reference runtime.
-Full current host with active overlay and backpack compat.
+Full current host with active overlay compat.
 Menu snapshot lifecycle is now hosted through shared menu controllers.
 Source discovery orchestration now runs through a shared scan runtime.
 end note

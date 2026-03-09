@@ -34,9 +34,6 @@ dependencies {
 
     modCompileOnly "mezz.jei:jei-${jei_mc_version}:${jei_version}"
     modCompileOnly "dev.emi:emi-forge:${emi_version}:api"
-    modCompileOnly "curse.maven:sophisticated-backpacks-422301:7645913"
-    modCompileOnly "curse.maven:sophisticated-core-618298:7645911"
-
     if (project.findProperty("enable_jei_dev_runtime")?.toString()?.toBoolean()) {
         modLocalRuntime "mezz.jei:jei-${jei_mc_version}:${jei_version}"
     }

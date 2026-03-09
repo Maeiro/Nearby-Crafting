@@ -15,8 +15,7 @@ Current platform status:
 - Adds the **Proximity Crafting Table** (3x3 crafting).
 - Builds a shared ingredient pool from:
   - nearby containers (chests and compatible inventories),
-  - player inventory (configurable),
-  - compatible backpack sources.
+  - player inventory (configurable).
 - Fills crafting recipes directly from that pool.
 - Keeps a live ingredient-availability panel for the currently selected recipe.
 
@@ -48,10 +47,6 @@ Current platform status:
 - Custom craftable-only toggle flow designed to avoid conflicts with EMI's own craftable sidebar behavior.
 - Alt-click and scroll-assisted loading behaviors integrated with Nearby/Proximity sources.
 
-### Sophisticated Backpacks (optional)
-- If installed, backpack inventories detected from the player context are added as valid ingredient sources.
-- Works as an extension of the player source pool and follows the same priority/include-player settings.
-
 ## Mouse Shortcuts
 When using Proximity Crafting recipe interactions (including overlay integrations), these shortcuts speed up recipe loading:
 
@@ -73,8 +68,6 @@ When using Proximity Crafting recipe interactions (including overlay integration
 - JEI
   - relevant to the Forge runtime on this branch
 - EMI
-  - relevant to the Forge runtime on this branch
-- Sophisticated Backpacks (+ Sophisticated Core)
   - relevant to the Forge runtime on this branch
 - FastSuite
   - Highly recommended for large modpacks.
@@ -106,6 +99,8 @@ All options are under `proximityCrafting`:
 - `proximityItemsPanelOpen` (default: `true`): last remembered state of the Ingredients panel.
 - `proximityItemsPanelOffsetX` (default: `0`): Ingredients panel horizontal offset.
 - `proximityItemsPanelOffsetY` (default: `0`): Ingredients panel vertical offset.
+
+Forge-only remembered overlay options:
 - `jeiCraftableOnlyEnabled` (default: `false`): last remembered state of JEI Craftable Only.
 - `emiCraftableOnlyEnabled` (default: `false`): last remembered state of EMI Craftable Only.
 

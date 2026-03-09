@@ -38,9 +38,3 @@ versionRange="[1.0.0,)"
 ordering="AFTER"
 side="CLIENT"
 
-[[dependencies.proximitycrafting]]
-modId="sophisticatedbackpacks"
-mandatory=false
-versionRange="[1.0.0,)"
-ordering="AFTER"
-side="BOTH"
