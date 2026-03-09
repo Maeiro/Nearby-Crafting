@@ -40,7 +40,7 @@ Recommended interpretation:
 - [x] Shared ids/bootstrap descriptors are no longer hardcoded only in Forge
 
 ## Remaining work to improve version-branch portability
-- [ ] Keep `common` free from loader APIs and loader-shaped assumptions
+- [x] Keep `common` free from loader APIs and loader-shaped assumptions
 - [x] Reduce direct dependency on fragile Minecraft-version-specific UI internals where a common presenter/state seam is possible
 - [x] Isolate all recipe book accessors/mixins clearly per loader and per version-sensitive runtime path
 - [x] Keep packet payload models and request/response state transitions version-local but loader-neutral inside each branch
@@ -54,8 +54,8 @@ Recommended interpretation:
   - backpacks
   - future mod-specific bridges
 - [x] Make config semantics stay shared even when config file binding differs by loader/version
-- [ ] Keep architecture diagrams and port-status docs updated when a version branch diverges materially
-- [ ] Document branch strategy explicitly when opening a new Minecraft version line
+- [x] Keep architecture diagrams and port-status docs updated when a version branch diverges materially
+- [x] Document branch strategy explicitly when opening a new Minecraft version line
 
 ## Recent progress
 - Vanilla recipe book hover resolution and refresh hooks now sit behind platform-local recipe book runtime bridges.
@@ -70,6 +70,8 @@ Recommended interpretation:
 - Optional overlay compat state and remembered JEI/EMI toggle persistence now live only in the Forge runtime instead of in shared `common` config/runtime types.
 - Scan/discovery orchestration now runs through a shared `SourceScanRuntime`, while each loader only supplies raw discovery and platform source collectors.
 - Config semantics now stay in shared `common` records/codecs, while Forge, Fabric, and NeoForge bind them through loader-local config backends.
+- `:common:check` now includes `verifyCommonBoundary`, which guards against loader API and loader-shaped compat leakage into shared core.
+- The branch/version-line process is now documented in `docs/version-line-playbook.md`, including mandatory port-status and diagram updates when a branch diverges materially.
 
 ## Branch strategy guideline
 - Prefer reusing the previous adjacent version branch first.

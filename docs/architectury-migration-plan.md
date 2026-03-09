@@ -6,6 +6,9 @@ See the current PlantUML baseline in [docs/architecture/README.md](architecture/
 ## Version-branch portability
 See the current checklist in [docs/version-branch-portability-checklist.md](version-branch-portability-checklist.md).
 
+## Version-line process
+See the required branch-opening and branch-divergence workflow in [docs/version-line-playbook.md](version-line-playbook.md).
+
 ## Current objective
 Keep Proximity Crafting on a modular Architectury-based structure where:
 - `common` owns reusable behavior, state, contracts, payloads, config semantics, and shared descriptors
@@ -33,6 +36,7 @@ The migration is no longer about proving the module split. That baseline is alre
   - shared screen runtime controllers for action/sync/scroll flow
   - screen presenters and client session state
   - config semantics, shared config codecs, and shared descriptors
+  - a common-boundary verification gate in `:common:check`
 
 Detailed platform status:
 - Fabric: `docs/fabric-port-status.md`

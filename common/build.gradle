@@ -13,6 +13,47 @@ dependencies {
     modApi "dev.architectury:architectury:${architectury_api_version}"
 }
 
+def forbiddenCommonPatterns = [
+        [pattern: ~/\bnet\.minecraftforge\./, reason: "Forge API import leaked into common"],
+        [pattern: ~/\bnet\.neoforged\./, reason: "NeoForge API import leaked into common"],
+        [pattern: ~/\bnet\.fabricmc\./, reason: "Fabric API import leaked into common"],
+        [pattern: ~/\bdev\.architectury\./, reason: "Architectury API import leaked into common"],
+        [pattern: ~/\bForgeConfigSpec\b/, reason: "Forge config binding leaked into common"],
+        [pattern: ~/\bNetworkHooks\b/, reason: "Forge-like networking hook leaked into common"],
+        [pattern: ~/\bMenuRegistry\b/, reason: "Architectury/Fabric menu binding leaked into common"],
+        [pattern: ~/\bIForgeMenuType\b/, reason: "Forge-like menu binding leaked into common"],
+        [pattern: ~/\bBuildCreativeModeTabContentsEvent\b/, reason: "Loader creative-tab event leaked into common"],
+        [pattern: ~/\bJEI_PLUGIN\b/, reason: "JEI plugin descriptor leaked into common"],
+        [pattern: ~/\bjeiCraftableOnlyEnabled\b/, reason: "JEI overlay state leaked into common"],
+        [pattern: ~/\bemiCraftableOnlyEnabled\b/, reason: "EMI overlay state leaked into common"],
+        [pattern: ~/\bSophisticatedBackpacks\b/, reason: "Mod-specific backpack compat leaked into common"]
+]
+
+tasks.register("verifyCommonBoundary") {
+    group = "verification"
+    description = "Fails if loader APIs or loader-shaped compat state leak into common."
+
+    doLast {
+        def violations = []
+        fileTree("src/main/java").matching { include("**/*.java") }.files.each { file ->
+            def content = file.getText("UTF-8")
+            forbiddenCommonPatterns.each { rule ->
+                if ((content =~ rule.pattern).find()) {
+                    violations << "${file}: ${rule.reason}"
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            throw new GradleException("Common boundary violations detected:\n" + violations.join("\n"))
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn(tasks.named("verifyCommonBoundary"))
+}
+
 tasks.withType(ProcessResources).configureEach {
     def replaceProperties = [
             minecraft_version      : mc_version,

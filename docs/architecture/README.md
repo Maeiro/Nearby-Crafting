@@ -27,3 +27,5 @@ Rendering locally:
   - `plantuml docs/architecture/04-platform-hosts-and-adapters.puml`
 
 This baseline intentionally stores only `.puml` source files in git. Generated image artifacts are not committed in this phase.
+
+When a version branch diverges materially, these diagrams must be updated as part of the branch workflow described in [docs/version-line-playbook.md](../version-line-playbook.md).
