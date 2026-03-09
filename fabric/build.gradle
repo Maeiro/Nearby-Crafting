@@ -23,7 +23,7 @@ configurations {
     developmentFabric.extendsFrom common
 }
 
-version = "${mod_version}+fabric-${mc_version}"
+version = "${fabric_mod_version}+fabric-${mc_version}"
 
 dependencies {
     modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
@@ -39,7 +39,7 @@ tasks.withType(ProcessResources).configureEach {
             mod_id          : mod_id,
             mod_name        : mod_name,
             mod_license     : mod_license,
-            mod_version     : mod_version,
+            mod_version     : fabric_mod_version,
             mod_authors     : mod_authors,
             mod_description : mod_description,
             architectury_api_version: architectury_api_version
