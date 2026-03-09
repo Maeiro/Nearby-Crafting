@@ -104,9 +104,5 @@ Forge-only remembered overlay options:
 - `jeiCraftableOnlyEnabled` (default: `false`): last remembered state of JEI Craftable Only.
 - `emiCraftableOnlyEnabled` (default: `false`): last remembered state of EMI Craftable Only.
 
-## TODO
-- Continue reducing redundant recipe lookups in hot paths, especially during incremental scroll and repeated recipe resolution in large modpacks.
-- Investigate additional optimizations that complement FastSuite, focusing on client-side UI refresh cost and recipe matching frequency.
-
 ## License
 This project is licensed under **GPL-3.0-only**.
