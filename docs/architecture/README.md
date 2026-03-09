@@ -2,10 +2,11 @@
 
 This directory contains the first PlantUML baseline for the current Proximity Crafting architecture.
 
-These diagrams describe the codebase as it exists now after:
-- the Architectury modularization,
-- the Fabric 1.20.1 stable vanilla recipe book milestone,
-- the NeoForge 1.20.1 stable vanilla recipe book milestone.
+These diagrams describe the codebase as it exists now for the active `version/1.20` branch:
+- the Architectury modularization is already established,
+- Forge is the reference runtime,
+- Fabric is the active secondary runtime,
+- NeoForge is not part of this branch scope.
 
 Recommended reading order:
 1. `01-module-overview.puml`
@@ -17,7 +18,7 @@ Diagram purpose:
 - `01-module-overview.puml`: module boundaries and ownership rules
 - `02-common-core-components.puml`: the reusable `common` subsystems and contracts, including the shared `SourceScanRuntime` and shared config codec
 - `03-runtime-request-response-flow.puml`: the current request/response runtime flow, including the shared server request controller on the C2S side
-- `04-platform-hosts-and-adapters.puml`: how Forge, Fabric, and NeoForge host the shared core, including the platform-local vanilla recipe book seam, shared screen runtime controllers, shared menu runtime seam, and shared server request handling
+- `04-platform-hosts-and-adapters.puml`: how Forge and Fabric host the shared core on the active `1.20` branch, including the platform-local vanilla recipe book seam, shared screen runtime controllers, shared menu runtime seam, and shared server request handling
 
 Rendering locally:
 - If PlantUML is installed, run:

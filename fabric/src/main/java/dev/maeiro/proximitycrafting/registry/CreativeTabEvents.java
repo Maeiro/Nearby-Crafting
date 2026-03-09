@@ -1,13 +1,16 @@
 package dev.maeiro.proximitycrafting.registry;
 
 import dev.architectury.registry.CreativeTabRegistry;
-import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.resources.ResourceLocation;
 
 public final class CreativeTabEvents {
 	private CreativeTabEvents() {
 	}
 
 	public static void init() {
-		CreativeTabRegistry.append(CreativeModeTabs.FUNCTIONAL_BLOCKS, ModItems.PROXIMITY_CRAFTING_TABLE);
+		CreativeTabRegistry.append(
+				CreativeTabRegistry.defer(new ResourceLocation("minecraft", "functional_blocks")),
+				ModItems.PROXIMITY_CRAFTING_TABLE
+		);
 	}
 }

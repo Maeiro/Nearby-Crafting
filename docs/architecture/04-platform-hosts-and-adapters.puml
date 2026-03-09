@@ -33,18 +33,7 @@ package "fabric" as FabricHost {
   component "Runtime hooks" as FabricRuntimeHooks
   component "Thin scanner adapters" as FabricScanAdapters
   component "Fabric config binding\n(local file backend)" as FabricConfigBinding
-  component "Overlay compat pending" as FabricCompatPending
-}
-
-package "neoforge" as NeoForgeHost {
-  component "Menu host" as NeoForgeMenu
-  component "Screen host" as NeoForgeScreen
-  component "Recipe book runtime bridge\n(accessor-backed)" as NeoForgeRecipeBookBridge
-  component "Network bridge" as NeoForgeNetwork
-  component "Runtime hooks" as NeoForgeRuntimeHooks
-  component "Thin scanner adapters" as NeoForgeScanAdapters
-  component "NeoForge config binding\n(local file backend)" as NeoForgeConfigBinding
-  component "Vanilla-book-only scope" as NeoForgeVanillaOnly
+  component "Vanilla-first scope\n(overlays deferred)" as FabricCompatPending
 }
 
 ForgeMenu ..> CommonRuntime
@@ -73,19 +62,6 @@ FabricScanAdapters ..> CommonScan
 FabricConfigBinding ..> CommonCore
 FabricCompatPending ..> CommonClientSeams
 
-NeoForgeMenu ..> CommonRuntime
-NeoForgeMenu ..> CommonMenuRuntime
-NeoForgeMenu ..> CommonMenuHelpers
-NeoForgeNetwork ..> CommonServerRequests
-NeoForgeScreen ..> CommonClientSeams
-NeoForgeScreen ..> CommonScreenRuntime
-NeoForgeScreen ..> NeoForgeRecipeBookBridge
-NeoForgeNetwork ..> CommonClientSeams
-NeoForgeRuntimeHooks ..> CommonClientSeams
-NeoForgeScanAdapters ..> CommonScan
-NeoForgeConfigBinding ..> CommonCore
-NeoForgeVanillaOnly ..> CommonClientSeams
-
 note bottom of ForgeHost
 Reference runtime.
 Full current host with active overlay and backpack compat.
@@ -94,13 +70,8 @@ Source discovery orchestration now runs through a shared scan runtime.
 end note
 
 note bottom of FabricHost
-Stable for the vanilla recipe book path on 1.20.1.
-JEI / EMI integration is still pending.
-end note
-
-note bottom of NeoForgeHost
-Stable for the vanilla recipe book path on 1.20.1.
-This line is intentionally capped and does not target
-further overlay or backpack parity.
+Active secondary runtime on `version/1.20`.
+The first target is stable vanilla recipe book behavior.
+Overlay parity is deferred in the initial pass.
 end note
 @enduml

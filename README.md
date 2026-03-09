@@ -5,12 +5,11 @@
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U7U3EQ9EW)
 
-**Proximity Crafting** is a modular 1.20.1 mod that adds a custom crafting table which can use ingredients from nearby inventories, so you do not need to manually move everything into your player inventory first.
+**Proximity Crafting** is a modular Minecraft mod that adds a custom crafting table which can use ingredients from nearby inventories, so you do not need to manually move everything into your player inventory first.
 
 Current platform status:
-- Forge 1.20.1: reference runtime and full current feature set
-- Fabric 1.20.1: stable vanilla recipe book runtime, overlay integrations still pending
-- NeoForge 1.20.1: stable vanilla recipe book runtime only
+- Forge 1.20: reference runtime for this branch
+- Fabric 1.20: stable vanilla recipe book target for this branch
 
 ## What This Mod Does
 - Adds the **Proximity Crafting Table** (3x3 crafting).
@@ -63,22 +62,20 @@ When using Proximity Crafting recipe interactions (including overlay integration
   - scroll down decreases loaded amount and returns ingredients through the tracked source flow.
 
 ## Supported Platforms
-- Minecraft `1.20.1`
+- Minecraft `1.20`
 - Java `17`
-- Forge `47.x`
+- Forge `46.x`
   - reference runtime
-- Fabric `1.20.1`
-  - stable vanilla recipe book path
-- NeoForge `1.20.1`
-  - stable vanilla recipe book path only
+- Fabric `1.20`
+  - vanilla recipe book target for this branch
 
 ## Optional Dependencies
 - JEI
-  - currently relevant to the Forge runtime
+  - relevant to the Forge runtime on this branch
 - EMI
-  - currently relevant to the Forge runtime
+  - relevant to the Forge runtime on this branch
 - Sophisticated Backpacks (+ Sophisticated Core)
-  - currently relevant to the Forge runtime
+  - relevant to the Forge runtime on this branch
 - FastSuite
   - Highly recommended for large modpacks.
   - It significantly improves recipe lookup and crafting-related performance, which also helps Proximity Crafting interactions such as incremental scroll loading.

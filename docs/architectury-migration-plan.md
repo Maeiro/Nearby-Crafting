@@ -14,17 +14,23 @@ Keep Proximity Crafting on a modular Architectury-based structure where:
 - `common` owns reusable behavior, state, contracts, payloads, config semantics, and shared descriptors
 - platform modules own runtime adapters, transport, bootstrap, screens, and loader-specific integrations
 
-The migration is no longer about proving the module split. That baseline is already in place. The next goal is controlled parity work on top of it.
+For this branch, the immediate target is a new version line:
+- Minecraft `1.20`
+- active loaders: `forge` and `fabric`
+- reference runtime: `forge`
+- Fabric starts as vanilla-only
+- NeoForge is out of scope for this line
+
+The migration is no longer about proving the module split. That baseline is already in place. The next goal is controlled parity work on top of it, starting with the `1.20` adaptation.
 
 ## Current state
 - Project layout is established:
   - `common`
   - `forge`
   - `fabric`
-  - `neoforge`
 - Forge remains the reference runtime.
-- Fabric 1.20.1 has a real runtime host and a stable vanilla recipe book path.
-- NeoForge 1.20.1 has a real runtime host and a stable vanilla recipe book path, but that line is intentionally capped there.
+- Fabric remains an active runtime target.
+- NeoForge is not part of the active `1.20` branch scope.
 - Shared assets/data/resources live in `common`.
 - Shared architecture seams now exist for:
   - source scanning, discovery orchestration, and aggregation
@@ -39,8 +45,8 @@ The migration is no longer about proving the module split. That baseline is alre
   - a common-boundary verification gate in `:common:check`
 
 Detailed platform status:
+- Forge: `docs/forge-port-status.md`
 - Fabric: `docs/fabric-port-status.md`
-- NeoForge: `docs/neoforge-port-status.md`
 
 ## Current architectural boundary
 
@@ -73,22 +79,17 @@ Detailed platform status:
 
 ### Platform-specific status
 - Forge:
-  - reference runtime
-  - current full feature set
-  - JEI / EMI / Sophisticated Backpacks integrations remain here
+  - reference runtime for `1.20`
+  - vanilla runtime plus JEI / EMI are the target scope
+  - backpack compat remains on the Forge side when this line reaches parity
 - Fabric:
-  - stable for the vanilla recipe book path
-  - vanilla recipe book runtime access is isolated behind a platform-local bridge
-  - overlay integrations still pending
-- NeoForge 1.20.1:
-  - stable for the vanilla recipe book path
-  - vanilla recipe book runtime access is isolated behind a platform-local bridge
-  - intentionally limited to that scope
-  - does not target further overlay or backpack parity on this version line
+  - active on the `1.20` line
+  - vanilla recipe book runtime is the first-pass target
+  - overlay integrations are not in scope for the initial adaptation
 
 ## Next migration targets
-1. Implement EMI integration on Fabric.
-2. Implement JEI on Fabric only if it remains part of the target feature set.
-3. Keep NeoForge 1.20.1 in maintenance-only mode for vanilla-book issues.
-4. Revisit whether the Fabric/NeoForge local config backends should later move to loader-native config frameworks.
-5. Continue moving any remaining high-value runtime glue out of platform hosts only when it reduces future parity cost.
+1. Retarget Forge from `1.20.1 / Forge 47 / Architectury 9` to `1.20 / Forge 46 / Architectury 8`.
+2. Recover stable Forge vanilla runtime on `1.20`.
+3. Re-enable JEI and EMI on Forge `1.20` after vanilla stability.
+4. Retarget Fabric to `1.20` with the same shared-core seams.
+5. Revisit Fabric overlays only after the `1.20` vanilla path is stable.

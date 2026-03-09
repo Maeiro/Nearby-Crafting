@@ -20,14 +20,7 @@ package "fabric" as Fabric {
   component "Runtime adapters" as FabricAdapters
   component "Transport and bootstrap" as FabricBootstrap
   component "UI host" as FabricUi
-  component "Compat placeholders\n(overlay integrations pending)" as FabricCompat
-}
-
-package "neoforge" as NeoForge {
-  component "Runtime adapters" as NeoForgeAdapters
-  component "Transport and bootstrap" as NeoForgeBootstrap
-  component "UI host" as NeoForgeUi
-  component "Vanilla-book-only target" as NeoForgeScope
+  component "Vanilla-first scope\n(overlays deferred)" as FabricCompat
 }
 
 CommonBehavior -down-> CommonContracts
@@ -42,11 +35,6 @@ FabricBootstrap ..> CommonContracts
 FabricUi ..> CommonBehavior
 FabricCompat ..> CommonContracts
 
-NeoForgeAdapters ..> CommonBehavior
-NeoForgeBootstrap ..> CommonContracts
-NeoForgeUi ..> CommonBehavior
-NeoForgeScope ..> CommonContracts
-
 note bottom of Common
 common owns reusable behavior, state machines,
 contracts, shared payloads, config semantics,
@@ -60,14 +48,8 @@ runtime adapters, and current compat.
 end note
 
 note bottom of Fabric
-Fabric 1.20.1 is stable for the vanilla
-recipe book path. Overlay integrations are
-still pending.
-end note
-
-note bottom of NeoForge
-NeoForge 1.20.1 is intentionally capped at
-the vanilla recipe book runtime path.
-JEI, EMI, and backpack compat remain deferred.
+Fabric 1.20 is an active secondary runtime
+on this branch. The initial target is the
+vanilla recipe book path only.
 end note
 @enduml

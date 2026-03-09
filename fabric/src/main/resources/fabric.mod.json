@@ -22,8 +22,8 @@
     "proximitycrafting.fabric.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.15.11",
+    "fabricloader": ">=${fabric_loader_version}",
     "minecraft": "~${minecraft_version}",
-    "architectury": ">=${architectury_api_version}"
+    "architectury": ">=${architectury_api_version} <10.0.0"
   }
 }

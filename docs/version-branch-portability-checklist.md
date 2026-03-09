@@ -13,6 +13,9 @@ Recommended interpretation:
 - shared `common + platform` architecture inside each version branch
 - reuse adjacent branches where the runtime/API delta is still small enough to justify it
 
+Current line:
+- `version/1.20` is a direct reuse of the `version/1.20.1` architecture, with active loaders narrowed to Forge + Fabric for this version line.
+
 ## What "good enough" looks like
 - The project is not Forge-only in structure.
 - Most gameplay behavior lives in `common`.

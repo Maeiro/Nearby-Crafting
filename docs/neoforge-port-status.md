@@ -1,5 +1,10 @@
 # NeoForge Port Status
 
+## Branch note
+NeoForge is out of scope for the active `version/1.20` line.
+
+This document is kept only as historical reference for the `version/1.20.1` line, where NeoForge `1.20.1` was intentionally capped at the stable vanilla recipe book path.
+
 ## Architecture diagrams
 See the current PlantUML baseline in [docs/architecture/README.md](architecture/README.md).
 

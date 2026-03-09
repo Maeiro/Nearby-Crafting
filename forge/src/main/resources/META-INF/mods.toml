@@ -27,7 +27,7 @@ side="BOTH"
 [[dependencies.proximitycrafting]]
 modId="jei"
 mandatory=false
-versionRange="[15.0.0,)"
+versionRange="[14.0.0,)"
 ordering="AFTER"
 side="CLIENT"
 

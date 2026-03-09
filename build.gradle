@@ -54,10 +54,7 @@ subprojects {
 
         dependencies {
             minecraft "com.mojang:minecraft:${mc_version}"
-            mappings loom.layered {
-                officialMojangMappings()
-                parchment("org.parchmentmc.data:parchment-${mc_version}:${parch_mapping}@zip")
-            }
+            mappings loom.officialMojangMappings()
         }
     }
 }

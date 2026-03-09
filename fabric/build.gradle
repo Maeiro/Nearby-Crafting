@@ -42,6 +42,7 @@ tasks.withType(ProcessResources).configureEach {
             mod_version     : mod_version,
             mod_authors     : mod_authors,
             mod_description : mod_description,
+            fabric_loader_version: fabric_loader_version,
             architectury_api_version: architectury_api_version
     ]
 
