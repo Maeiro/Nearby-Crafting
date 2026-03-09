@@ -22,8 +22,6 @@ This playbook is mandatory whenever a new version branch is created or an existi
 
 ## Required kickoff updates
 Before feature work starts on the new version line, update or create:
-- `docs/architectury-migration-plan.md`
-  - record the new branch objective and platform scope
 - `docs/version-branch-portability-checklist.md`
   - keep it accurate for the new branch state
 - per-platform port status docs that apply to the branch
@@ -44,7 +42,7 @@ Treat documentation updates as required when any of these change:
 
 Minimum required updates for a material divergence:
 - affected port-status doc
-- `docs/architectury-migration-plan.md`
+- `docs/version-branch-portability-checklist.md`
 - at least one PlantUML diagram if the architecture boundary changed
 
 ## Common-boundary guardrail
